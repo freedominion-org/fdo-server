@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]
+then
+  echo ""
+  echo "Usage:   ${0} DB_NAME"
+  echo "Example: ${0} free-dominion.org"
+  echo ""
+  exit 1
+fi
+
+DB_NAME=$1
+
+DATE_CMD=/bin/date
+NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
+
+/usr/local/bin/pg_dump -w ${DB_NAME} > /backup/pg_dumps/${DB_NAME}.${NOW}.sql

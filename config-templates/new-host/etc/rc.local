@@ -1,0 +1,2 @@
+#rm /tmp/.X10-lock
+#/usr/bin/su - FDO_USERNAME -c "/usr/local/bin/vncserver :10 -geometry 1200x700 -alwaysshared -localhost -dpi 96"

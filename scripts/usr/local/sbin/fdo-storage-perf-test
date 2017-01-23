@@ -1,0 +1,30 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]
+then
+  echo ""
+  echo "Usage:   ${0} POOL_NAME"
+  echo "Example: ${0} data"
+  echo "Example: ${0} backup"
+  echo ""
+  exit 1
+fi
+
+POOL_NAME=$1
+
+zpool list ${POOL_NAME} > /dev/null 2>&1
+if [ $? -ne 0 ]
+then
+  echo ""
+  echo "Pool does not seem to exist, check the pool name."
+  echo ""
+  exit 2
+fi
+
+POOL_MOUNTPOINT=`zfs get mountpoint backup | tail -n +2 | awk '{print $3}'`
+TEST_FILE=${POOL_MOUNTPOINT}/test.file
+
+echo ""
+time sh -c "dd if=/dev/urandom of=${TEST_FILE} bs=8k count=100000 && sync"
+rm ${TEST_FILE}
+echo ""

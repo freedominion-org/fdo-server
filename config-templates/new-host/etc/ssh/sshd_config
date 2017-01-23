@@ -1,0 +1,5 @@
+#Port 22
+#ListenAddress 0.0.0.0
+ClientAliveInterval 30
+ClientAliveCountMax 3
+UseDNS no

@@ -1,0 +1,55 @@
+#!/bin/sh
+
+if [ $# -ne 3 ]
+then
+  echo ""
+  echo "Usage:   $0 template_name vnc_offset vnc_password"
+  echo "Example: $0 WinXPShared 02 letmein"
+  echo ""
+  exit 1
+fi
+
+TEMPLATE_NAME=$1
+VNC_OFFSET=$2
+VNC_PASSWORD=$3
+RD_NAME=${TEMPLATE_NAME}${VNC_OFFSET}
+VBOX_GUESTS_POOL=`cat /usr/local/etc/fdo/vbox_guests_pool.conf`
+
+zfs clone ${VBOX_GUESTS_POOL}/vboxguests/RemoteDesktop@${TEMPLATE_NAME} ${VBOX_GUESTS_POOL}/vboxguests/${RD_NAME}
+
+mv "/vboxguests/${RD_NAME}/VirtualBox VMs/RemoteDesktop" "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}"
+mv "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/RemoteDesktop.vbox" "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/${RD_NAME}.vbox"
+mv "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/RemoteDesktop.vbox-prev" "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/${RD_NAME}.vbox-prev"
+mv "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/RemoteDesktop.vdi" "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/${RD_NAME}.vdi"
+
+replaceinfiles "RemoteDesktop" "${RD_NAME}" /vboxguests/${RD_NAME}/.kde
+replaceinfiles "RemoteDesktop" "${RD_NAME}" /vboxguests/${RD_NAME}/.kde4
+replaceinfiles "RemoteDesktop" "${RD_NAME}" /vboxguests/${RD_NAME}/.config
+
+if [ -f /vboxguests/${RD_NAME}/.VirtualBox ]
+then
+  replaceinfiles "RemoteDesktop" "${RD_NAME}" /vboxguests/${RD_NAME}/.VirtualBox
+fi
+
+sed -i "" "s/RemoteDesktop/${RD_NAME}/g" "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/${RD_NAME}.vbox"
+sed -i "" "s/RemoteDesktop/${RD_NAME}/g" "/vboxguests/${RD_NAME}/VirtualBox VMs/${RD_NAME}/${RD_NAME}.vbox-prev"
+
+cpdup /usr/local/etc/rc.d/RemoteDesktop /usr/local/etc/rc.d/${RD_NAME}
+sed -i "" "s/RemoteDesktop/${RD_NAME}/g" /usr/local/etc/rc.d/${RD_NAME}
+
+pw useradd -n ${RD_NAME} -c "Remote Desktop ${VNC_OFFSET}" -d /vboxguests/${RD_NAME} -G vboxusers -s /usr/local/bin/bash
+chown -R ${RD_NAME}:${RD_NAME} /vboxguests/${RD_NAME}
+
+su - ${RD_NAME} -c "/usr/local/bin/VBoxManage setproperty vrdeextpack VNC"
+su - ${RD_NAME} -c "/usr/local/bin/VBoxManage modifyvm ${RD_NAME} --vrdeport 60${VNC_OFFSET}"
+su - ${RD_NAME} -c "/usr/local/bin/VBoxManage modifyvm ${RD_NAME} --vrdeproperty VNCPassword=${VNC_PASSWORD}"
+su - ${RD_NAME} -c "/usr/local/bin/VBoxManage modifyvm ${RD_NAME} --macaddress1 auto"
+
+cat /etc/rc.conf | grep ${RD_NAME}
+if [ $? != 0 ]
+then
+  echo "${RD_NAME}_enable=\"YES\"" >> /etc/rc.conf
+fi
+
+touch /var/log/${RD_NAME}.log
+chown ${RD_NAME}:${RD_NAME} /var/log/${RD_NAME}.log

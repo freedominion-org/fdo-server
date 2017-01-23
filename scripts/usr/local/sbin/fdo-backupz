@@ -1,0 +1,211 @@
+#!/bin/sh
+
+if [ $# != 2 ]
+then
+  echo "Usage:   $0 pool_to_backup backup_pool"
+  echo "Example: $0 rpool backup01"
+  exit 1
+fi
+
+## take timestamp
+DAV_SERVER_USERID=`cat /usr/local/etc/fdo/webdav_userid.conf`
+DAV_SERVER_GROUPID=`cat /usr/local/etc/fdo/webdav_groupid.conf`
+DATE_CMD=/bin/date
+DATE_VERSION="freebsd" #choices of "freebsd" and "gnu"
+NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
+POOL=$1
+BACKUP_POOL=$2
+DAY_IN_SECS=86400
+CLONE_WINDOW_DAYS=5
+NOW_IN_SECS=`${DATE_CMD} +%s`
+DESTROY_BEFORE=`expr ${NOW_IN_SECS} - \( ${CLONE_WINDOW_DAYS} \* ${DAY_IN_SECS} \)`
+ZFS_SEND_FLAGS=`cat /usr/local/etc/fdo/backupz_send_flags.conf`
+
+
+######## SANITY TESTS ###############################################################
+
+zpool list | tail -n +2 | awk '{print $1}' | grep backup > /dev/null 2>&1
+if [ $? -ne 0 ]
+then
+   exit 2
+fi
+
+if [ -f /backup/last-backup-error-${POOL}.inf ]
+then
+  exit 3
+fi
+
+if [ -f /backup/backup-${POOL}-running.inf ]
+then
+  exit 4
+fi
+
+######################################################################################
+
+
+if [ -f /backup/last-successful-backup-${POOL}.inf ]
+then
+  PREVIOUS=`cat /backup/last-successful-backup-${POOL}.inf`
+else
+  PREVIOUS="last-successful-backup-missing"
+fi
+
+echo "Previous backup: ${PREVIOUS}"
+
+warning_code=0
+warning_snapshot="NULL"
+warning_occured () {
+  echo "backup timestamp: ${NOW}" >> /backup/backup-warning-${POOL}.inf
+  echo "snapshot: ${warning_snapshot}" >> /backup/backup-warning-${POOL}.inf
+  echo "warning_code: ${warning_code}" >> /backup/backup-warning-${POOL}.inf
+}
+
+error_code=0
+error_snapshot="NULL"
+error_occured () {
+  echo "backup timestamp: ${NOW}" > /backup/last-backup-error-${POOL}.inf
+  echo "snapshot: ${error_snapshot}" >> /backup/last-backup-error-${POOL}.inf
+  echo "error_code: ${error_code}" >> /backup/last-backup-error-${POOL}.inf
+  rm /backup/backup-${POOL}-running.inf
+  exit 5
+}
+
+echo ${NOW} > /backup/backup-${POOL}-running.inf
+
+## recursively snapshot pools
+zfs snapshot -r ${POOL}@${NOW}
+
+zfs list -H -t all -r ${POOL} | awk '{print $1}' > /tmp/backupz-${POOL}-filesystems.list
+zfs list -H -t snapshot -r ${BACKUP_POOL} | awk '{print $1}' > /tmp/backupz-${BACKUP_POOL}-snapshots.list
+
+snapshot_names=`cat /tmp/backupz-${POOL}-filesystems.list | grep ${NOW}`
+
+for i in ${snapshot_names}
+do
+  snapshot_parent=`echo ${i} | sed "s/@.*//"`
+  cat /tmp/backupz-${BACKUP_POOL}-snapshots.list | grep "^${BACKUP_POOL}/${snapshot_parent}@"
+  if [ $? = 0 ]
+  then    # zfs filesystem DOES exist on backup pool
+    echo "zfs filesystem DOES exist on backup pool:"
+    echo "${i}"
+    # send incremental snapshot to backup pool
+    echo "zfs send ${ZFS_SEND_FLAGS} -i ${PREVIOUS} ${i} | zfs receive -F ${BACKUP_POOL}/${snapshot_parent}"
+    zfs send ${ZFS_SEND_FLAGS} -i ${PREVIOUS} ${i} | zfs receive -F ${BACKUP_POOL}/${snapshot_parent}
+    if [ $? != 0 ] ; then error_code=1 ; error_snapshot=${i} ; error_occured ; fi
+  else    # zfs filesystem DOES NOT exist on backup pool
+    echo "zfs filesystem DOES NOT exist on backup pool:"
+    echo "${i}"
+    # send new filesystem to backup pool
+    echo "zfs send ${ZFS_SEND_FLAGS} ${i} | zfs receive ${BACKUP_POOL}/${snapshot_parent}"
+    zfs send ${ZFS_SEND_FLAGS} ${i} | zfs receive ${BACKUP_POOL}/${snapshot_parent}
+    if [ $? != 0 ] ; then error_code=2 ; error_snapshot=${i} ; error_occured ; fi
+
+    IS_SHARED_FS="false"
+    case ${snapshot_parent} in
+      */shares*)
+        IS_SHARED_FS="true"
+        ;;
+      */users/*)
+        IS_SHARED_FS="true"
+        ;;
+    esac
+    if [ "${IS_SHARED_FS}" = "true" ]
+    then
+      # create .history mountpoint base folder inside new filesystem
+      newfs_mountpoint=`zfs get -o value mountpoint ${snapshot_parent} | tail -1`
+      if [ -d "${newfs_mountpoint}/.past" ]
+      then
+        echo .past folder already exists
+      else
+        mkdir "${newfs_mountpoint}/.past"
+        if [ $? != 0 ] ; then error_code=3 ; error_snapshot=${i} ; error_occured ; fi
+      fi
+      chown ${DAV_SERVER_USERID}:${DAV_SERVER_GROUPID} "${newfs_mountpoint}/.past"
+      if [ $? != 0 ] ; then error_code=4 ; error_snapshot=${i} ; error_occured ; fi
+    fi
+  fi
+
+done
+
+
+if [ "${PREVIOUS}" != "last-successful-backup-missing" ]
+then
+  for i in ${snapshot_names}
+  do
+    snapshot_parent=`echo ${i} | sed "s/@.*//"`
+
+    # Destroy previous snapshots on pool, we only want them on backup pool. Must always keep last snapshot for sending increment.
+    cat /tmp/backupz-${POOL}-filesystems.list | grep ${snapshot_parent}@${PREVIOUS}
+    if [ $? = 0 ]
+    then
+      echo "Destroy previous snapshot: ${snapshot_parent}@${PREVIOUS}"
+      zfs destroy ${snapshot_parent}@${PREVIOUS}
+      if [ $? != 0 ] ; then error_code=5 ; error_snapshot=${snapshot_parent}@${PREVIOUS} ; error_occured ; fi
+    fi
+    # mount snapshots inside .past folders (if they are /shares or /users webdav filesystems)
+    case ${snapshot_parent} in 
+      */shares*)
+        snapshot_parent_mountpoint=`zfs get -o value mountpoint ${snapshot_parent} | tail -1`
+        zfs clone -o readonly=on -o mountpoint=${snapshot_parent_mountpoint}/.past/${NOW} ${BACKUP_POOL}/${i} ${BACKUP_POOL}/${snapshot_parent}/${NOW}
+        if [ $? != 0 ] ; then warning_code=1 ; warning_snapshot=${BACKUP_POOL}/${i} ; warning_occured ; fi
+        ;;
+    esac
+    case ${snapshot_parent} in
+      */users/*)
+        snapshot_parent_mountpoint=`zfs get -o value mountpoint ${snapshot_parent} | tail -1`
+        zfs clone -o readonly=off -o mountpoint=${snapshot_parent_mountpoint}/.past/${NOW} ${BACKUP_POOL}/${i} ${BACKUP_POOL}/${snapshot_parent}/${NOW}
+        if [ $? != 0 ] ; then warning_code=2 ; warning_snapshot=${BACKUP_POOL}/${i} ; warning_occured ; fi
+        ;;
+    esac
+    echo ""
+  done
+fi
+
+# Write to log file
+timestamp=`${DATE_CMD} +%Y-%m-%d_%H-%M-%S`
+echo "${timestamp} backup for ${NOW} finished! " >> /backup/log/system-backup-${POOL}.${NOW}.log
+echo "" >> /backup/log/system-backup-${POOL}.${NOW}.log
+echo "${timstamp} zpool list:" >> /backup/log/system-backup-${POOL}.${NOW}.log
+zpool list >> /backup/log/system-backup-${POOL}.${NOW}.log
+echo "" >> /backup/log/system-backup-${POOL}.${NOW}.log
+echo "${timstamp} zpool status:" >> /backup/log/system-backup-${POOL}.${NOW}.log
+zpool status >> /backup/log/system-backup-${POOL}.${NOW}.log
+echo "" >> /backup/log/system-backup-${POOL}.${NOW}.log
+
+## Disable zfs list, since it takes a long time
+#echo "${timestamp} zfs list:" >> /backup/log/system-backup-${POOL}.${NOW}.log
+#zfs list -t all >> /backup/log/system-backup-${POOL}.${NOW}.log
+
+# Assuming backup successful, report last snapshot timestamp and remove 'is-running' marker
+echo ${NOW} > /backup/last-successful-backup-${POOL}.inf
+
+## Now peel off older clones
+
+:> /tmp/backupz-${BACKUP_POOL}-clones.list
+for snapshot in `cat /tmp/backupz-${BACKUP_POOL}-snapshots.list`
+do
+  projected_clone_name=`echo ${snapshot} | sed "s|@|/|"`
+
+  zfs list -o origin ${projected_clone_name} > /dev/null 2>&1
+  if [ $? = 0 ]
+  then
+    CLONE_DATE=`zfs list -H -o creation ${projected_clone_name}`
+    if [ "$DATE_VERSION" = "freebsd" ]
+    then
+      timestamp=`${DATE_CMD} -j -f "%a %b %d %H:%M %Y" "${CLONE_DATE}" +%s`
+    else
+      timestamp=`${DATE_CMD} -d "${CLONE_DATE}" +%s`
+    fi
+    echo "${projected_clone_name} ${timestamp}" >> /tmp/backupz-${BACKUP_POOL}-clones.list
+    if [ ${timestamp} -lt ${DESTROY_BEFORE} ]
+    then
+      zfs destroy ${projected_clone_name}
+    fi
+  fi
+
+done
+
+echo "Peel off clones finished." >> /backup/log/system-backup-${POOL}.${NOW}.log
+echo "backupz finished." >> /backup/log/system-backup-${POOL}.${NOW}.log
+
+rm /backup/backup-${POOL}-running.inf

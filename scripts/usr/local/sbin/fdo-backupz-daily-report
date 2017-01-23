@@ -1,0 +1,30 @@
+#!/bin/sh
+
+POOL=${1}
+
+SUBJECT='URGENT BACKUP SERVER ERROR'
+TO="TO_EMAIL_ADDRESSES"
+BCC="BCC_EMAIL_ADDRESSES"
+CC="CC_EMAIL_ADDRESSES"
+MESSAGE="/tmp/server-reports.txt"
+HOST=$(hostname)
+
+:> ${MESSAGE}
+
+if [ -f /backup/last-backup-error-${POOL}.inf ]
+ then
+   echo "The backup didn't run successfully, please check the logs" >> ${MESSAGE} 
+   echo "===========================================================================" >> ${MESSAGE}
+   cat /backup/last-backup-error-${POOL}.inf >> ${MESSAGE}
+   mail -s "${SUBJECT} from $HOST" ${TO} < ${MESSAGE}
+fi
+
+if  [ -f /backup/backup-${POOL}-running.inf ]
+ then
+   echo "Backup is still running, please check the logs" >> ${MESSAGE} 
+   echo "===========================================================================" >> ${MESSAGE}
+   cat /backup/backup-${POOL}-running.inf >> ${MESSAGE}
+   mail -s "${SUBJECT} from ${HOST}" -b "${BCC}" -c "${CC}" ${TO} < ${MESSAGE}
+fi
+
+rm ${MESSAGE}

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+SHORT_ORG_NAME=$1
+SHARE_PATH=$2
+
+WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
+
+if [ $# -ne 2 ]
+then
+  echo ""
+  echo "Usage:   ${0} SHORT_ORG_NAME SHARE_PATH"
+  echo "Example: ${0} ffs Accounts"
+  echo ""
+  exit 1
+fi
+
+zfs get quota ${WEBDAV_ROOT_FS}/${SHORT_ORG_NAME}/shares/${SHARE_PATH}
+

@@ -1,0 +1,202 @@
+# Extensions to support Groupware Solution based on Postfix MTA, Cyrus IMAP, SOGo and ejabberd using Openldap experimental OID's
+
+attributetype ( 1.3.6.1.4.1.15347.2.102 
+        NAME 'transport' 
+        SUP name )
+
+## NOTE: taken from openldaps' misc.schema.default
+#attributetype ( 1.3.6.1.4.1.15347.2.112
+#        NAME 'mailHost'
+#        DESC 'FQDN of the SMTP/MTA of this recipient'
+#        EQUALITY caseIgnoreIA5Match
+#        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256}
+#        SINGLE-VALUE )
+
+## NOTE: taken from openldaps' misc.schema.default
+attributetype ( 1.3.6.1.4.1.15347.2.113
+        NAME 'mailDestinationHost'
+        DESC 'FQDN of the SMTP/MTA of this recipient'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256}
+        SINGLE-VALUE )
+
+## NOTE: adapted from openldaps' core.schema
+attributetype ( 1.3.6.1.4.1.15347.2.114
+        NAME 'mailDomain'
+        DESC 'mail domain associated with object'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+
+## NOTE: adapted from openldaps' core.schema
+attributetype ( 1.3.6.1.4.1.15347.2.115
+        NAME 'hostedDomain'
+        DESC 'hosted mail domains associated with a particular host'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+
+## NOTE: adapted from openldaps' core.schema
+attributetype ( 1.3.6.1.4.1.15347.2.116
+        NAME 'mailDestinationDomain'
+        DESC 'default mail domain of a particular host'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+
+## NOTE: adapted from green-ldap schema
+attributetype ( 1.3.6.1.4.1.15347.2.117 
+        NAME 'mailHostStatus'
+        DESC 'The status of a mail host: active, disabled, paused'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+## NOTE: adapted from green-ldap schema
+attributetype ( 1.3.6.1.4.1.15347.2.118
+        NAME 'accountStatus'
+        DESC 'The status of a user account: active, idle, disabled'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+## NOTE: adapted from green-ldap schema
+attributetype ( 1.3.6.1.4.1.15347.2.119 
+        NAME 'mailAlternateAddress'
+        DESC 'Email aliases for the same user, addresses will be rewritten to mail.'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+
+## NOTE: copied from mailAlternateAddress, inspired by Sun Java Messaging Server schema
+attributetype ( 1.3.6.1.4.1.15347.2.120 
+        NAME 'mailEquivalentAddress'
+        DESC 'Email aliases for the same user, addresses will NOT be rewritten.'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+
+## NOTE: taken from green-ldap schema
+attributetype ( 1.3.6.1.4.1.15347.2.121 
+        NAME 'mailForwardingAddress'
+        DESC 'Address(es) to forward all incoming messages to.'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+
+attributetype ( 1.3.6.1.4.1.15347.2.122 
+        NAME 'mgrpRFC822MailMember'
+        DESC 'Email address of group members not in directory.'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+
+## NOTE: taken from green-ldap schema
+attributetype ( 1.3.6.1.4.1.15347.2.123
+        NAME 'mailDeliveryMode'
+        DESC 'multi field entries of: nolocal, noforward, noprogram, reply'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{32} )
+
+attributetype ( 1.3.6.1.4.1.15347.2.124
+        NAME 'lmtpHostname'
+        DESC 'Hostname of LMTP server'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+attributetype ( 1.3.6.1.4.1.15347.2.125
+        NAME 'lmtpLogin'
+        DESC 'Login credentials for LMTP server. Syntax = <username:password>'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+attributetype ( 1.3.6.1.4.1.15347.2.126
+        NAME 'IMAPURL'
+        DESC 'SOGo compatible IMAP URL. Syntax: <imaps://hostname:port> or <imap://hostname:port/?tls=YES>'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+attributetype ( 1.3.6.1.4.1.15347.2.127
+        NAME 'xmppRosterStatus'
+        DESC 'The status of a roster: active, disabled'
+        EQUALITY caseIgnoreIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+attributetype ( 1.3.6.1.4.1.15347.2.128
+        NAME 'sipLocalAddress'
+        DESC 'SIP URI dialing address.'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+
+attributetype ( 1.3.6.1.4.1.15347.2.129
+        NAME 'sipRoutingAddress'
+        DESC 'SIP URI routing address.'
+        EQUALITY caseIgnoreIA5Match
+        SUBSTR caseIgnoreIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+
+attributetype ( 1.3.6.1.4.1.15347.2.130
+        NAME ( 'ipPhone' )
+        SUP telephoneNumber
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.1
+        NAME 'mailUser'
+        DESC 'E-Mail User'
+        SUP top
+        AUXILIARY
+        MUST ( uid $ mail $ accountStatus )
+        MAY ( cn $ mailHost $ mailAlternateAddress $ mailEquivalentAddress $ mailForwardingAddress $ mailDeliveryMode $ IMAPURL )
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.2
+        NAME 'mailGroup'
+        DESC 'Mail enabled group.'
+        SUP top
+        AUXILIARY
+        MUST ( cn $ mail $ accountStatus )
+        MAY ( member $ uniqueMember $ memberURL $ mailAlternateAddress $ mailEquivalentAddress $ mgrpRFC822MailMember  $ description )
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.3
+        NAME 'transportTable'
+        DESC 'MTA transport table.'
+        SUP top
+        STRUCTURAL
+        MUST ( cn $ transport $ mailDestinationDomain $ mailDestinationHost )
+        MAY ( lmtpHostname $ lmtpLogin )
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.4
+        NAME 'mailOrg'
+        DESC 'Email Enabled Organisation'
+        SUP top
+        AUXILIARY
+        MUST ( mailHost $ mailDomain $ mailHostStatus )
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.5
+        NAME 'mailHost'
+        DESC 'Email host (server)'
+        SUP top
+        STRUCTURAL
+        MUST ( cn $ mailDestinationHost $ mailDestinationDomain $ mailHostStatus )
+        MAY ( description $ hostedDomain )
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.6
+        NAME 'xmppRosterGroup'
+        DESC 'Roster Group for XMPP domains.'
+        SUP top
+        AUXILIARY
+        MUST ( cn $ xmppRosterStatus )
+        MAY ( member $ uniqueMember $ description )
+        )
+
+objectclass ( 1.3.6.1.4.1.15347.2.7
+        NAME 'sipRoutingObject'
+        AUXILIARY
+        MUST ( sipLocalAddress )
+        MAY ( sipRoutingAddress $ ipPhone )
+        )
+
+# EOF

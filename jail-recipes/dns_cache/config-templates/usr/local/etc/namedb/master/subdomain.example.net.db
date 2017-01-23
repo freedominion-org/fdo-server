@@ -1,0 +1,8 @@
+
+$TTL 3h
+@ SOA @ nobody.localhost. 1970010101 1d 12h 1w 3h ;
+                        ; Serial, Refresh, Retry, Expire, Neg. cache TTL
+
+        IN      NS      subdomain.example.net.
+
+subdomain.example.net.                  A       1.2.3.4

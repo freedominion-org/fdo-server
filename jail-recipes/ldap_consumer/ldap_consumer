@@ -1,0 +1,244 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+JAIL_IP="192.168.10.50"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+RECIPE_PACKAGES="openldap-sasl-server ldapvi"                                  # Optional:  packages to install in the jail
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_PF_RELOAD="yes"                                                # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order)
+RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+################################################################################
+
+cook_recipe ()
+{
+
+  echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that a 'ldap_provider' recipe is cooked,      "
+  echo -e   "        running and accessible. You must know the Provider servers' host        "
+  echo -e   "        address, base suffix and root (Manager) password in order to connect to "
+  echo -e   "        it and sync.                                                            \n"
+  echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'   "
+  echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.     \n"
+  echo -e   "        Useful terminology:                                                     \n"
+  echo -e   "        LDAP Provider: The openldap server that provides the schema to          "
+  echo -e   "            consumers (master).                                                 \n"
+  echo -e   "        LDAP Consumer: The openldap server (this jail) that syncs from the      "
+  echo -e   "            provider and consumes the schema (slave).                           \n"
+  echo -e   "        Replication ID: The unique identification number of each consumer that  "
+  echo -e   "            is used in syncing schemas.                                         \n"
+  echo -e   "        Sync user: The SASL proxy auth user in the Providers' database that has "
+  echo -e   "            access to all attributes (FDo default: proxy.user)                  \n"
+
+  question_yes_no "Would you like to continue to cook this jail recipe?"
+  if [ "${ANSWER}" = "no" ]
+  then
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
+  echo -e "Please accept when prompted...${NRML}\n"
+  sleep 5
+
+  # Install essential jail recipe packages from the recipe repo
+  pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+  if [ ${?} -ne 0 ]
+  then
+    echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  # Get the provider host address.
+  LDAP_PROVIDER_HOST=""
+  while [ "${LDAP_PROVIDER_HOST}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the LDAP Provider host address: ${NRML}\c"
+    read LDAP_PROVIDER_HOST_TEMP
+    test_valid_inet_address ${LDAP_PROVIDER_HOST_TEMP}
+    test_valid_host_name ${LDAP_PROVIDER_HOST_TEMP}
+    if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_HOST_NAME=}" = "yes" ]
+    then
+      test_ping_host ${LDAP_PROVIDER_HOST_TEMP}
+      if [ "${VALID_HOST_PING}" = "no" ]
+      then
+        echo -e "\n${ORNG}WARNING:${NRML} The Provider host address is not currently pingable!\n"
+      fi
+      echo -e ""
+      question_yes_no "You have entered '${LDAP_PROVIDER_HOST_TEMP}' as the Provider host address. Is this correct?"
+      if [ "${ANSWER}" = "yes" ]
+      then
+        LDAP_PROVIDER_HOST=${LDAP_PROVIDER_HOST_TEMP}
+      fi
+    else
+      echo -e "\n${LRED}ERROR:${NRML} The Provider host address is invalid!\n"
+    fi
+  done
+
+  # Get the provider sync userid from user.
+  LDAP_PROVIDER_SYNC_USERID=""
+  while [ "${LDAP_PROVIDER_SYNC_USERID}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the LDAP Providers' sync userid (e.g. proxy.user): ${NRML}\c"
+    read LDAP_PROVIDER_SYNC_USERID_TEMP
+    # Check that the userid only contains letters, numbers, periods, hyphens and unsderscores with a minimum of 3 characters.
+    TEST=`echo "${LDAP_PROVIDER_SYNC_USERID_TEMP}" | sed "s/^[a-zA-Z0-9._-]\{3,\}$//" | wc -w`
+    if [ ${TEST} -ne 0 ] || [ "${LDAP_PROVIDER_SYNC_USERID_TEMP}" = "" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} The sync userid can not be '${LDAP_PROVIDER_SYNC_USERID_TEMP}'."
+      echo -e "       It must only contain letters, numbers, hyphens, underscores and periods "
+      echo -e "       with a minumum of 3 characters.\n"
+
+    else
+      echo -e ""
+      question_yes_no "You have entered '${LDAP_PROVIDER_SYNC_USERID_TEMP}' as the sync userid. Is this correct?"
+      if [ "${ANSWER}" = "yes" ]
+      then
+        LDAP_PROVIDER_SYNC_USERID=${LDAP_PROVIDER_SYNC_USERID_TEMP}
+      fi
+    fi
+  done
+
+  # Get provider sync password from user.
+  LDAP_PROVIDER_SYNC_PASSWORD=""
+  while [ "${LDAP_PROVIDER_SYNC_PASSWORD}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the LDAP Providers' sync user password: ${NRML}\c"
+    read LDAP_PROVIDER_SYNC_PASSWORD_TEMP1
+    echo -e "${LCYN}Re-enter password                           : ${NRML}\c"
+    read LDAP_PROVIDER_SYNC_PASSWORD_TEMP2
+    
+    if [ "${LDAP_PROVIDER_SYNC_PASSWORD_TEMP1}" != "${LDAP_PROVIDER_SYNC_PASSWORD_TEMP2}" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+    elif [ "${LDAP_PROVIDER_SYNC_PASSWORD_TEMP1}" = "" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+    else
+      LDAP_PROVIDER_SYNC_PASSWORD=${LDAP_PROVIDER_SYNC_PASSWORD_TEMP1}
+    fi
+  done
+ 
+  # Get the consumer hostname.
+  LDAP_CONSUMER_HOST=""
+  while [ "${LDAP_CONSUMER_HOST}" = "" ]
+  do
+    echo -e "\n\n${LCYN}Enter the LDAP Consumer hostname: ${NRML}\c"
+    read LDAP_CONSUMER_HOST_TEMP
+    test_valid_host_name ${LDAP_CONSUMER_HOST_TEMP}
+    if [ "${VALID_HOST_NAME=}" = "yes" ]
+    then
+      echo -e ""
+      question_yes_no "You have entered '${LDAP_CONSUMER_HOST_TEMP}' as the Consumer hostname. Is this correct?"
+      if [ "${ANSWER}" = "yes" ]
+      then
+        LDAP_CONSUMER_HOST=${LDAP_CONSUMER_HOST_TEMP}
+      fi
+    else
+      echo -e "\n${LRED}ERROR:${NRML} The Consumer hostname is invalid!\n"
+    fi
+  done
+
+  # Get consumer Manager password from user.
+  LDAP_CONSUMER_MANAGER_PASSWORD=""
+  while [ "${LDAP_CONSUMER_MANAGER_PASSWORD}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the LDAP Consumers' Manager password: ${NRML}\c"
+    read LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1
+    echo -e "${LCYN}Re-enter password                         : ${NRML}\c"
+    read LDAP_CONSUMER_MANAGER_PASSWORD_TEMP2
+    
+    if [ "${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1}" != "${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP2}" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+    elif [ "${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1}" = "" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+    else
+      LDAP_CONSUMER_MANAGER_PASSWORD=${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1}
+    fi
+  done
+
+  # Get the base suffix from user.
+  ## TODO: add syntax test
+  LDAP_BASE_SUFFIX=""
+  while [ "${LDAP_BASE_SUFFIX}" = "" ]
+  do
+    echo -e "\n\n${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}\c"
+    read LDAP_BASE_SUFFIX_TEMP
+    echo -e ""
+    question_yes_no "You have entered '${LDAP_BASE_SUFFIX_TEMP}' as the base suffix. Is this correct?"
+    if [ "${ANSWER}" = "yes" ]
+    then
+      LDAP_BASE_SUFFIX=${LDAP_BASE_SUFFIX_TEMP}
+    fi
+  done
+
+  # Get the syncrepl rid.
+  LDAP_RID=""
+  while [ "${LDAP_RID}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the unique sync replication ID (sycrepl rid): ${NRML}\c"
+    read LDAP_RID_TEMP
+    # Check that the rid only contains numbers with a minimum of 1 and maximum of 3 characters.
+    TEST=`echo "${LDAP_RID_TEMP}" | sed "s/^[0-9]\{1,3\}$//" | wc -w`
+    if [ ${TEST} -ne 0 ] || [ "${LDAP_RID_TEMP}" = "" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} The Replication ID can not be '${LDAP_RID_TEMP}'."
+      echo -e "       It must be a number with 1 to 3 digits.\n"
+    else
+      echo -e ""
+      question_yes_no "You have entered '${LDAP_RID_TEMP}' as the replication ID. Is this correct?"
+      if [ "${ANSWER}" = "yes" ]
+      then
+        LDAP_RID=${LDAP_RID_TEMP}
+      fi
+    fi
+  done
+
+  # Get SSHA (Seeded SHA-1) password hashes
+  get_jail_id_from_name ${JAIL_NAME}
+  LDAP_CONSUMER_MANAGER_HASHED_PASSWORD=`jexec ${JAIL_ID} slappasswd -h {SSHA} -s ${LDAP_CONSUMER_MANAGER_PASSWORD}`
+
+  # Replace variables in ldap.conf 
+  sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+  sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+
+  # Replace variables in slapd.conf 
+  sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+  sed -i "" "s/LDAP_RID/${LDAP_RID}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+  sed -i "" "s/LDAP_PROVIDER_HOST/${LDAP_PROVIDER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+  sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+  sed -i "" "s|LDAP_PROVIDER_SYNC_USERID|${LDAP_PROVIDER_SYNC_USERID}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+  sed -i "" "s|LDAP_PROVIDER_SYNC_PASSWORD|${LDAP_PROVIDER_SYNC_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+  sed -i "" "s|LDAP_CONSUMER_MANAGER_PASSWORD|${LDAP_CONSUMER_MANAGER_HASHED_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+
+  # Replace variables in hosts file
+  sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+  sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+  sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+
+  # Configure syslog to log ldap to it's own log file
+  cp /jls/${JAIL_NAME}/etc/syslog.conf configs/${JAIL_NAME}@${HOST_NAME}/etc/syslog.conf
+  echo "local4.debug                                    /var/log/ldap.log" >> configs/${JAIL_NAME}@${HOST_NAME}/etc/syslog.conf
+  touch /jls/${JAIL_NAME}/var/log/ldap.log
+
+  # Enable port forwarding for ldap jail in pf.conf
+  sed -i "" "s/^#rdr on \(.*ldap_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
+
+  # Attempt to add ldap consumer host name to a caching dns (dns_cache) jail
+  fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}
+  if [ ${?} -ne 0 ]
+  then
+    echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server  "
+    echo -e   "         on this host. To make full use of this jailed service on the LAN,      "
+    echo -e   "         please run the following command on a dns_cache (recipe) jail on a host"
+    echo -e   "         on this LAN:                                                           "
+    echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}${NRML}\n"
+  fi
+
+
+  # Mandatory: return code
+  RECIPE_SUCCESS="yes"
+
+}

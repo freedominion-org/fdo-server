@@ -1,0 +1,135 @@
+#!/usr/local/bin/bash
+
+# VERSION 2.1
+
+if [ $# -ne 3 ] && [ $# -ne 4 ]
+then
+  echo ""
+  echo "Usage   (1): $0 pool offset interval"
+  echo "Example (1): $0 backup 28 7"
+  echo ""
+  echo "Usage   (2): $0 pool offset interval \"snapshot_pattern\""
+  echo "Example (2): $0 backup 28 28 \"/users\""
+  echo ""
+  echo "Note       : offset and interval are number of days."
+  echo ""
+  exit 1
+fi
+
+POOL=$1
+OFFSET_DAYS=$2
+INTERVAL_DAYS=$3
+INCLUSSION_PATTERN=$4
+
+NOW=`date +%s`
+NOW_DATE_TIME=`date +%Y-%m-%d_%H-%M`
+DAY_IN_SECS=86400
+OFFSET=$((${OFFSET_DAYS} * ${DAY_IN_SECS}))
+INTERVAL=$((${INTERVAL_DAYS} * ${DAY_IN_SECS}))
+
+
+######## SANITY TESTS ###############################################################
+
+zpool list | tail -n +2 | awk '{print $1}' | grep backup > /dev/null 2>&1
+if [ $? -ne 0 ]
+then
+   exit 2
+fi
+
+BACKUP_ERROR_MARKERS=`ls /backup/last-backup-error-*.inf 2> /dev/null | wc -l`
+
+if [ ${BACKUP_ERROR_MARKERS} -ne 0 ]
+then
+  exit 3
+fi
+
+BACKUP_RUNNING_MARKERS=`ls /backup/backup-*-running.inf 2> /dev/null | wc -l`
+
+if [ ${BACKUP_RUNNING_MARKERS} -ne 0 ]
+then
+  exit 4
+fi
+
+######################################################################################
+
+
+thin_snapshots_by_filesystem()
+{
+
+FILESYSTEM=${1}
+
+SNAPSHOTS=`zfs list -r -d 1 -H -t snapshot -o name ${FILESYSTEM}`
+
+EARLIEST_TIMESTAMP=${NOW}
+i=0
+for snapshot in ${SNAPSHOTS}
+do
+  SNAPSHOT_NAMES[$i]=${snapshot}
+  SNAPSHOT_TIMESTAMPS[$i]=`echo ${snapshot} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
+  SNAPSHOT_ACTION[$i]="keep"
+
+  if [ ${SNAPSHOT_TIMESTAMPS[$i]} -lt ${EARLIEST_TIMESTAMP} ]
+  then
+    EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMPS[$i]}
+  fi
+  i=$(($i+1))
+done
+
+NUM_SNAPSHOTS=${#SNAPSHOT_NAMES[@]}
+
+FIRST_PROJECTION=$((${NOW} - ${OFFSET}))
+
+PROJECTIONS[0]=${FIRST_PROJECTION}
+
+NEXT_PROJECTION=${FIRST_PROJECTION}
+
+j=1
+while [ ${NEXT_PROJECTION} -gt ${EARLIEST_TIMESTAMP} ]
+do
+  NEXT_PROJECTION=$((${NEXT_PROJECTION} - ${INTERVAL}))
+  PROJECTIONS[${j}]=${NEXT_PROJECTION}
+  j=$(($j+1))
+done
+
+if [ ! -d /backup/log ]
+then
+  mkdir /backup/log
+fi
+
+j=0
+i=$(($i-1))
+while [ ${i} -ge 0 ]
+do
+  if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${FIRST_PROJECTION} ]
+  then
+    if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -gt ${PROJECTIONS[${j}]} ] && [ ${i} -gt 0 ]
+    then
+      # we've need reached the next projection, destroy this snapshot
+      SNAPSHOT_ACTION[$i]="destroy"
+    else
+      # this the first snaphot older than current projection,  keep it and iterate to next projection
+      j=$(($j+1))
+    fi
+  fi
+  echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> /backup/log/test-thin-snapshots.${POOL}.${NOW_DATE_TIME}.log
+  if [ "${SNAPSHOT_ACTION[$i]}" = "destroy" ]
+  then
+    echo "zfs destroy ${SNAPSHOT_NAMES[$i]}"
+  fi
+  i=$(($i-1))
+done
+
+}
+
+if [ "${INCLUSSION_PATTERN}" != "" ]
+then
+  for filesystem in `zfs list -H -t filesystem -o name -r ${POOL} | egrep "${INCLUSSION_PATTERN}"`
+  do
+    thin_snapshots_by_filesystem ${filesystem}
+  done
+else
+  for filesystem in `zfs list -H -t filesystem -o name -r ${POOL}`
+  do
+    thin_snapshots_by_filesystem ${filesystem}
+  done
+fi

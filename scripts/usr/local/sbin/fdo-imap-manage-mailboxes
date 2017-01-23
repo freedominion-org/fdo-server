@@ -1,0 +1,3 @@
+#/bin/sh
+
+cyradm -user cyrus localhost

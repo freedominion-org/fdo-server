@@ -1,0 +1,195 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+JAIL_IP="192.168.10.49"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+RECIPE_PACKAGES="apache24"                                                     # Optional:  packages to install in the jail
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_PF_RELOAD="yes"                                                # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+START_JAIL_SERVICES="apache24"                                                 # Optional:  jail services started after cooking (in left to right order)
+RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+LDAP_HOST_IP="192.168.10.50"                                                   #
+################################################################################
+
+cook_recipe ()
+{
+
+  echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a            "
+  echo -e   "        'ldap_consumer' recipe is cooked, running and accessible on the LAN     "
+  echo -e   "        (local network). You must know the LDAP servers' host name, base suffix "
+  echo -e   "        and root (Manager) password in order to connect to it.                  "
+  echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'   "
+  echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.     \n"
+  echo -e   "        Useful terminology:                                                     \n"
+  echo -e   "        LDAP Provider: The openldap server that provides the schema to          "
+  echo -e   "            consumers (master).                                                 \n"
+  echo -e   "        LDAP Consumer: The openldap server (this jail) that syncs from the      "
+  echo -e   "            provider and consumes the schema (slave).                           \n"
+
+  question_yes_no "Would you like to continue to cook this jail recipe?"
+  if [ "${ANSWER}" = "no" ]
+  then
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
+  echo -e "Please accept when prompted...${NRML}\n"
+  sleep 5
+
+  # Install essential jail recipe packages from the recipe repo
+  pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+  if [ ${?} -ne 0 ]
+  then
+    echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  # Get the LDAP server host address.
+  LDAP_HOST_NAME=""
+  while [ "${LDAP_HOST_NAME}" = "" ]
+  do
+    echo -e "\n\n${LCYN}Enter the LDAP server host address: ${NRML}\c"
+    read LDAP_HOST_NAME_TEMP
+    test_valid_inet_address ${LDAP_HOST_IP_TEMP}
+    test_valid_host_name ${LDAP_HOST_NAME_TEMP}
+    if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_HOST_NAME=}" = "yes" ]
+    then
+      test_ping_host ${LDAP_HOST_NAME_TEMP}
+      if [ "${VALID_HOST_PING}" = "no" ]
+      then
+        echo -e "\n${ORNG}WARNING:${NRML} The LDAP host address is not currently pingable!"
+      fi
+      echo -e ""
+      question_yes_no "You have entered '${LDAP_HOST_NAME_TEMP}' as the LDAP host address. Is this correct?"
+      if [ "${ANSWER}" = "yes" ]
+      then
+        LDAP_HOST_NAME=${LDAP_HOST_NAME_TEMP}
+      fi
+    else
+      echo -e "\n${LRED}ERROR:${NRML} The LDAP host address is invalid!\n"
+    fi
+  done
+
+  # Get the base suffix from user.
+  ## TODO: add syntax test
+  LDAP_BASE_SUFFIX=""
+  while [ "${LDAP_BASE_SUFFIX}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}\c"
+    read LDAP_BASE_SUFFIX_TEMP
+    echo -e ""
+    question_yes_no "You have entered '${LDAP_BASE_SUFFIX_TEMP}' as the base suffix. Is this correct?"
+    if [ "${ANSWER}" = "yes" ]
+    then
+      LDAP_BASE_SUFFIX=${LDAP_BASE_SUFFIX_TEMP}
+    fi
+  done
+
+  # Get LDAP Manager password from user.
+  LDAP_MANAGER_PASSWORD=""
+  while [ "${LDAP_MANAGER_PASSWORD}" = "" ]
+  do
+    echo -e "\n${LCYN}Enter the LDAP Manager password: ${NRML}\c"
+    read LDAP_MANAGER_PASSWORD_TEMP1
+    echo -e "${LCYN}Re-enter password              : ${NRML}\c"
+    read LDAP_MANAGER_PASSWORD_TEMP2
+    
+    if [ "${LDAP_MANAGER_PASSWORD_TEMP1}" != "${LDAP_MANAGER_PASSWORD_TEMP2}" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+    elif [ "${LDAP_MANAGER_PASSWORD_TEMP1}" = "" ]
+    then
+      echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+    else
+      LDAP_MANAGER_PASSWORD=${LDAP_MANAGER_PASSWORD_TEMP1}
+    fi
+  done
+
+  # Get the file server host name.
+  FILE_SERVER_HOST_NAME=""
+  while [ "${FILE_SERVER_HOST_NAME}" = "" ]
+  do
+    echo -e "\n\n${LCYN}Enter the file server host name: ${NRML}\c"
+    read FILE_SERVER_HOST_NAME_TEMP
+    test_valid_host_name ${FILE_SERVER_HOST_NAME_TEMP}
+    if [ "${VALID_HOST_NAME=}" = "yes" ]
+    then
+      echo -e ""
+      question_yes_no "You have entered '${FILE_SERVER_HOST_NAME_TEMP}' as the file server host name. Is this correct?"
+      if [ "${ANSWER}" = "yes" ]
+      then
+        FILE_SERVER_HOST_NAME=${FILE_SERVER_HOST_NAME_TEMP}
+      fi
+    else
+      echo -e "\n${LRED}ERROR:${NRML} The file server host name is invalid!\n"
+    fi
+  done
+
+  # Replace variables in ldap.conf 
+  sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+  sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+
+  # Replace variables in httpd.conf
+  sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache24/httpd.conf
+  sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache24/httpd.conf
+
+  # Replace variables in webdav-sites file
+  sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+  sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+  sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+  sed -i "" "s/LDAP_MANAGER_PASSWORD/${LDAP_MANAGER_PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+
+  # Replace variables in hosts file
+  sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+  sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+  sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+  sed -i "" "s/LDAP_HOST_IP/${LDAP_HOST_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+  sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+
+  # Rename webdav-sites file name
+  mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+
+  # Create /w3 (WebDAV base directory)
+  mkdir /jls/${JAIL_NAME}/w3
+  chown www:www /jls/${JAIL_NAME}/w3
+
+  # Enable port forwarding for file_server jail in pf.conf
+  sed -i "" "s/^#rdr on \(.*files_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
+
+  # Attempt to add file server host name to a caching dns (dns_cache) jail
+  fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}
+  if [ ${?} -ne 0 ]
+  then
+    echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server "
+    echo -e   "         on this host. To make full use of this jailed service on the LAN,      "
+    echo -e   "         please use the following command on a dns_cache (recipe) jail on a host"
+    echo -e   "         on this LAN:                                                           "
+    echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}${NRML}\n"
+  fi
+
+  echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n"
+  echo -e   "        [1] The ZFS datasets holding the 'shares' and 'users' files/directories "
+  echo -e   "        should have their mountpoints set to the jailed paths '/w3/shares' and  "
+  echo -e   "        '/w3/users' respectively.                                               "
+  echo -e   "        They should also have user and group ownership set to 'www'.            \n"
+  echo -e   "        Example (1):                                                            "
+  echo -e   "        ${LBLU}zfs create tank/files${NRML}                                     "
+  echo -e   "        ${LBLU}zfs create -o mountpoint=/jls/${JAIL_NAME}/w3/shares tank/files/shares${NRML}"
+  echo -e   "        ${LBLU}zfs create -o mountpoint=/jls/${JAIL_NAME}/w3/users tank/files/users${NRML}"
+  echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     "
+  echo -e   "        Example (2):                                                            "
+  echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/shares tank/files/shares${NRML}"
+  echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/users tank/files/users${NRML}"
+  echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n"
+  echo -e   "        [2] ACL's control which users and groups are allowed to read and write  "
+  echo -e   "        to these shares. ACL's must be added to the following file in this jail:"
+  echo -e   "        ${YELL}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}$NRML}       "
+  echo -e   "        Consult the FDo documentation for ACL management commands.              \n"
+
+
+  # Mandatory: return code
+  RECIPE_SUCCESS="devel"
+
+}

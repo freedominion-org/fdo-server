@@ -1,0 +1,12 @@
+default menu.c32
+prompt 0
+timeout 300
+ONTIMEOUT Clonezilla-CLONEZILLA_VERSION-i686-pae
+
+MENU TITLE Welcome to PXE
+
+LABEL Clonezilla-CLONEZILLA_VERSION-i686-pae
+ MENU LABEL Clonezilla CLONEZILLA_VERSION i686-pae
+ KERNEL images/clonezilla-live-CLONEZILLA_VERSION-i686-pae/live/vmlinuz
+ APPEND initrd=images/clonezilla-live-CLONEZILLA_VERSION-i686-pae/live/initrd.img boot=live union=overlay  config components quiet noswap edd=on nomodeset noeject locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no vga=791 nosplash noprompt fetch=tftp://TFTPBOOT_HOST/images/clonezilla-live-CLONEZILLA_VERSION-i686-pae/live/filesystem.squashfs
+

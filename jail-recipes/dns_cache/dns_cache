@@ -1,0 +1,44 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+JAIL_IP="192.168.10.47"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+RECIPE_PACKAGES="bind911 ddclient"                                             # Optional:  packages to install in the jail
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_PF_RELOAD="no"                                                 # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+START_JAIL_SERVICES="named ddclient"                                           # Optional:  jail services started after cooking (in left to right order)
+RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+################################################################################
+
+cook_recipe ()
+{
+
+  echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
+  echo -e "${YELL}Please accept when prompted...${NRML}\n"
+  sleep 5
+
+  # Install essential jail recipe packages from the recipe repo
+  pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+  if [ ${?} -ne 0 ]
+  then
+    echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  # Set permissions that git doesn't track
+  chmod 0600 /jls/${JAIL_NAME}/usr/local/etc/ddclient.conf
+
+  # Update resolv.conf in all existing jails and future jails to use this caching dns server
+  sed -i "" "s/^#nameserver 192.168.10.47/nameserver 192.168.10.47/" configs/${HOST_NAME}/etc/resolv.conf.static
+  sed -i "" "s/^#nameserver 192.168.10.47/nameserver 192.168.10.47/" /jls/template/etc/resolv.conf
+  for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
+  do
+    cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
+  done
+
+
+  # Mandatory: return code
+  RECIPE_SUCCESS="yes"
+
+}

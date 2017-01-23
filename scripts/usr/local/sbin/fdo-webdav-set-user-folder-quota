@@ -1,0 +1,22 @@
+#!/bin/sh
+
+SHORT_ORG_NAME=$1
+USERID=$2
+QUOTA=$3
+
+WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
+
+if [ $# -ne 3 ]
+then
+    echo ""
+    echo "Usage:   ${0} SHORT_ORG_NAME USERID QUOTA"
+    echo "Example: ${0} ffs joe.bloggs 5G"
+    echo ""
+    exit 1
+fi
+
+zfs set quota=${QUOTA} ${WEBDAV_ROOT_FS}/${SHORT_ORG_NAME}/users/${USERID}
+
+echo ""
+echo "Quota has been set to ${QUOTA} for the user ${USERID}!"
+echo ""

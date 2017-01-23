@@ -1,0 +1,25 @@
+#!/bin/sh
+
+[ -z "$1" ] && echo "No jail specified." && exit 1;
+[ -z "$2" ] && loginShell="/usr/local/bin/bash" || loginShell="$2"
+
+jName=$1;
+
+jIdFile=`ls -1 /var/run/jail_*.id | grep jail_${jName} | head -1`
+
+if [ "${jIdFile}" = "" ]; then echo "No jail found matching '${jName}'." ; exit 1; fi
+
+jId=`cat ${jIdFile}`
+
+jRealName=`echo ${jIdFile} | sed "s|^/var/run/jail_||" | sed "s|.id||"`
+
+[ -z "${jId}" ] && echo "No such jail name ${jName}!" && exit 1;
+
+echo "Logging in to ${jRealName}"
+
+if [ "$loginShell" = "/usr/local/bin/bash" ]
+then
+  jexec ${jId} ${loginShell} -l
+else
+  jexec ${jId} ${loginShell}
+fi

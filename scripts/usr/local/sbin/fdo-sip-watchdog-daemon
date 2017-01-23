@@ -1,0 +1,19 @@
+#!/bin/sh
+
+LOOP=1
+
+while [ LOOP ]
+do
+
+  sleep 30
+  service opensips status > /dev/null 2>&1
+
+  if [ $? = 1 ]
+  then
+    NOW=`date`
+    echo "" >> /var/log/opensips-watchdog.log
+    echo "${NOW} : Service stopped, restarting..." >> /var/log/opensips-watchdog.log
+    service opensips restart
+  fi
+
+done

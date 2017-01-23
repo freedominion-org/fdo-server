@@ -1,0 +1,78 @@
+#!/bin/sh
+#
+#
+# PROVIDE: fdo-proceventd
+# REQUIRE: DAEMON
+#
+# Add the following lines to /etc/rc.conf to enable the fdo-proceventd system:
+#
+# fdo-proceventd_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="fdo-proceventd"
+rcvar=${name}_enable
+
+load_rc_config ${name}
+
+command="/usr/local/bin/fdo-proceventd"
+pidfile="/var/run/fdo-proceventd.pid"
+
+start_precmd="fdo-proceventd_prestart"
+stop_postcmd="fdo-proceventd_poststop"
+start_cmd="fdo-proceventd_start"
+stop_cmd="fdo-proceventd_stop"
+restart_cmd="fdo-proceventd_restart"
+status_cmd="fdo-proceventd_status"
+
+fdo-proceventd_prestart()
+{
+    if [ ! -d /var/log/fdo-proceventd ]; then
+        mkdir -p /var/log/fdo-proceventd
+    fi
+}
+
+fdo-proceventd_start()
+{
+    if [ -f ${pidfile} ]; then
+        echo "${name} is already running as pid `cat ${pidfile}`"
+    else
+        ${command} start
+    fi
+}
+
+fdo-proceventd_stop()
+{
+    if [ ! -f ${pidfile} ]; then
+        echo "${name} is not running"
+    else
+        ${command} stop
+    fi
+}
+
+fdo-proceventd_restart()
+{
+    if [ ! -f ${pidfile} ]; then
+        echo "${name} is not running. To start it run: ${name} start"
+    else
+        ${command} restart
+    fi
+}
+
+fdo-proceventd_status()
+{
+    if [ -f ${pidfile} ]; then
+    echo "${name} is running as pid `cat ${pidfile}`"
+    else
+        echo "${name} is not running"
+    fi
+}
+
+fdo-proceventd_poststop()
+{
+}
+
+
+load_rc_config ${name}
+run_rc_command "$1"

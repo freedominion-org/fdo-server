@@ -1,0 +1,78 @@
+#!/bin/sh
+#
+#
+# PROVIDE: rdscreensized
+# REQUIRE: DAEMON
+#
+# Add the following lines to /etc/rc.conf to enable the rdscreensized system:
+#
+# rdscreensized_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="rdscreensized"
+rcvar=${name}_enable
+
+load_rc_config ${name}
+
+command="/usr/local/bin/fdo-rdscreensized"
+pidfile="/var/run/fdo-rdscreensized.pid"
+
+start_precmd="rdscreensized_prestart"
+stop_postcmd="rdscreensized_poststop"
+start_cmd="rdscreensized_start"
+stop_cmd="rdscreensized_stop"
+restart_cmd="rdscreensized_restart"
+status_cmd="rdscreensized_status"
+
+rdscreensized_prestart()
+{
+    if [ ! -d /var/log/fdo-rdscreensized ]; then
+        mkdir -p /var/log/fdo-rdscreensized
+    fi
+}
+
+rdscreensized_start()
+{
+    if [ -f ${pidfile} ]; then
+        echo "${name} is already running as pid `cat ${pidfile}`"
+    else
+        ${command} start
+    fi
+}
+
+rdscreensized_stop()
+{
+    if [ ! -f ${pidfile} ]; then
+        echo "${name} is not running"
+    else
+        ${command} stop
+    fi
+}
+
+rdscreensized_restart()
+{
+    if [ ! -f ${pidfile} ]; then
+        echo "${name} is not running. To start it run: ${name} start"
+    else
+        ${command} restart
+    fi
+}
+
+rdscreensized_status()
+{
+    if [ -f ${pidfile} ]; then
+    echo "${name} is running as pid `cat ${pidfile}`"
+    else
+        echo "${name} is not running"
+    fi
+}
+
+rdscreensized_poststop()
+{
+}
+
+
+load_rc_config ${name}
+run_rc_command "$1"

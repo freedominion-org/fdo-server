@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/usr/bin/su RemoteDesktop -c "/usr/local/bin/vncserver -kill :9"

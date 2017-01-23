@@ -1,0 +1,22 @@
+#!/bin/sh
+
+SHORT_ORG_NAME=$1
+SHARE_PATH=$2
+QUOTA=$3
+
+WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
+
+if [ $# -ne 3 ]
+then
+    echo ""
+    echo "Usage:   ${0} SHORT_ORG_NAME SHARE_PATH QUOTA"
+    echo "Example: ${0} ffs Design-Library 5G"
+    echo "Example: ${0} group remote-desktops/desktop1 5G"
+    exit 1
+fi
+
+zfs set quota=${QUOTA} ${WEBDAV_ROOT_FS}/${SHORT_ORG_NAME}/shares/${SHARE_PATH}
+
+echo ""
+echo "Quota has been set to ${QUOTA} for the shared folder ${SHARE_PATH}!"
+echo ""

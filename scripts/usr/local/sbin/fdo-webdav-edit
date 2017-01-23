@@ -1,0 +1,3 @@
+#!/bin/sh
+
+vi /usr/local/etc/apache22/extra/httpd-vhosts.conf

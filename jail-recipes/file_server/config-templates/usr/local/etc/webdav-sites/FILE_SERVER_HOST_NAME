@@ -1,0 +1,42 @@
+#ServerAdmin webdav-admin@example.net
+DocumentRoot "/w3"
+ServerName FILE_SERVER_HOST_NAME
+ErrorLog "/var/log/FILE_SERVER_HOST_NAME-error_log"
+CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
+
+<Directory "/w3">
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    Require all denied
+</Directory>
+
+<Location "/shares">
+  Dav On
+  AuthBasicProvider ldap
+  AuthType Basic
+  AuthName "WebDAV LDAP Authorization"
+  AuthLDAPURL ldap://LDAP_HOST_NAME:389/LDAP_BASE_SUFFIX?uid??(objectclass=*) TLS
+  AuthLDAPBindDN cn=Manager,LDAP_BASE_SUFFIX
+  AuthLDAPBindPassword LDAP_MANAGER_PASSWORD
+  Options Indexes FollowSymLinks
+  IndexOptions FancyIndexing FoldersFirst NameWidth=*
+  #Require ldap-group cn=WebDAV Users,ou=groups,LDAP_BASE_SUFFIX
+  #Require ldap-user joe.bloggs
+</Location>
+
+<Location "/users">
+  Dav On
+  AuthBasicProvider ldap
+  AuthType Basic
+  AuthName "WebDAV LDAP Authorization"
+  AuthLDAPURL ldap://LDAP_HOST_NAME:389/LDAP_BASE_SUFFIX?uid??(objectclass=*) TLS
+  AuthLDAPBindDN cn=Manager,LDAP_BASE_SUFFIX
+  AuthLDAPBindPassword LDAP_MANAGER_PASSWORD
+  Options Indexes FollowSymLinks
+  IndexOptions FancyIndexing FoldersFirst NameWidth=*
+  #Require ldap-user joe.bloggs
+</Location>
+
+#<Location "/users/joe.bloggs">
+#  Require ldap-user joe.bloggs
+#</Location>

@@ -1,0 +1,61 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+JAIL_IP="192.168.10.48"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+RECIPE_PACKAGES="isc-dhcp43-server"                                            # Optional:  packages to install in the jail
+RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: set to "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_PF_RELOAD="no"                                                 # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+START_JAIL_SERVICES="isc-dhcpd"                                                # Optional:  jail services started after cooking (in left to right order)
+RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+################################################################################
+
+cook_recipe ()
+{
+
+  echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
+  echo -e "${YELL}Please accept when prompted...${NRML}\n"
+  sleep 5
+
+  # Install essential jail recipe packages from the recipe repo
+  pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+  if [ ${?} -ne 0 ]
+  then
+    echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  # Add necessary devfs rules for isc-dhcpd to work
+  echo "" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "[dhcp_server_jail_ruleset=48]" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "add include $devfsrules_hide_all" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "add include $devfsrules_unhide_basic" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "add include $devfsrules_unhide_login" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "add path 'bpf*' unhide" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "add path net unhide" >> configs/${HOST_NAME}/etc/devfs.rules
+  echo "add path 'net/*' unhide" >> configs/${HOST_NAME}/etc/devfs.rules
+
+  # Add extra jail control directives to /etc/jail.conf
+  sed -i "" "s/${JAIL_NAME}.*{.*$/${JAIL_NAME} {\\${CARRIAGE_RETURN}        allow.raw_sockets = 1;\\${CARRIAGE_RETURN}        devfs_ruleset = 48;/" configs/${HOST_NAME}/etc/jail.conf
+
+  # Get the LAN network interface name
+  LAN_NET_IFACE=`cat /usr/local/etc/fdo/net_iface_lan.conf`
+
+  # DHCP can not run on lo1
+  if [ "${LAN_NET_IFACE}" = "lo1" ]
+  then
+    RECIPE_SUCCESS="no"
+    return
+  fi
+
+  # Replace the LAN_NET_IFACE variable in the jails' rc.conf config file
+  sed -i "" "s/LAN_NET_IFACE/${LAN_NET_IFACE}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/rc.conf
+
+  # Replace the DOMAIN_NAME variable in the dhcpd.conf config file
+  sed -i "" "s/DOMAIN_NAME/${DOMAIN_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+
+  # Mandatory: return code
+  RECIPE_SUCCESS="yes"
+
+}

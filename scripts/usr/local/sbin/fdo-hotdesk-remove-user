@@ -1,0 +1,91 @@
+#!/bin/sh
+
+# File name: fdo-hotdesk-remove-user 
+# Description: Shell script for removing hotdesk users
+# and removing their entry from /etc/exports
+# and updating NIS (yp)
+
+usage (){
+  echo ""
+  echo "Usage:   $0 user.name"
+  echo "Example: $0 joe.bloggs"
+  echo ""
+  echo "Flags:   To ignore errors and force operation, prepend FORCE=yes to command."
+  echo "Example: FORCE=yes $0 joe.blogss"
+  echo ""
+}
+
+USERNAME=$1
+HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
+
+if [ $# -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+grep ${USERNAME} /etc/passwd > /dev/null
+if [ $? = 1 ]; then
+  echo ""
+  echo "ERROR: User does not exists, please check username!"
+  echo ""
+  if [ "${FORCE}" !=  "yes" ]
+  then
+    exit 2
+  fi
+fi
+
+ps aux | grep backupz  | grep -v "grep backupz"                                                                                                                 
+if [ $? = 0 ]; then                                                                                                                           
+  echo ""
+  echo "ERROR: Backup is running, try again later!"                                                                                                    
+  echo ""
+  exit 3
+fi
+
+echo ""
+echo "Destroying the users' home filesystem..."
+echo ""
+zfs destroy -r -p -f ${HOME_ZFS_NAME}/${USERNAME}
+if [ $? != 0 ]
+then
+  echo ""
+  echo "ERROR: Hotdesk user home folder not destroyed, please verify username!"
+  echo ""
+  if [ "${FORCE}" !=  "yes" ]
+  then
+    exit 4
+  fi
+else
+  echo ""
+  echo "Hotdesk user home folder destroyed."
+  echo ""
+fi
+
+
+echo ""
+echo "Removing the user from the exports file..."
+echo ""
+cp /etc/exports /etc/exports.previous
+sed "/${USERNAME} /d" /etc/exports > /etc/exports.next
+cat /etc/exports.next > /etc/exports
+
+echo ""
+echo "Restarting mountd..."
+echo ""
+service mountd reload
+
+echo ""
+echo "Removing the user from NIS..."
+echo ""
+cd /var/yp
+sed -i "" "/${USERNAME}/d" master.passwd
+make
+
+echo ""
+echo "Removing the user from system..."
+echo ""
+rmuser -y ${USERNAME}
+
+echo ""
+echo "Operation complete!"
+echo ""

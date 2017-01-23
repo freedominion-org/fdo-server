@@ -1,0 +1,33 @@
+#!/bin/sh
+
+SHORT_ORG_NAME=$1
+USERID=$2
+
+WEBDAV_ROOT_MOUNTPOINT=`cat /usr/local/etc/fdo/webdav_root_mountpoint.conf`
+WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
+
+if [ $# -ne 2 ]
+then
+    echo ""
+    echo "Usage:   ${0} SHORT_ORG_NAME USERID"
+    echo "Example: ${0} ffs joe.blogs"
+    exit 1 
+fi
+
+ps aux | grep "backupz"  | grep -v "grep backupz"
+if [ $? -eq 0 ]
+then
+  echo ""
+  echo "ERROR: backupz is running, try again later!"
+  exit 2 
+fi
+
+zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SHORT_ORG_NAME}/users/${USERID} ${WEBDAV_ROOT_FS}/${SHORT_ORG_NAME}/users/${USERID}
+
+zfs set quota=5G data/dav/${SHORT_ORG_NAME}/users/${USERID}
+
+chown -R 81:81 ${WEBDAV_ROOT_MOUNTPOINT}/${SHORT_ORG_NAME}/users/${USERID}
+
+echo ""
+echo "Successfully created the user folder for ${USERID}!"
+

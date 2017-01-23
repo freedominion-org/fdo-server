@@ -1,0 +1,3 @@
+#!/bin/sh
+
+ldapvi -Z -D "cn=Manager,dc=example,dc=net"

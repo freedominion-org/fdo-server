@@ -1,0 +1,85 @@
+#!/bin/sh
+
+#  Copyright (c) 2012, Euan A. Thoms
+#  All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions are met:
+#
+#  1. Redistributions of source code must retain the above copyright notice, this
+#     list of conditions and the following disclaimer.
+#  2. Redistributions in binary form must reproduce the above copyright notice,
+#     this list of conditions and the following disclaimer in the documentation
+#     and/or other materials provided with the distribution.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+#  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+#  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+#  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+#  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+#  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+#  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+#  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# Find and replace specified "text" within all files under specified folder
+# Usage (1): findinfiles "text to search for" "text to replace with" /Folder/to/search
+# Usage (2): findinfiles "text to search for" "text to replace with" /Folder/to/search <case-sensitive>?(true|false)
+
+SEARCH_TEXT=$1
+REPLACE_TEXT=$2
+SEARCH_FOLDER=$3
+SLASH_CHR="/"
+
+SEARCH_TEXT=`echo $SEARCH_TEXT | sed "s/@/\\\\\@/"`
+REPLACE_TEXT=`echo $REPLACE_TEXT | sed "s/@/\\\\\@/"`
+
+if [ $# -eq 4 ]
+then
+  if [ $4 = "true" ]
+  then
+    test "${1#*$SLASH_CHR}" != "$1"
+    SEARCH_HAS_SLASH=$?
+    test "${2#*$SLASH_CHR}" != "$2"
+    REPLACE_HAS_SLASH=$?
+    if [ $SEARCH_HAS_SLASH -eq 0 ] || [ $REPLACE_HAS_SLASH -eq 0 ]
+    then
+      find "${SEARCH_FOLDER}" -type f -exec perl -pi -e "s:$SEARCH_TEXT:$REPLACE_TEXT:g" {} \;
+    else
+      find "${SEARCH_FOLDER}" -type f -exec perl -pi -e "s/$SEARCH_TEXT/$REPLACE_TEXT/g" {} \;
+    fi
+  elif [ $4 = "false" ]
+  then
+    test "${1#*$SLASH_CHR}" != "$1"
+    SEARCH_HAS_SLASH=$?
+    test "${2#*$SLASH_CHR}" != "$2"
+    REPLACE_HAS_SLASH=$?
+    if [ $SEARCH_HAS_SLASH -eq 0 ] || [ $REPLACE_HAS_SLASH -eq 0 ]
+    then
+      find "${SEARCH_FOLDER}" -type f -exec perl -pi -e "s:$SEARCH_TEXT:$REPLACE_TEXT:gi" {} \;
+    else
+      find "${SEARCH_FOLDER}" -type f -exec perl -pi -e "s/$SEARCH_TEXT/$REPLACE_TEXT/gi" {} \;
+    fi
+  else
+    echo "usage (1): ${0} <SEARCH_TEXT> <REPLACE_TEXT> <SEARCH_FOLDER>"
+    echo "usage (2): ${0} <SEARCH_TEXT> <REPLACE_TEXT> <SEARCH_FOLDER> <CASE_SENSITIVE>?(true|false)"
+    exit 1
+  fi
+elif [ $# -eq 3 ]
+then
+  test "${1#*$SLASH_CHR}" != "$1"
+  SEARCH_HAS_SLASH=$?
+  test "${2#*$SLASH_CHR}" != "$2"
+  REPLACE_HAS_SLASH=$?
+  if [ $SEARCH_HAS_SLASH -eq 0 ] || [ $REPLACE_HAS_SLASH -eq 0 ]
+  then
+    find "${SEARCH_FOLDER}" -type f -exec perl -pi -e "s:$SEARCH_TEXT:$REPLACE_TEXT:g" {} \;
+  else
+    find "${SEARCH_FOLDER}" -type f -exec perl -pi -e "s/$SEARCH_TEXT/$REPLACE_TEXT/g" {} \;
+  fi
+else
+  echo "usage (1): ${0} <SEARCH_TEXT> <REPLACE_TEXT> <SEARCH_FOLDER>"
+  echo "usage (2): ${0} <SEARCH_TEXT> <REPLACE_TEXT> <SEARCH_FOLDER> <CASE_SENSITIVE>?(true|false)"
+  exit 1
+fi

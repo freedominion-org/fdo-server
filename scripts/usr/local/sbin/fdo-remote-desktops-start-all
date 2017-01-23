@@ -1,0 +1,10 @@
+#!/bin/sh
+
+for i in `ls -1 /usr/local/etc/rc.d | cut -d* -f1 2> /dev/null`
+do
+  grep "VBoxHeadless -s" /usr/local/etc/rc.d/${i} > /dev/null 2>&1
+  if [ $? = 0 ] && [ "${i}" != "RemoteDesktop" ]
+  then
+    service ${i} start
+  fi
+done

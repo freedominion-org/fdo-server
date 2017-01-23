@@ -1,0 +1,17 @@
+#!/bin/sh
+
+echo "Username:"
+read USERNAME
+
+echo ""
+echo "Password:"
+read PASSWORD
+
+echo ""
+echo "Domain:"
+read  DOMAIN
+
+
+opensipsctl add ${USERNAME} ${PASSWORD}
+
+opensipsctl db exec "update subscriber set domain  = '${DOMAIN}' where username like '${USERNAME}'"

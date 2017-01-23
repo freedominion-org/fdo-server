@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+#
+# PROVIDE: sshfsd
+# REQUIRE: NETWORKING syslogd fusefs sshd
+# BEFORE: LinuxServer00
+# KEYWORD: shutdown
+# Add the following lines to /etc/rc.conf to enable sshfsd:
+#
+# sshfsd_enable (bool): Set it to "YES" to enable sshfsd.
+# Default is "NO"
+#
+#
+
+. /etc/rc.subr
+
+name="sshfsd"
+rcvar=${name}_enable
+
+status_cmd="${name}_status"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+extra_commands="status"
+
+sshfsd_start () {
+
+  IFS="
+"
+  for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
+  do
+    SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
+    SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
+    mount | grep "${SHARE_MOUNTPOINT}"
+    if [ $? = 0 ]
+    then
+      echo ""
+      echo "mount point is already mounted."
+    else
+      echo "mounting '${SHARE_MOUNTPOINT}' ..."
+      echo ""
+      /usr/local/bin/sshfs ${SHARE_URI} ${SHARE_MOUNTPOINT} -o rw,allow_other,reconnect,ServerAliveInterval=10
+    fi
+  done
+
+}
+
+sshfsd_stop () {
+
+  IFS="
+"
+  for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
+  do
+    SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
+    SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
+    mount | grep "${SHARE_MOUNTPOINT}"
+    if [ $? = 0 ]
+    then
+      echo ""
+      echo "unmounting '${SHARE_MOUNTPOINT}'"
+      umount ${SHARE_MOUNTPOINT}
+    else
+      echo "nothing to do, '${SHARE_MOUNTPOINT}' was not mounted."
+    fi
+  done
+
+}
+
+sshfsd_status () {
+  IFS="
+"
+  for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
+  do
+    SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
+    SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
+    mount | grep "${SHARE_MOUNTPOINT}"
+    if [ $? = 0 ]
+    then
+      echo ""
+      echo "the folder '${SHARE_MOUNTPOINT}' IS mounted"
+    else
+      echo "the folder '${SHARE_MOUNTPOINT}' IS NOT mounted."
+    fi
+  done
+
+}
+
+load_rc_config ${name} 
+
+: ${sshfsd_enable="NO"}
+
+run_rc_command "$1"

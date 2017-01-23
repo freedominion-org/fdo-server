@@ -1,0 +1,30 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]
+then
+  echo ""
+  echo "Usage:   ${0} SEARCH_PATH"
+  echo "Example: ${0} /usr/local/bin"
+  echo ""
+  exit 1
+fi
+
+SEARCH_PATH=$1
+
+echo ""
+echo "Searching for sh scripts..."
+echo ""
+
+findinfiles "^\#\!\/bin\/sh" ${SEARCH_PATH} | grep -v '^#!/bin/sh' | sed "s|^${SEARCH_PATH}/||"
+
+echo ""
+echo ""
+echo ""
+echo ""
+echo ""
+echo "Searching for bash scripts..."
+echo ""
+
+findinfiles "^\#\!\/usr\/local\/bin\/bash" ${SEARCH_PATH} | grep -v '^#!/usr/local/bin/bash' | sed "s|^${SEARCH_PATH}/||"
+
+echo ""

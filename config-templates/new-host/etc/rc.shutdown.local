@@ -1,0 +1,1 @@
+#/usr/bin/su FDO_USERNAME -c "/usr/local/bin/vncserver -kill :10"

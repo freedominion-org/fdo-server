@@ -1,0 +1,9 @@
+#!/bin/sh
+
+NUM_SATA_DRIVES=`camcontrol devlist | grep "ATA WDC WD" | wc -l`
+
+echo ""
+echo "Attempting to disable NCQ for $NUM_SATA_DRIVES drives."
+echo ""
+
+for i in `camcontrol devlist | grep "ATA WDC WD" | cut -d"," -f2 | cut -d")" -f1` ; do camcontrol tags $i -N 1 ; done

@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/usr/bin/su - RemoteDesktop -c "/usr/local/bin/vncserver :9 -geometry 1440x900 -alwaysshared -localhost -dpi 96"

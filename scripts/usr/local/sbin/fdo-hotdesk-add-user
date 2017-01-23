@@ -1,0 +1,59 @@
+#!/bin/sh
+
+# File name: fdo-hotdesk-add-user
+# Description: Shell script for adding hotdesk users
+# and adding their entry to /etc/exports 
+# and updating NIS (yp)
+
+usage (){
+  echo ""
+  echo "Usage:   $0 user.name \"Display Name\""
+  echo "Example: $0 joe.bloggs \"Joe Bloggs\""
+  echo ""
+}
+
+if [ $# -ne 2 ]
+then
+  usage
+  exit 1
+fi
+
+USERNAME=$1
+DISPLAY_NAME=$2
+HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
+
+ps aux | grep "backupz"  | grep -v "grep backupz"
+if [ $? = 0 ]; then
+  echo ""
+  echo "ERROR: Backup is running, try again later!"
+  echo ""
+  exit 3
+fi
+
+# Add new NIS user locally
+echo ""
+pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
+echo ""
+passwd ${USERNAME}
+
+# Create ZFS filesystem for home folder
+zfs create -o quota=50G ${HOME_ZFS_NAME}/${USERNAME}
+
+# Change ownership of home folder
+chown -R ${USERNAME}:users /fdo-hotdesk-home/${USERNAME}
+
+# Add home folder to NFS exports
+echo "/fdo-hotdesk-home/${USERNAME} -maproot=root -network 192.168.10 -mask 255.255.0.0" >> /etc/exports
+echo ""
+service mountd reload
+
+# Add local user to NIS maps
+cd /var/yp
+cat /etc/master.passwd | egrep "^${USERNAME}:" >> master.passwd
+
+echo ""
+make
+
+echo ""
+echo "Operation complete!"
+echo ""

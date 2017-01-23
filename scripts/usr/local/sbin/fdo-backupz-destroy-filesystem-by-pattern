@@ -1,0 +1,51 @@
+#!/bin/sh
+
+if [ $# -lt 2 ]
+then
+  SCRIPT_NAME=`basename $0`
+  echo ""
+  echo "Usage(1)  : ${SCRIPT_NAME} pool_to_destroy_from filesystem_pattern [OPTION]..."
+  echo ""
+  echo "Example(1a): ${SCRIPT_NAME} backup Accounts"
+  echo "Example(1b): ${SCRIPT_NAME} backup \"Accounts/Reports\""
+  echo ""
+  echo ""
+  echo "Options:"
+  echo ""
+  echo "-r, --recursive		destroy the children of any matching filesystem."
+  echo ""
+  echo "-s, --simulate		simulation mode, will output the command but execute them."
+  echo ""
+  exit 1
+fi
+
+POOL=$1
+FILESYSTEM_PATTERN=$2
+RECURSE=""
+
+for i in ${@}
+do
+  case ${i} in
+  -r) RECURSE="-r"
+      ;;
+  --recursive) RECURSE="-r"
+      ;;
+  -s) SIMULATION="true"
+      ;;
+  --simulate) SIMULATION="true"
+      ;;
+  esac
+done
+
+TO_DESTROY=`zfs list -t filesystem -r ${POOL} | awk '{print $1}' | tail -n +2 | grep "${FILESYSTEM_PATTERN}"`
+if [ "${SIMULATION}" = "true" ]
+then
+  echo ""
+  echo "!!! SIMULATION Mode !!!"
+  echo ""
+  echo ""
+  for i in ${TO_DESTROY} ; do echo "zfs destroy ${RECURSE} ${i}" ; done
+else
+  echo ""
+  for i in ${TO_DESTROY} ; do zfs destroy ${RECURSE} ${i} ; done
+fi

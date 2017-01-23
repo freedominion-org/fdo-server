@@ -1,0 +1,109 @@
+#!/bin/sh
+#
+#
+# PROVIDE: RemoteDesktop
+# REQUIRE: LOGIN FILESYSTEMS NETWORKING vboxnet mixer dbus hald
+# KEYWORD: shutdown
+# Add the following lines to /etc/rc.conf to enable RemoteDesktop:
+#
+# RemoteDesktop_enable (bool): Set it to "YES" to enable RemoteDesktop.
+# Default is "NO"
+#
+#
+
+. /etc/rc.subr
+
+name="RemoteDesktop"
+rcvar=${name}_enable
+
+status_cmd="${name}_status"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+extra_commands="status"
+
+RemoteDesktop_start () {
+  su - RemoteDesktop -c "/usr/local/bin/VBoxManage list runningvms" | grep RemoteDesktop > /dev/null
+  if [ $? = 0 ]
+  then
+    echo  -e "\nRemoteDesktop is already running!\n"
+    exit 1
+  fi
+  date_time=`date`
+  echo "Starting RemoteDesktop at ${date_time}" >> /var/log/RemoteDesktop.log
+  exit_status=0
+  while [ ${exit_status} -eq 0 ]
+  do 
+    su - RemoteDesktop -c "/usr/local/bin/VBoxManage list runningvms" | grep RemoteDesktop > /dev/null
+    if [ $? = 0 ]
+    then
+      exit_status=1
+      echo -e "\nRemoteDesktop is now started.\n"
+    else
+      exit_status=0
+      echo -e "\nAttempting to start RemoteDesktop ...\n"
+      daemon -p /var/run/RemoteDesktop.pid su - RemoteDesktop -c "/usr/local/bin/VBoxHeadless -s RemoteDesktop >> /var/log/RemoteDesktop.log 2>&1"
+      sleep 5
+    fi
+  done
+}
+
+RemoteDesktop_stop () {
+
+  su - RemoteDesktop -c "/usr/local/bin/VBoxManage list runningvms" | grep RemoteDesktop > /dev/null
+  if [ $? != 0 ]
+  then
+    echo -e "\nRemoteDesktop is not running!\n"
+    exit 1
+  fi
+
+  date_time=`date`
+  echo "Stopping RemoteDesktop at ${date_time}" >> /var/log/RemoteDesktop.log
+  exit_status=0
+  while [ ${exit_status} -eq 0 ]
+  do  
+    su - RemoteDesktop -c "/usr/local/bin/VBoxManage list runningvms" | grep RemoteDesktop > /dev/null
+    if [ $? -eq 0 ]
+    then
+      echo -e "\nAttempting to shutdown RemoteDesktop ...\n"
+      su - RemoteDesktop -c "/usr/local/bin/VBoxManage controlvm RemoteDesktop acpipowerbutton"
+      WAIT_COUNTER=0
+      while [ ${WAIT_COUNTER} -lt 36 ]
+      do
+        sleep 5
+        su - RemoteDesktop -c "/usr/local/bin/VBoxManage list runningvms" | grep RemoteDesktop > /dev/null
+        if [ $? -ne 0 ]
+        then
+          WAIT_COUNTER=36
+          exit_status=1
+          echo -e "\nRemoteDesktop is now stopped.\n"
+        fi
+        WAIT_COUNTER=$(( ${WAIT_COUNTER} +1 ))
+      done
+      if [ ${exit_status} -eq 0 ]
+      then
+        su - RemoteDesktop -c "/usr/local/bin/VBoxManage controlvm RemoteDesktop poweroff"
+      fi 
+      sleep 5
+      kill `ps aux | grep "VBoxHeadless" | grep "RemoteDesktop" | awk '{print $2}'` 2> dev/null
+    else
+      exit_status=1
+      echo -e "\nRemoteDesktop is now stopped.\n"
+    fi
+  done
+}
+
+RemoteDesktop_status () {
+  su - RemoteDesktop -c "/usr/local/bin/VBoxManage list runningvms" | grep RemoteDesktop > /dev/null
+  if [ $? = 0 ]
+  then
+    echo -e "\nRemoteDesktop is running.\n"
+  else
+    echo -e "\nRemoteDesktop is NOT running.\n"
+  fi
+}
+
+load_rc_config ${name}
+
+: ${RemoteDesktop_enable="NO"}
+
+run_rc_command "$1"
