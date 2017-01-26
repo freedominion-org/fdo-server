@@ -1,4 +1,3 @@
-# $FreeBSD: releng/11.0/share/skel/dot.cshrc 278616 2015-02-12 05:35:00Z cperciva $
 #
 # .cshrc - csh resource script, read at beginning of execution by each shell
 #
@@ -21,7 +20,8 @@ alias vi	vim
 # umask 22
 
 setenv	EDITOR	vi
-setenv	PAGER	more
+setenv	PAGER	less
+setenv	TERM	xterm-256color
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up

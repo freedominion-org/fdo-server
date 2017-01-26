@@ -1,4 +1,3 @@
-# $FreeBSD: releng/11.0/etc/root/dot.cshrc 278616 2015-02-12 05:35:00Z cperciva $
 #
 # .cshrc - csh resource script, read at beginning of execution by each shell
 #
@@ -19,8 +18,9 @@ umask 22
 set path = (/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin $HOME/bin)
 
 setenv	EDITOR	vi
-setenv	PAGER	more
+setenv	PAGER	less
 setenv	BLOCKSIZE	K
+setenv	TERM	xterm-256color
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up
