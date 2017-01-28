@@ -13,32 +13,32 @@ RECIPE_ZFS_MOUNTPOINTS=""                                                      #
 cook_recipe ()
 {
 
-  echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
-  echo -e "${YELL}Please accept when prompted...${NRML}\n"
-  sleep 5
+	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
+	echo -e "${YELL}Please accept when prompted...${NRML}\n"
+	sleep 5
 
-  # Install essential jail recipe packages from the recipe repo
-  pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
-  if [ ${?} -ne 0 ]
-  then
-    echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
-    RECIPE_SUCCESS="no"
-    return
-  fi
+	# Install essential jail recipe packages from the recipe repo
+	pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-  # Set permissions that git doesn't track
-  chmod 0600 /jls/${JAIL_NAME}/usr/local/etc/ddclient.conf
+	# Set permissions that git doesn't track
+	chmod 0600 /jls/${JAIL_NAME}/usr/local/etc/ddclient.conf
 
-  # Update resolv.conf in all existing jails and future jails to use this caching dns server
-  sed -i "" "s/^#nameserver 192.168.10.47/nameserver 192.168.10.47/" configs/${HOST_NAME}/etc/resolv.conf.static
-  sed -i "" "s/^#nameserver 192.168.10.47/nameserver 192.168.10.47/" /jls/template/etc/resolv.conf
-  for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
-  do
-    cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
-  done
+	# Update resolv.conf in all existing jails and future jails to use this caching dns server
+	sed -i "" "s/^#nameserver 192.168.10.47/nameserver 192.168.10.47/" configs/${HOST_NAME}/etc/resolv.conf.static
+	sed -i "" "s/^#nameserver 192.168.10.47/nameserver 192.168.10.47/" /jls/template/etc/resolv.conf
+	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
+	do
+		cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
+	done
 
 
-  # Mandatory: return code
-  RECIPE_SUCCESS="yes"
+	# Mandatory: return code
+	RECIPE_SUCCESS="yes"
 
 }

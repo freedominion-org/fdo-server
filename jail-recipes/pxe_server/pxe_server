@@ -21,60 +21,60 @@ CLONEZILLA_ARCHIVE="clonezilla-live-${CLONEZILLA_VERSION}-i686-pae"             
 cook_recipe ()
 {
 
-  echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that a 'dhcp_server' recipe is cooked and    "
-  echo -e "        running on your network. To cook the required 'dhcp_server' recipe on  "
-  echo -e "        this host use the command:                                             "
-  echo -e "${LBLU}${SCRIPT_NAME} create-jail-from-recipe dhcp dhcp dhcp_server${NRML}\n"
+	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that a 'dhcp_server' recipe is cooked and    "
+	echo -e "        running on your network. To cook the required 'dhcp_server' recipe on  "
+	echo -e "        this host use the command:                                             "
+	echo -e "${LBLU}${SCRIPT_NAME} create-jail-from-recipe dhcp dhcp dhcp_server${NRML}\n"
 
-  question_yes_no "Would you like to continue to cook this jail recipe?"
-  if [ "${ANSWER}" = "no" ]
-  then
-    RECIPE_SUCCESS="no"
-    return
-  fi
+	question_yes_no "Would you like to continue to cook this jail recipe?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-  echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
-  echo -e "${YELL}Please accept when prompted...${NRML}\n"
-  sleep 5
+	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
+	echo -e "${YELL}Please accept when prompted...${NRML}\n"
+	sleep 5
 
-  # Install essential jail recipe packages from the recipe repo
-  pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
-  if [ ${?} -ne 0 ]
-  then
-    echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
-    RECIPE_SUCCESS="no"
-    return
-  fi
+	# Install essential jail recipe packages from the recipe repo
+	pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-  # Replace variables in the pxelinux.cfg/default config file
-  sed -i "" "s/CLONEZILLA_VERSION/${CLONEZILLA_VERSION}/g" configs/${JAIL_NAME}@${HOST_NAME}/tftpboot/pxelinux.cfg/default
-  sed -i "" "s/TFTPBOOT_HOST/${TFTPBOOT_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/tftpboot/pxelinux.cfg/default
+	# Replace variables in the pxelinux.cfg/default config file
+	sed -i "" "s/CLONEZILLA_VERSION/${CLONEZILLA_VERSION}/g" configs/${JAIL_NAME}@${HOST_NAME}/tftpboot/pxelinux.cfg/default
+	sed -i "" "s/TFTPBOOT_HOST/${TFTPBOOT_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/tftpboot/pxelinux.cfg/default
 
-  echo -e "\n${YELL}Downloading recipe resources...${NRML}\n"
+	echo -e "\n${YELL}Downloading recipe resources...${NRML}\n"
 
-  # Download recipe resources
-  fetch -o ${IMAGES_DIR} ${CLONEZILLA_URL}${CLONEZILLA_ARCHIVE}.zip
-  fetch -o /jls/${JAIL_NAME}/tftpboot ${SYSLINUX_URL}${SYSLINUX_TARBALL}
+	# Download recipe resources
+	fetch -o ${IMAGES_DIR} ${CLONEZILLA_URL}${CLONEZILLA_ARCHIVE}.zip
+	fetch -o /jls/${JAIL_NAME}/tftpboot ${SYSLINUX_URL}${SYSLINUX_TARBALL}
 
-  echo -e "\n${YELL}Preparing PXELINUX binaries...${NRML}\n"
+	echo -e "\n${YELL}Preparing PXELINUX binaries...${NRML}\n"
 
-  # Extract syslinux tarball and symlink pxe linux kernel files to tftpboot path 
-  tar -x -C /jls/${JAIL_NAME}/tftpboot/ -f /jls/${JAIL_NAME}/tftpboot/${SYSLINUX_TARBALL}
-  ln -s syslinux-6.03/bios/core/pxelinux.0 /jls/${JAIL_NAME}/tftpboot/pxelinux.0
-  ln -s syslinux-6.03/bios/com32/elflink/ldlinux/ldlinux.c32 /jls/${JAIL_NAME}/tftpboot/ldlinux.c32
-  ln -s syslinux-6.03/bios/com32/libutil/libutil.c32 /jls/${JAIL_NAME}/tftpboot/libutil.c32
-  ln -s syslinux-6.03/bios/com32/menu/menu.c32 /jls/${JAIL_NAME}/tftpboot/menu.c32
+	# Extract syslinux tarball and symlink pxe linux kernel files to tftpboot path 
+	tar -x -C /jls/${JAIL_NAME}/tftpboot/ -f /jls/${JAIL_NAME}/tftpboot/${SYSLINUX_TARBALL}
+	ln -s syslinux-6.03/bios/core/pxelinux.0 /jls/${JAIL_NAME}/tftpboot/pxelinux.0
+	ln -s syslinux-6.03/bios/com32/elflink/ldlinux/ldlinux.c32 /jls/${JAIL_NAME}/tftpboot/ldlinux.c32
+	ln -s syslinux-6.03/bios/com32/libutil/libutil.c32 /jls/${JAIL_NAME}/tftpboot/libutil.c32
+	ln -s syslinux-6.03/bios/com32/menu/menu.c32 /jls/${JAIL_NAME}/tftpboot/menu.c32
 
-  echo -e "\n${YELL}Extracting Clonezilla archive into bootable images directory...${NRML}\n"
+	echo -e "\n${YELL}Extracting Clonezilla archive into bootable images directory...${NRML}\n"
 
-  # Extract Clonezilla archive
-  unzip -q -d ${IMAGES_DIR}/${CLONEZILLA_ARCHIVE} ${IMAGES_DIR}/${CLONEZILLA_ARCHIVE}.zip
+	# Extract Clonezilla archive
+	unzip -q -d ${IMAGES_DIR}/${CLONEZILLA_ARCHIVE} ${IMAGES_DIR}/${CLONEZILLA_ARCHIVE}.zip
 
-  # Delete downloaded tarballs
-  rm ${IMAGES_DIR}/${CLONEZILLA_ARCHIVE}.zip
-  rm /jls/${JAIL_NAME}/tftpboot/${SYSLINUX_TARBALL}
+	# Delete downloaded tarballs
+	rm ${IMAGES_DIR}/${CLONEZILLA_ARCHIVE}.zip
+	rm /jls/${JAIL_NAME}/tftpboot/${SYSLINUX_TARBALL}
 
-  # Mandatory: return code
-  RECIPE_SUCCESS="yes"
+	# Mandatory: return code
+	RECIPE_SUCCESS="yes"
 
 }
