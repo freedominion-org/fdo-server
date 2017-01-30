@@ -35,6 +35,7 @@ echo ""
 pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
 echo ""
 passwd ${USERNAME}
+echo ""
 
 # Create ZFS filesystem for home folder
 zfs create -o quota=50G ${HOME_ZFS_NAME}/${USERNAME}
