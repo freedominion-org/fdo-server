@@ -1,7 +1,7 @@
-#!/usr/local/bin/python
+#!/usr/local/bin/python2
 
-# Tested on FreeBSD 10.0
-# Additional FreeBSD ports/packages: py-daemon # OR install from pip: python-daemon
+# Tested on FreeBSD 10.3
+# Additional FreeBSD ports/packages: py-psycopg2/py27-psycopg2, py-daemon/py27-daemon # OR install from pip: python-daemon
 
 
 import logging
@@ -13,8 +13,6 @@ import psycopg2
 class App():
 
     def __init__(self):
-
-        self.rdHost = "desktops.example.net"
 
         self.stdin_path = '/dev/null'
         self.stdout_path = '/var/log/fdo-rdscreensized/stdout.log'
@@ -29,11 +27,14 @@ class App():
         #logger.warn("Warning message")
         #logger.error("Error message")
 
-        dbUsername = "fdoclientos"
-        dbPassword = "fdoclientospass"
+        dbHost = tuple(open('/usr/local/etc/fdo/remote-desktops-rdscreensized-db.conf','r'))[0].split('\n')[0]
+        dbName = tuple(open('/usr/local/etc/fdo/remote-desktops-rdscreensized-db.conf','r'))[1].split('\n')[0]
+        dbUsername = tuple(open('/usr/local/etc/fdo/remote-desktops-rdscreensized-db.conf','r'))[2].split('\n')[0]
+        dbPassword = tuple(open('/usr/local/etc/fdo/remote-desktops-rdscreensized-db.conf','r'))[3].split('\n')[0]
+        self.rdHost = tuple(open('/usr/local/etc/fdo/remote-desktops-rdscreensized-db.conf','r'))[4].split('\n')[0]
 
         while True:
-            while not self.openDatabase("pgsql.example.net","fdo-client-os",dbUsername,dbPassword):
+            while not self.openDatabase(dbHost,dbName,dbUsername,dbPassword):
                 time.sleep(30)
 
             while True:
@@ -52,8 +53,8 @@ class App():
         for row in resultset:
             desktopName = row[0]
             resolution = row[1]
-            logger.debug("change resolution for " + str(desktopName) + " to " + str(resolution))
-            commandText = "/usr/local/bin/sudo -u " + str(desktopName) + " /usr/local/bin/VBoxManage controlvm " + str(desktopName) + " setvideomodehint " + str(resolution) + " 32" 
+            logger.info("Changing resolution for " + str(desktopName) + " to " + str(resolution))
+            commandText = "su - " + str(desktopName) + " /usr/local/bin/VBoxManage controlvm " + str(desktopName) + " setvideomodehint " + str(resolution) + " 32" 
             logger.debug(str(commandText))
             if subprocess.call(commandText,shell=True) == 0:
                 sqlCommand = "update remote_desktops set request_size = NULL where name like '" + str(desktopName) + "' and host like '" + str(self.rdHost) + "';"
