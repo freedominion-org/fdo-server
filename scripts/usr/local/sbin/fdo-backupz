@@ -55,7 +55,7 @@ NRML="\033[0;00m"
 CARRIAGE_RETURN="
 "
 
-################################################################################
+##### COMMAND USAGE INFO #######################################################
 
 usage ()
 {
@@ -72,7 +72,7 @@ usage ()
 	echo -e ""
 }
 
-######## SANITY TESTS ##########################################################
+##### SANITY TESTS #############################################################
 
 if [ $# != 2 ]
 then
@@ -80,7 +80,7 @@ then
 	exit 1
 fi
 
-BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" > /dev/null 2>&1`
+BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
 if [ $? -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported."
