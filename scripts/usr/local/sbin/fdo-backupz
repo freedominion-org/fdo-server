@@ -94,7 +94,7 @@ then
 	exit 3
 fi
 
-BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '${print $5}'`
+BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
 
 if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
 then
