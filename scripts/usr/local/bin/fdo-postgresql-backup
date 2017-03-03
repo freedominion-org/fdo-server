@@ -1,17 +1,136 @@
 #!/bin/sh
 
-if [ $# -ne 1 ]
-then
-  echo ""
-  echo "Usage:   ${0} DB_NAME"
-  echo "Example: ${0} free-dominion.org"
-  echo ""
-  exit 1
-fi
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-DB_NAME=$1
 
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+DB_NAME="${1}"
+BACKUP_DIR="${2}"
+NUM_MANDATORY_ARGS=2
+PG_DUMP_CMD="/usr/local/bin/pg_dump"
 DATE_CMD=/bin/date
 NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
 
-/usr/local/bin/pg_dump -w ${DB_NAME} > /backup/pg_dumps/${DB_NAME}.${NOW}.sql
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} backup (dump) postgresql databases."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} database_name backup_directory${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} somedb /backup/pg_dumps${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
+fi
+
+if [ ! -d "${BACKUP_DIR}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Backup directory does not exist!\nAborting."
+	usage
+	exit 3
+fi
+
+
+##### FUNCTIONS ################################################################
+
+
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# Dump the dB to the backup directory.
+${PG_DUMP_CMD} -w ${DB_NAME} > "${BACKUP_DIR}/${DB_NAME}.${NOW}.sql"
+if [ ${?} -ne 0 ]
+then
+	ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+	echo -e "\n${LRED}ERROR:${NRML} Backup (dump) seems to have failed!\nAborting."
+fi
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 4
+fi
+
+################################################################################

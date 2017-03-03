@@ -1,135 +1,265 @@
 #!/usr/local/bin/bash
 
-# VERSION 2.1
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-if [ $# -ne 3 ] && [ $# -ne 4 ]
-then
-  echo ""
-  echo "Usage   (1): $0 pool offset interval"
-  echo "Example (1): $0 backup 28 7"
-  echo ""
-  echo "Usage   (2): $0 pool offset interval \"snapshot_pattern\""
-  echo "Example (2): $0 backup 28 28 \"/users\""
-  echo ""
-  echo "Note       : offset and interval are number of days."
-  echo ""
-  exit 1
-fi
 
-POOL=$1
-OFFSET_DAYS=$2
-INTERVAL_DAYS=$3
-INCLUSSION_PATTERN=$4
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
+SCRIPT_NAME=`basename ${0}`
+POOL=${1}
+BACKUP_POOL=${2}
+OFFSET_DAYS=${3}
+INTERVAL_DAYS=${4}
+NUM_MANDATORY_ARGS=4
+FILESYSTEM_FILTER=""
+SIMULATION_MODE="no"
 NOW=`date +%s`
 NOW_DATE_TIME=`date +%Y-%m-%d_%H-%M`
 DAY_IN_SECS=86400
 OFFSET=$((${OFFSET_DAYS} * ${DAY_IN_SECS}))
 INTERVAL=$((${INTERVAL_DAYS} * ${DAY_IN_SECS}))
 
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
 
-######## SANITY TESTS ###############################################################
+CARRIAGE_RETURN="
+"
 
-zpool list | tail -n +2 | awk '{print $1}' | grep backup > /dev/null 2>&1
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool backup_pool offset interval [--simulate]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7 --simulate${NRML}"
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool backup_pool offset interval [--filter=\"filesystem_filter\"] [--simulate]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7 --filter=\"/users\"${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7 --filter=\"/users\" --simulate${NRML}"
+	echo -e ""
+	echo -e "${GREY}Note   :  offset and interval are in number of days.${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}--filter    Only thins snapshots with the specified pattern in it's${NRML}"
+	echo -e "${YELL}            filesystem name.${NRML}"
+	echo -e ""
+	echo -e "${YELL}--simulate  Simulation mode. Will output the commands but not execute them.${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--fiter)
+				FILESYSTEM_FILTER="${OPTIONAL_ARG_VALUE}"
+				;;
+			--simulate)
+				SIMULATION_MODE="yes"
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
+fi
+
+BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
 if [ $? -ne 0 ]
 then
-   exit 2
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported."
+	exit 3
 fi
 
-BACKUP_ERROR_MARKERS=`ls /backup/last-backup-error-*.inf 2> /dev/null | wc -l`
-
-if [ ${BACKUP_ERROR_MARKERS} -ne 0 ]
+BACKUP_POOL_HEALTH=`echo ${BACKUP_POOL_ATTRIBUTES} | awk '{print $9}'`
+if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
-  exit 3
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy."
+	exit 4
 fi
 
-BACKUP_RUNNING_MARKERS=`ls /backup/backup-*-running.inf 2> /dev/null | wc -l`
+BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
 
-if [ ${BACKUP_RUNNING_MARKERS} -ne 0 ]
+if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
 then
-  exit 4
+	echo -e "\n${LRED}ERROR:${NRML} The last backup from '${POOL}' to '${BACKUP_POOL}' failed!\nAborting.\n"
+	exit 5
 fi
 
-######################################################################################
+if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\nAborting.\n"
+	exit 6
+fi
 
+################################################################################
+
+
+##### FUNCTIONS ################################################################
 
 thin_snapshots_by_filesystem()
 {
 
-FILESYSTEM=${1}
+	FILESYSTEM=${1}
 
-SNAPSHOTS=`zfs list -r -d 1 -H -t snapshot -o name ${FILESYSTEM}`
+	SNAPSHOTS=`zfs list -r -d 1 -H -t snapshot -o name ${FILESYSTEM}`
 
-EARLIEST_TIMESTAMP=${NOW}
-i=0
-for snapshot in ${SNAPSHOTS}
-do
-  SNAPSHOT_NAMES[$i]=${snapshot}
-  SNAPSHOT_TIMESTAMPS[$i]=`echo ${snapshot} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
-  SNAPSHOT_ACTION[$i]="keep"
+	EARLIEST_TIMESTAMP=${NOW}
+	i=0
+	for SNAPSHOT in ${SNAPSHOTS}
+	do
+		SNAPSHOT_NAMES[$i]=${SNAPSHOT}
+		SNAPSHOT_TIMESTAMPS[$i]=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
+		SNAPSHOT_ACTION[$i]="keep"
 
-  if [ ${SNAPSHOT_TIMESTAMPS[$i]} -lt ${EARLIEST_TIMESTAMP} ]
-  then
-    EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMPS[$i]}
-  fi
-  i=$(($i+1))
-done
+		if [ ${SNAPSHOT_TIMESTAMPS[$i]} -lt ${EARLIEST_TIMESTAMP} ]
+		then
+			EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMPS[$i]}
+		fi
+		i=$(( $i + 1 ))
+	done
 
-NUM_SNAPSHOTS=${#SNAPSHOT_NAMES[@]}
+	NUM_SNAPSHOTS=${#SNAPSHOT_NAMES[@]}
 
-FIRST_PROJECTION=$((${NOW} - ${OFFSET}))
+	FIRST_PROJECTION=$((${NOW} - ${OFFSET}))
 
-PROJECTIONS[0]=${FIRST_PROJECTION}
+	PROJECTIONS[0]=${FIRST_PROJECTION}
 
-NEXT_PROJECTION=${FIRST_PROJECTION}
+	NEXT_PROJECTION=${FIRST_PROJECTION}
 
-j=1
-while [ ${NEXT_PROJECTION} -gt ${EARLIEST_TIMESTAMP} ]
-do
-  NEXT_PROJECTION=$((${NEXT_PROJECTION} - ${INTERVAL}))
-  PROJECTIONS[${j}]=${NEXT_PROJECTION}
-  j=$(($j+1))
-done
+	j=1
+	while [ ${NEXT_PROJECTION} -gt ${EARLIEST_TIMESTAMP} ]
+	do
+		NEXT_PROJECTION=$((${NEXT_PROJECTION} - ${INTERVAL}))
+		PROJECTIONS[${j}]=${NEXT_PROJECTION}
+		j=$(( $j + 1 ))
+	done
 
-if [ ! -d /backup/log ]
-then
-  mkdir /backup/log
-fi
+	j=0
+	i=$(( $i - 1 ))
+	while [ ${i} -ge 0 ]
+	do
+		if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${FIRST_PROJECTION} ]
+		then
 
-j=0
-i=$(($i-1))
-while [ ${i} -ge 0 ]
-do
-  if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${FIRST_PROJECTION} ]
-  then
-    if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -gt ${PROJECTIONS[${j}]} ] && [ ${i} -gt 0 ]
-    then
-      # we've need reached the next projection, destroy this snapshot
-      SNAPSHOT_ACTION[$i]="destroy"
-    else
-      # this the first snaphot older than current projection,  keep it and iterate to next projection
-      j=$(($j+1))
-    fi
-  fi
-  echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> /backup/log/test-thin-snapshots.${POOL}.${NOW_DATE_TIME}.log
-  if [ "${SNAPSHOT_ACTION[$i]}" = "destroy" ]
-  then
-    echo "zfs destroy ${SNAPSHOT_NAMES[$i]}"
-  fi
-  i=$(($i-1))
-done
+			echo -e "\nDEBUG: SNAPSHOT_NAMES[${i}] = ${SNAPSHOT_NAMES[${i}]}  LAST_SUCCESSFUL_BACKUP_SNAPSHOT = ${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}\n"
+
+			if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -gt ${PROJECTIONS[${j}]} ] && [ ${i} -gt 0 ] && [ "${SNAPSHOT_NAMES[${i}]}" != "${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}" ]
+			then
+				# We've reached the next projection, destroy this snapshot.
+				SNAPSHOT_ACTION[$i]="destroy"
+			else
+				# This is the first snaphot older than the current projection, keep it and iterate to next projection.
+				j=$(( $j + 1 ))
+			fi
+		fi
+		echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
+		if [ "${SNAPSHOT_ACTION[$i]}" = "destroy" ]
+		then
+			if [ ${SIMULATION_MODE} = "yes" ]
+			then
+				echo -e "${LBLU}zfs destroy ${SNAPSHOT_NAMES[$i]}${NRML}"
+			else
+				zfs destroy ${SNAPSHOT_NAMES[$i]}
+			fi
+		fi
+		i=$(( $i - 1 ))
+	done
 
 }
 
-if [ "${INCLUSSION_PATTERN}" != "" ]
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+# Create log filesystem if log directory doesn't already exist.
+if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
 then
-  for filesystem in `zfs list -H -t filesystem -o name -r ${POOL} | egrep "${INCLUSSION_PATTERN}"`
-  do
-    thin_snapshots_by_filesystem ${filesystem}
-  done
-else
-  for filesystem in `zfs list -H -t filesystem -o name -r ${POOL}`
-  do
-    thin_snapshots_by_filesystem ${filesystem}
-  done
+	zfs create -o mountpoint=/${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
 fi
+
+# Get the last successful backup snaphot name
+LAST_SUCCESSFUL_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf`
+
+if [ "${SIMULATION_MODE}" = "yes" ]
+then
+	echo -e "\n${YELL}   --- SIMULATION MODE ---   ${NRML}\n"
+fi
+
+
+if [ "${FILESYSTEM_FILTER}" != "" ]
+then
+	for FILESYSTEM in `zfs list -H -t filesystem -o name -r ${BACKUP_POOL}/${POOL} | egrep "${FILESYSTEM_FILTER}"`
+	do
+		thin_snapshots_by_filesystem ${FILESYSTEM}
+	done
+else
+	for FILESYSTEM in `zfs list -H -t filesystem -o name -r ${BACKUP_POOL}/${POOL}`
+	do
+		thin_snapshots_by_filesystem ${FILESYSTEM}
+	done
+fi
+
+################################################################################

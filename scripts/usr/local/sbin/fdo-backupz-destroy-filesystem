@@ -27,8 +27,11 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-SEARCH_PATH="${1}"
-NUM_MANDATORY_ARGS=1
+POOL=${1}
+FILESYSTEM_PATTERN=${2}
+NUM_MANDATORY_ARGS=2
+RECURSE=""
+SIMULATION_MODE="no"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -57,13 +60,19 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} search for Bourne shell scripts (sh/bash) in a given path."
+	echo -e "${YELL}Description:${NRML} destroy all filesystems from a given pool that match a given"
+	echo -e "             pattern in their name."
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool_to_destroy_from filesystem_pattern [--recursive ] [--simulate]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} backup Accounts --recursive${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} backup \"Accounts/Reports\" --simulate${NRML}"
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} search_path${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} /usr/local/bin${NRML}"
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}--recursive  Destroy the children of any matching filesystem.${NRML}"
+	echo -e ""
+	echo -e "${YELL}--simulate   Simulation mode. Will output the commands but not execute them.${NRML}"
 	echo -e ""
 }
-
 
 ##### PARSE ARGUMENTS ##########################################################
 
@@ -75,8 +84,11 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
-			--option1)
-				OPTION1="${OPTIONAL_ARG_VALUE}"
+			--recursive)
+				RECURSE="-r"
+				;;
+			--simulate)
+				SIMULATION_MODE="yes"
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
@@ -101,29 +113,31 @@ then
 fi
 
 
-##### FUNCTIONS ################################################################
-
-
-
-################################################################################
-
-
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
 
-# Search for Bourne/POSIX shell scripts (sh)
-echo -e "\n${YELL}Searching for sh scripts...${NRML}\n"
+# Find and destroy all matching filesystems.
+TO_DESTROY=`zfs list -H -t filesystem -r ${POOL} | awk '{print $1}' | grep "${FILESYSTEM_PATTERN}"`
 
-findinfiles "^\#\!\/bin\/sh" ${SEARCH_PATH} | grep -v '^#!/bin/sh' | sed "s|^${SEARCH_PATH}/||"
-
-# Search for Bourne-Again-SHell shell scripts (bash)
-echo -e "\n${YELL}Searching for bash scripts...${NRML}\n"
-
-findinfiles "^\#\!\/usr\/local\/bin\/bash" ${SEARCH_PATH} | grep -v '^#!/usr/local/bin/bash' | sed "s|^${SEARCH_PATH}/||"
-
-echo -e "\n"
-
+if [ "${SIMULATION_MODE}" = "yes" ]
+then
+	echo -e "\n${YELL}   --- SIMULATION MODE ---   ${NRML}\n"
+	for i in ${TO_DESTROY}
+	do
+		echo -e "zfs destroy ${RECURSE} -v ${i}"
+	done
+else
+	echo -e "\n${YELL}Destroying filesystems...${NRML}\n"
+	for i in ${TO_DESTROY}
+	do
+		zfs destroy -v ${RECURSE} ${i}
+		if [ ${?} -ne 0 ]
+		then
+			ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+		fi
+	done
+fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then

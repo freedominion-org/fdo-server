@@ -27,10 +27,10 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-HOST_NAME="${1}"
-HOST_IP="${2}"
+ARG1="${1}"
+ARG2="${2}"
 NUM_MANDATORY_ARGS=2
-DNS_CACHE_SERVER_FOUND="no"
+OPTION1=""
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -62,8 +62,12 @@ usage ()
 	echo -e "${YELL}Description:${NRML} sample line 1"
 	echo -e "             sample line 2."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname ip_address${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site1.example.net 192.168.10.20${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} mandatory_arg1 mandatory_arg2 [--option1=\"value\"]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} foo bar --option1=\"some value\"${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}--option1  sample option description.${NRML}"
 	echo -e ""
 }
 
@@ -78,6 +82,9 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
+			--option1)
+				OPTION1="${OPTIONAL_ARG_VALUE}"
+				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
 				usage
@@ -112,65 +119,7 @@ fi
 
 ERROR_COUNT=0
 
-# Iterate through all jails...
-for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
-do
-	# ...and if a bind server exists...
-	if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
-	then
-		# ...determine if it's a caching server
-		cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^( )*forwarders {" > /dev/null 2>&1
-		if [ ${?} -eq 0 ] 
-		then
-
-			DNS_CACHE_SERVER_FOUND=yes
-
-			# Now that we've found a caching server, let's see if the record already exists:
-			cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
-			if [ ${?} -eq 0 ]
-			then
-				echo -e "\n${ORNG}WARNING:${NRML} The record for hostname ${HOST_NAME} already exists!\n"
-				exit 2
-			fi
-
-			# Since it doesn't already exist, let's add a zone for our new hostname record:
-
-			# - Add zone entry in named.conf
-			echo "zone \"${HOST_NAME}\" { type master; file \"/usr/local/etc/namedb/master/${HOST_NAME}.db\"; };" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
-
-			# - Create the master zone file
-			DATE=`date "+%Y%m%d"`
-			echo "" > /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "\$TTL 3h" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "@ SOA @ nobody.localhost. ${DATE}01 1d 12h 1w 3h ;" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "                        ; Serial, Refresh, Retry, Expire, Neg. cache TTL" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "        IN      NS      ${HOST_NAME}." >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "${HOST_NAME}.        A       ${HOST_IP}" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-
-			# - Reload bind server
-			JAIL_ID_FILE=`ls -1 /var/run/jail_${JAIL_NAME}.id | head -1`
-			JAIL_ID=`cat ${JAIL_ID_FILE}`
-			echo -e "\n${YELL}Reloading the named service...${NRML}\n"
-			jexec ${JAIL_ID} service named reload > /dev/null 2>&1
-			if [ ${?} -ne 0 ]
-			then
-				echo -e "${LRED}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
-				exit 3
-			else
-				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
-			fi
-		fi
-	fi
-done
-
-if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n"
-	exit 1
-fi
-
+# start here
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then

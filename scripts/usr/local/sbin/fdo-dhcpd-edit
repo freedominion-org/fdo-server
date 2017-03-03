@@ -27,10 +27,8 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-HOST_NAME="${1}"
-HOST_IP="${2}"
-NUM_MANDATORY_ARGS=2
-DNS_CACHE_SERVER_FOUND="no"
+NUM_MANDATORY_ARGS=0
+DHCPD_CONFIG_FILE="/usr/local/etc/dhcpd.conf"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -59,11 +57,10 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} sample line 1"
-	echo -e "             sample line 2."
+	echo -e "${YELL}Description:${NRML} Quick way to edit and reload the dhcpd config file."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname ip_address${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site1.example.net 192.168.10.20${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML}"
 	echo -e ""
 }
 
@@ -78,6 +75,9 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
+			--help)
+				usage
+				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
 				usage
@@ -100,10 +100,33 @@ then
 	exit 2
 fi
 
+if [ ! -f "${DHCPD_CONFIG_FILE}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${DHCPD_CONFIG_FILE}'\ndoes not exist!\nAborting."
+	usage
+	exit 3
+fi
+
 
 ##### FUNCTIONS ################################################################
 
+question_yes_no ()
+{
 
+	LOOP=1
+
+	while [ ${LOOP} = 1 ]
+		do
+		echo -e "${LCYN}${1} (yes/no): ${NRML}\c"
+		read ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			LOOP=0
+		fi
+		echo ""
+	done
+
+}
 
 ################################################################################
 
@@ -112,69 +135,18 @@ fi
 
 ERROR_COUNT=0
 
-# Iterate through all jails...
-for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
-do
-	# ...and if a bind server exists...
-	if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
-	then
-		# ...determine if it's a caching server
-		cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^( )*forwarders {" > /dev/null 2>&1
-		if [ ${?} -eq 0 ] 
-		then
+# Open the dhcpd server config file in users preferred editor.
+${EDITOR} ${DHCPD_CONFIG_FILE}
 
-			DNS_CACHE_SERVER_FOUND=yes
-
-			# Now that we've found a caching server, let's see if the record already exists:
-			cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
-			if [ ${?} -eq 0 ]
-			then
-				echo -e "\n${ORNG}WARNING:${NRML} The record for hostname ${HOST_NAME} already exists!\n"
-				exit 2
-			fi
-
-			# Since it doesn't already exist, let's add a zone for our new hostname record:
-
-			# - Add zone entry in named.conf
-			echo "zone \"${HOST_NAME}\" { type master; file \"/usr/local/etc/namedb/master/${HOST_NAME}.db\"; };" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
-
-			# - Create the master zone file
-			DATE=`date "+%Y%m%d"`
-			echo "" > /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "\$TTL 3h" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "@ SOA @ nobody.localhost. ${DATE}01 1d 12h 1w 3h ;" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "                        ; Serial, Refresh, Retry, Expire, Neg. cache TTL" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "        IN      NS      ${HOST_NAME}." >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			echo "${HOST_NAME}.        A       ${HOST_IP}" >> /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-
-			# - Reload bind server
-			JAIL_ID_FILE=`ls -1 /var/run/jail_${JAIL_NAME}.id | head -1`
-			JAIL_ID=`cat ${JAIL_ID_FILE}`
-			echo -e "\n${YELL}Reloading the named service...${NRML}\n"
-			jexec ${JAIL_ID} service named reload > /dev/null 2>&1
-			if [ ${?} -ne 0 ]
-			then
-				echo -e "${LRED}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
-				exit 3
-			else
-				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
-			fi
-		fi
-	fi
-done
-
-if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
+question_yes_no "\nWould you like to restart the service to pick up any changes now?"
+if [ "${ANSWER}" = "yes" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n"
-	exit 1
+	service isc-dhcpd restart
 fi
-
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 3
+	exit 4
 fi
 
 ################################################################################

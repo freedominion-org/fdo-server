@@ -1,42 +1,133 @@
 #!/bin/sh
+
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
 #
-#  Copyright (c) 2012, Euan A. Thoms
-#  All rights reserved.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are met:
-#
-#  1. Redistributions of source code must retain the above copyright notice, this
-#     list of conditions and the following disclaimer.
-#  2. Redistributions in binary form must reproduce the above copyright notice,
-#     this list of conditions and the following disclaimer in the documentation
-#     and/or other materials provided with the distribution.
-#
-#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-#  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-#  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-#  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-#  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-#  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-#  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-#  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-#  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-# Find specified "text" within all files under specified folder
-# Usage: findinfiles "text to search for" /Folder/to/search
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
-SEARCH_TEXT=$1
-SEARCH_FOLDER=$2
+SCRIPT_NAME=`basename ${0}`
+SEARCH_TEXT="${1}"
+SEARCH_PATH="${2}"
+NUM_MANDATORY_ARGS=2
 
-if [ $# -ne 2 ]
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} find all occurences of search text within a directory or file."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} search_text search_directory${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} needle /usr/local/share/haystack${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} \"needle in a\" /home/haystack${NRML}"
+	echo -e ""
+	echo -e "${ORNG}Note:    ${NRML} It's recommended to use single quotes around the search text."
+    echo -e "          This command is designed to ignore regex/patterns."
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-  echo ""
-  echo "Usage:   ${0} SEARCH_TEXT SEARCH_FOLDER"
-  echo "Example: ${0} needle /usr/share/haystack"
-  echo ""
-  exit 1
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
 fi
 
-find "${SEARCH_FOLDER}" -type f -exec grep "${SEARCH_TEXT}" {} \; -print
+if [ ! -e "${SEARCH_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Search path does not exist!\nAborting."
+	usage
+	exit 3
+fi
+
+
+##### FUNCTIONS ################################################################
+
+
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# Find and display all occurences of search text recursively within all files under search path.
+find "${SEARCH_PATH}" -type f -exec grep --color=always "${SEARCH_TEXT}" {} \; -print
+
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 4
+fi
+
+################################################################################

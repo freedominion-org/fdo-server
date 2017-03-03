@@ -1,3 +1,0 @@
-#!/bin/sh
-
-vi /usr/local/etc/dhcpd.conf

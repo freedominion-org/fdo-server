@@ -32,8 +32,9 @@ DAV_SERVER_GROUPID=`cat /usr/local/etc/fdo/webdav_groupid.conf`
 DATE_CMD=/bin/date
 DATE_VERSION="freebsd" #choices of "freebsd" and "gnu"
 NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
-POOL=$1
-BACKUP_POOL=$2
+POOL=${1}
+BACKUP_POOL=${2}
+NUM_MANDATORY_ARGS=2
 DAY_IN_SECS=86400
 CLONE_WINDOW_DAYS=5
 NOW_IN_SECS=`${DATE_CMD} +%s`
@@ -72,26 +73,50 @@ usage ()
 	echo -e ""
 }
 
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
 ##### SANITY TESTS #############################################################
 
-if [ $# != 2 ]
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
 	usage
-	exit 1
+	exit 2
 fi
 
 BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
 if [ $? -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported."
-	exit 2
+	exit 3
 fi
 
 BACKUP_POOL_HEALTH=`echo ${BACKUP_POOL_ATTRIBUTES} | awk '{print $9}'`
 if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy."
-	exit 3
+	exit 4
 fi
 
 BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
@@ -99,32 +124,19 @@ BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
 if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The last backup from '${POOL}' to '${BACKUP_POOL}' failed!\nAborting.\n"
-	exit 4
+	exit 5
 fi
 
 if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\nAborting.\n"
-	exit 5
+	exit 6
 fi
 
 ################################################################################
 
 
-# Create log dataset if log directory doesn't already exist.
-if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
-then
-	zfs create -o mountpoint=/${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
-fi
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf ]
-then
-	PREVIOUS=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf`
-else
-	PREVIOUS="last-successful-backupz-missing"
-fi
-
-echo "Previous backup: ${PREVIOUS}"
+##### FUNCTIONS ################################################################
 
 WARNING_CODE=0
 WARNING_SNAPSHOT="NULL"
@@ -143,6 +155,27 @@ error_occured () {
 	rm ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
 	exit 5
 }
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+# Create log dataset if log directory doesn't already exist.
+if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
+then
+	zfs create -o mountpoint=/${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
+fi
+
+if [ -f ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf ]
+then
+	PREVIOUS=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf`
+else
+	PREVIOUS="last-successful-backupz-missing"
+fi
+
+echo "Previous backup: ${PREVIOUS}"
+
 
 echo ${NOW} > ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
 
@@ -319,3 +352,5 @@ echo "Backupz finished." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKU
 
 # Remove backup 'is-running' marker file.
 rm ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
+
+################################################################################
