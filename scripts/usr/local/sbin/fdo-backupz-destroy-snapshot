@@ -108,8 +108,8 @@ then
 	exit 2
 fi
 
-POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}  " 2> /dev/null`
-if [ $? -ne 0 ]
+POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
+if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported."
 	exit 3

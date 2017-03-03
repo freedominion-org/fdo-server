@@ -118,18 +118,32 @@ then
 	exit 4
 fi
 
+POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported."
+	exit 5
+fi
+
+POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
+if [ "${POOL_HEALTH}" != "ONLINE" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy."
+	exit 6
+fi
+
 BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
 
 if [ ! -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ] && [ ! -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Unable to find failed backup from '${POOL}' to '${BACKUP_POOL}'!\nAborting.\n"
-	exit 5
+	exit 7
 fi
 
 if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ] && [ ${FORCE_MODE} = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\nConsider using the --force option.\nAborting.\n"
-	exit 6
+	exit 8
 fi
 
 ################################################################################
@@ -166,7 +180,7 @@ if [ "${LAST_FAILED_BACKUP_SNAPSHOT}" = "${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The last failed backup appears to be the same as the last"
 	echo -e "       successful backup! This should never happen!\nAborting."
-	exit 7
+	exit 9
 fi
 
 # Now we remove the failed backup snapshots from both the production pool and the backup pool.
@@ -175,7 +189,7 @@ fdo-backupz-destroy-snapshot ${BACKUP_POOL} "@${LAST_FAILED_BACKUP_SNAPSHOT}"
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${BACKUP_POOL}'!\nAborting."
-	exit 8
+	exit 10
 fi
 
 echo -e "\n${YELL}Destroying failed backupz snapshots from the production pool...${NRML}\n"
@@ -183,7 +197,7 @@ fdo-backupz-destroy-snapshot ${POOL} "@${LAST_FAILED_BACKUP_SNAPSHOT}"
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${POOL}'!\nAborting."
-	exit 9
+	exit 11
 fi
 
 # After successfully destroying failed backup snapshots, let's remove the failed backup markers.
