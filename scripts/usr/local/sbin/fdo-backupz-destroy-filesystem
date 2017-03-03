@@ -27,8 +27,8 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-POOL=${1}
-FILESYSTEM_PATTERN=${2}
+POOL="${1}"
+FILESYSTEM_PATTERN="${2}"
 NUM_MANDATORY_ARGS=2
 RECURSE=""
 SIMULATION_MODE="no"
@@ -112,6 +112,19 @@ then
 	exit 2
 fi
 
+POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}  " 2> /dev/null`
+if [ $? -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported."
+	exit 3
+fi
+
+POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
+if [ "${POOL_HEALTH}" != "ONLINE" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy."
+	exit 4
+fi
 
 ##### MAIN EXECUTION THREAD ####################################################
 
@@ -141,7 +154,7 @@ fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 3
+	exit 5
 fi
 
 ################################################################################
