@@ -30,7 +30,7 @@ SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=0
 WEBDAV_CONFIG_ROOT="/usr/local/etc/webdav-sites"
 WEBDAV_SERVICE=apache24
-DIALOG_OUT_FILE="/tmp/fdo-webdav-edit.dialog.answer"
+DIALOG_OUT_FILE="/tmp/fdo-file_server-edit.dialog.answer"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -59,7 +59,7 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Quick way to edit and reload a webdav service config file."
+	echo -e "${YELL}Description:${NRML} Quick way to edit and reload a file_server service config file."
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML}"
@@ -109,7 +109,7 @@ fi
 
 if [ ! -e "${WEBDAV_CONFIG_ROOT}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The webdav config root '${WEBDAV_CONFIG_ROOT}'\ndoes not exist!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The WebDAV config root '${WEBDAV_CONFIG_ROOT}'\ndoes not exist!\nAborting."
 	usage
 	exit 3
 fi
@@ -147,7 +147,7 @@ SITES_AVAILABLE=`ls -1 ${WEBDAV_CONFIG_ROOT}/ | sort`
 NUM_SITES_AVAILABLE=`echo ${SITES_AVAILABLE} | wc -w`
 if [ ${NUM_SITES_AVAILABLE} -lt 1 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The webdav config root '${WEBDAV_CONFIG_ROOT}'\ndoes not contain any site configs!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The WebDAV config root '${WEBDAV_CONFIG_ROOT}'\ndoes not contain any site configs!\nAborting."
 	exit 4
 fi
 SITE=""
@@ -170,7 +170,7 @@ done
 
 WEBDAV_CONFIG_FILE="${WEBDAV_CONFIG_ROOT}/${SITE}"
 
-# Open the webdav server config file in users preferred editor.
+# Open the WebDAV server config file in users preferred editor.
 ${EDITOR} ${WEBDAV_CONFIG_FILE}
 
 question_yes_no "\nWould you like to reload the service to pick up any changes now?"

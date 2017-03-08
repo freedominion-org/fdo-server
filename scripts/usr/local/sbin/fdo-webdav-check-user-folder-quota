@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-HUB_NAME="${1}"
+SITE_NAME="${1}"
 USERNAME="${2}"
 NUM_MANDATORY_ARGS=2
 WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
@@ -59,9 +59,9 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Check what the quota is for a specified files user folder."
+	echo -e "${YELL}Description:${NRML} Check what the quota is for a specified file_server user folder."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hub_name username${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} site_name username${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} acme-aus wiley.coyote${NRML}"
 	echo -e ""
 }
@@ -99,10 +99,10 @@ then
 	exit 2
 fi
 
-zfs list ${WEBDAV_ROOT_FS}/${HUB_NAME}/users/${USERNAME} > /dev/null 2>&1
+zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME} > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The referenced files user folder does not exist!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server user folder does not exist!\nAborting."
 	exit 3
 fi
 
@@ -118,8 +118,8 @@ fi
 
 ERROR_COUNT=0
 
-# Display the quota of the ZFS filesystem of the files user folder.
-zfs get quota ${WEBDAV_ROOT_FS}/${HUB_NAME}/users/${USERNAME}
+# Display the quota of the ZFS filesystem of the file_server user folder.
+zfs get quota ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
 
 
 if [ ${ERROR_COUNT} -gt 0 ]

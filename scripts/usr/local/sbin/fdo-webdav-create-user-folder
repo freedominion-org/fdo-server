@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-HUB_NAME="${1}"
+SITE_NAME="${1}"
 USERNAME="${2}"
 NUM_MANDATORY_ARGS=2
 WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
@@ -62,9 +62,9 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Create a files user folder."
+	echo -e "${YELL}Description:${NRML} Create a file_server user folder."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hub_name username${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} site_name username${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} acme-aus wiley.coyote${NRML}"
 	echo -e ""
 }
@@ -102,10 +102,10 @@ then
 	exit 2
 fi
 
-zfs list ${WEBDAV_ROOT_FS}/${HUB_NAME}/users/${USERNAME} > /dev/null 2>&1
+zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME} > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The referenced files user folder already exists!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server user folder already exists!\nAborting."
 	exit 3
 fi
 
@@ -128,11 +128,11 @@ fi
 
 ERROR_COUNT=0
 
-# Create the ZFS filesystem of the files user folder.
-zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${HUB_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${HUB_NAME}/users/${USERNAME}
+# Create the ZFS filesystem of the file_server user folder.
+zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
 
-# Change ownership of the files user folder mountpoint.
-chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${HUB_NAME}/users/${USERNAME}
+# Change ownership of the file_server user folder mountpoint.
+chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME}
 
 
 if [ ${ERROR_COUNT} -gt 0 ]

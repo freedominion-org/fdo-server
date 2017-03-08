@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-HUB_NAME="${1}"
+SITE_NAME="${1}"
 SHARE_PATH="${2}"
 NUM_MANDATORY_ARGS=2
 WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
@@ -62,9 +62,9 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Create a files share."
+	echo -e "${YELL}Description:${NRML} Create a file_server share."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hub_name share_path${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} site_name share_path${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} acme-aus 'Explosives/TNT'${NRML}"
 	echo -e ""
 }
@@ -102,10 +102,10 @@ then
 	exit 2
 fi
 
-zfs list ${WEBDAV_ROOT_FS}/${HUB_NAME}/shares/${SHARE_PATH} > /dev/null 2>&1
+zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH} > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The referenced files share already exists!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server share already exists!\nAborting."
 	exit 3
 fi
 
@@ -128,11 +128,11 @@ fi
 
 ERROR_COUNT=0
 
-# Create the ZFS filesystem of the files share.
-zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${HUB_NAME}/shares/${SHARE_PATH} ${WEBDAV_ROOT_FS}/${HUB_NAME}/shares/${SHARE_PATH}
+# Create the ZFS filesystem of the file_server share.
+zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/shares/${SHARE_PATH} ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH}
 
-# Change ownership of the files share mountpoint.
-chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${HUB_NAME}/shares/${SHARE_PATH}
+# Change ownership of the file_server share mountpoint.
+chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/shares/${SHARE_PATH}
 
 
 if [ ${ERROR_COUNT} -gt 0 ]

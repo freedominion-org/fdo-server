@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-HUB_NAME="${1}"
+SITE_NAME="${1}"
 SHARE_PATH="${2}"
 QUOTA="${3}"
 NUM_MANDATORY_ARGS=3
@@ -60,9 +60,9 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Set the quota for a specified files share."
+	echo -e "${YELL}Description:${NRML} Set the quota for a specified file_server share."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hub_name share_path quota${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} site_name share_path quota${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} acme-aus 'Explosives/TNT' 100G${NRML}"
 	echo -e ""
 }
@@ -100,10 +100,10 @@ then
 	exit 2
 fi
 
-zfs list ${WEBDAV_ROOT_FS}/${HUB_NAME}/shares/${SHARE_PATH} > /dev/null 2>&1
+zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH} > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The referenced files share does not exist!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server share does not exist!\nAborting."
 	exit 3
 fi
 
@@ -119,8 +119,8 @@ fi
 
 ERROR_COUNT=0
 
-# Display the quota of the ZFS filesystem of the files share.
-zfs set quota=${QUOTA} ${WEBDAV_ROOT_FS}/${HUB_NAME}/shares/${SHARE_PATH}
+# Display the quota of the ZFS filesystem of the file_server share.
+zfs set quota=${QUOTA} ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH}
 
 echo -e "\n${LGRN}Quota has been set to ${QUOTA} for the shared folder ${SHARE_PATH}!${NRML}\n"
 
