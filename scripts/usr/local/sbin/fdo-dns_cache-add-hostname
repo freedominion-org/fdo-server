@@ -130,7 +130,7 @@ do
 			if [ ${?} -eq 0 ]
 			then
 				echo -e "\n${ORNG}WARNING:${NRML} The record for hostname ${HOST_NAME} already exists!\n"
-				exit 2
+				exit 3
 			fi
 
 			# Since it doesn't already exist, let's add a zone for our new hostname record:
@@ -157,7 +157,7 @@ do
 			if [ ${?} -ne 0 ]
 			then
 				echo -e "${LRED}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
-				exit 3
+				exit 4
 			else
 				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
 			fi
@@ -168,13 +168,13 @@ done
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n"
-	exit 1
+	exit 5
 fi
 
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 3
+	exit 6
 fi
 
 ################################################################################

@@ -1,17 +1,171 @@
 #!/bin/sh
 
-echo "Username:"
-read USERNAME
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-echo ""
-echo "Password:"
-read PASSWORD
 
-echo ""
-echo "Domain:"
-read  DOMAIN
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+USERNAME="${1}"
+DOMAIN_NAME="${2}"
+NUM_MANDATORY_ARGS=2
+PASSWORD=""
+SIP_MGMNT_CMD=opensipsctl
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} Add a user to a FDo SIP jail service."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} username domain_name [--password=\"value\"]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} joe.bloggs example.net${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} jimbob example.net --password=\"letmein\"${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}--password  Specify a password, used for non-interactive / scripting.${NRML}"
+	echo -e "${YELL}            WARNING: the command may reveal password in history.${NRML}"
+	echo -e ""
+}
 
 
-opensipsctl add ${USERNAME} ${PASSWORD}
+##### PARSE ARGUMENTS ##########################################################
 
-opensipsctl db exec "update subscriber set domain  = '${DOMAIN}' where username like '${USERNAME}'"
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--password)
+				PASSWORD="${OPTIONAL_ARG_VALUE}"
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
+fi
+
+which "${SIP_MGMNT_CMD}" > /dev/null 2>&1
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The SIP server management command '${SIP_MGMNT_CMD}' does not exist!\nAborting."
+	exit 3
+fi
+
+
+##### FUNCTIONS ################################################################
+
+
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# If password was not given as argument, prompt for it from user.
+while [ "${PASSWORD}" = "" ]
+do
+	echo -e "\n${LCYN}Enter password for the user: ${NRML}\c"
+	read PASSWORD_TEMP1
+	echo -e "${LCYN}Re-enter password          : ${NRML}\c"
+	read PASSWORD_TEMP2
+
+	if [ "${PASSWORD_TEMP1}" != "${PASSWORD_TEMP2}" ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+	elif [ "${PASSWORD_TEMP1}" = "" ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+	else
+		PASSWORD=${PASSWORD_TEMP1}
+	fi
+done
+
+echo -e "\n${YELL}Adding SIP user...${NRML}\n"
+${SIP_MGMNT_CMD} add ${USERNAME} ${PASSWORD}
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${YELL}Setting domain for SIP user...${NRML}\n"
+	${SIP_MGMNT_CMD} db exec "update subscriber set domain  = '${DOMAIN_NAME}' where username like '${USERNAME}'"
+	if [ ${?} -eq 0 ]
+	then
+		echo -e "\n${LGRN}Operation completed!${NRML}\n"
+	else
+		ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+	fi
+else
+	ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+fi
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 4
+fi
+
+################################################################################

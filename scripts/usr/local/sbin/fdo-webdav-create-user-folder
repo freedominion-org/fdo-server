@@ -1,33 +1,141 @@
 #!/bin/sh
 
-SHORT_ORG_NAME=$1
-USERID=$2
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-WEBDAV_ROOT_MOUNTPOINT=`cat /usr/local/etc/fdo/webdav_root_mountpoint.conf`
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+HUB_NAME="${1}"
+USERNAME="${2}"
+NUM_MANDATORY_ARGS=2
 WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
+WEBDAV_ROOT_MOUNTPOINT=`cat /usr/local/etc/fdo/webdav_root_mountpoint.conf`
+WEBDAV_UID=`cat /usr/local/etc/fdo/webdav_userid.conf`
+WEBDAV_GID=`cat /usr/local/etc/fdo/webdav_groupid.conf`
 
-if [ $# -ne 2 ]
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} Create a files user folder."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hub_name username${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} acme-aus wiley.coyote${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-    echo ""
-    echo "Usage:   ${0} SHORT_ORG_NAME USERID"
-    echo "Example: ${0} ffs joe.blogs"
-    exit 1 
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
 fi
 
+zfs list ${WEBDAV_ROOT_FS}/${HUB_NAME}/users/${USERNAME} > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The referenced files user folder already exists!\nAborting."
+	exit 3
+fi
+
+# Check that we are not currently running a backupz operation.
 ps aux | grep "backupz"  | grep -v "grep backupz"
-if [ $? -eq 0 ]
-then
-  echo ""
-  echo "ERROR: backupz is running, try again later!"
-  exit 2 
+if [ ${?} -eq 0 ]; then
+	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\nAborting."
+	exit 3
 fi
 
-zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SHORT_ORG_NAME}/users/${USERID} ${WEBDAV_ROOT_FS}/${SHORT_ORG_NAME}/users/${USERID}
 
-zfs set quota=5G data/dav/${SHORT_ORG_NAME}/users/${USERID}
+##### FUNCTIONS ################################################################
 
-chown -R 81:81 ${WEBDAV_ROOT_MOUNTPOINT}/${SHORT_ORG_NAME}/users/${USERID}
 
-echo ""
-echo "Successfully created the user folder for ${USERID}!"
 
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# Create the ZFS filesystem of the files user folder.
+zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${HUB_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${HUB_NAME}/users/${USERNAME}
+
+# Change ownership of the files user folder mountpoint.
+chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${HUB_NAME}/users/${USERNAME}
+
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 4
+fi

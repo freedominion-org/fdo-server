@@ -1,91 +1,178 @@
 #!/bin/sh
 
-# File name: fdo-hotdesk-remove-user 
-# Description: Shell script for removing hotdesk users
-# and removing their entry from /etc/exports
-# and updating NIS (yp)
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-usage (){
-  echo ""
-  echo "Usage:   $0 user.name"
-  echo "Example: $0 joe.bloggs"
-  echo ""
-  echo "Flags:   To ignore errors and force operation, prepend FORCE=yes to command."
-  echo "Example: FORCE=yes $0 joe.blogss"
-  echo ""
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+USERNAME="${1}"
+HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
+NUM_MANDATORY_ARGS=1
+FORCE_MODE="no"
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} Remove a hotdesk user from a host configured for"
+	echo -e "             FDo NIS/NFS hotdesking."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} username [--force]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} joe.bloggs${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} joe.bloggs --force${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}--force  Ignore errors and force all removal steps.${NRML}"
+	echo -e ""
 }
 
-USERNAME=$1
-HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
 
-if [ $# -ne 1 ]; then
-  usage
-  exit 1
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--force)
+				FORCE_MODE-"yes"
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
 fi
 
-grep ${USERNAME} /etc/passwd > /dev/null
-if [ $? = 1 ]; then
-  echo ""
-  echo "ERROR: User does not exists, please check username!"
-  echo ""
-  if [ "${FORCE}" !=  "yes" ]
-  then
-    exit 2
-  fi
+# Check that we are not currently running a backupz operation.
+ps aux | grep "backupz"  | grep -v "grep backupz"
+if [ ${?} -eq 0 ]; then
+	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\nAborting."
+	exit 3
 fi
 
-ps aux | grep backupz  | grep -v "grep backupz"                                                                                                                 
-if [ $? = 0 ]; then                                                                                                                           
-  echo ""
-  echo "ERROR: Backup is running, try again later!"                                                                                                    
-  echo ""
-  exit 3
+# Check that user exists.
+grep -e "${USERNAME}" /etc/passwd > /dev/null
+if [ ${?} -ne 0 ]; then
+	echo -e "\n${LRED}ERROR:${NRML} User does not exists, please check username!\nAborting."
+	if [ "${FORCE_MODE}" !=  "yes" ]
+	then
+		exit 4
+	fi
 fi
 
-echo ""
-echo "Destroying the users' home filesystem..."
-echo ""
+
+##### FUNCTIONS ################################################################
+
+
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# Destroy the hotdesk users' home directory filesystem.
+echo -e "\n${YELL}Destroying the users' home filesystem...${NRML}\n"
 zfs destroy -r -p -f ${HOME_ZFS_NAME}/${USERNAME}
 if [ $? != 0 ]
 then
-  echo ""
-  echo "ERROR: Hotdesk user home folder not destroyed, please verify username!"
-  echo ""
-  if [ "${FORCE}" !=  "yes" ]
-  then
-    exit 4
-  fi
+	echo -e "\n${LRED}ERROR:${NRML} Hotdesk user home directory not destroyed, please verify username!\nAborting."
+	if [ "${FORCE_MODE}" !=  "yes" ]
+	then
+		exit 5
+	fi
 else
-  echo ""
-  echo "Hotdesk user home folder destroyed."
-  echo ""
+	echo -e "\n${YELL}Hotdesk user home folder destroyed.${NRML}\n"
 fi
 
 
-echo ""
-echo "Removing the user from the exports file..."
-echo ""
+echo -e "\n${YELL}Removing the user from the exports file...${NRML}\n"
 cp /etc/exports /etc/exports.previous
 sed "/${USERNAME} /d" /etc/exports > /etc/exports.next
 cat /etc/exports.next > /etc/exports
 
-echo ""
-echo "Restarting mountd..."
-echo ""
+echo -e "\n${YELL}Restarting mountd...${NRML}\n"
 service mountd reload
 
-echo ""
-echo "Removing the user from NIS..."
-echo ""
+echo "\n${YELL}Removing the user from NIS...${NRML}\n"
 cd /var/yp
 sed -i "" "/${USERNAME}/d" master.passwd
 make
 
-echo ""
-echo "Removing the user from system..."
-echo ""
+echo "\n${YELL}Removing the user from system...${NRML}\n"
 rmuser -y ${USERNAME}
 
-echo ""
-echo "Operation complete!"
-echo ""
+echo "\n${LGRN}Operation complete!${NRML}\n"
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 6
+fi
+
+################################################################################

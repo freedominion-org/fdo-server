@@ -12,94 +12,158 @@
 #    notice, this list of conditions and the following disclaimer in the
 #    documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY 
-# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY 
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-SCRIPT_NAME=`basename $0`
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
+SCRIPT_NAME=`basename ${0}`
+HOST_NAME="${1}"
+NUM_MANDATORY_ARGS=1
+DNS_CACHE_SERVER_FOUND=no
+
+TERM="xterm"
 LRED="\033[1;31m"
 LGRN="\033[1;32m"
 LBLU="\033[1;34m"
 LCYN="\033[1;36m"
+CYAN="\033[0;36m"
 YELL="\033[1;33m"
 ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
 NRML="\033[0;00m"
 
 CARRIAGE_RETURN="
 "
 
-usage (){
-  echo -e ""
-  echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname${NRML}"
-  echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site1.example.net${NRML}"
-  echo -e ""
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} Remove hostname zone from FDo dns_cache jail services on this host."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site1.example.net${NRML}"
+	echo -e ""
 }
 
-if [ $# -ne 1 ]
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-  usage
-  exit 1
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	usage
+	exit 2
 fi
 
-HOST_NAME=${1}
-DNS_CACHE_SERVER_FOUND=no
+
+##### FUNCTIONS ################################################################
+
+
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
 
 # Iterate through all jails...
 for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
 do
-  # ...and if a bind server exists...
-  if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
-  then
-    # ...determine if it's a caching server
-    cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^( )*forwarders {" > /dev/null 2>&1
-    if [ ${?} -eq 0 ] 
-    then
+	# ...and if a bind server exists...
+	if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
+	then
+		# ...determine if it's a caching server
+		cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^( )*forwarders {" > /dev/null 2>&1
+		if [ ${?} -eq 0 ] 
+		then
 
-      DNS_CACHE_SERVER_FOUND=yes
+			DNS_CACHE_SERVER_FOUND=yes
 
-      # Now that we've found a caching server, let's see if the record exists:
-      cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
-      if [ ${?} -ne 0 ]
-      then
-        echo -e "\n${ORNG}WARNING:${NRML} The record for hostname ${HOST_NAME} doesn't exist!\n"
-        exit 2
-      fi
+			# Now that we've found a caching server, let's see if the record exists:
+			cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
+			if [ ${?} -ne 0 ]
+			then
+				echo -e "\n${ORNG}WARNING:${NRML} The record for hostname ${HOST_NAME} doesn't exist!\n"
+				exit 3
+			fi
 
-      # Hostname record exists, so now let's remove the zone for the hostname record:
+			# Hostname record exists, so now let's remove the zone for the hostname record:
 
-      # - Remove zone entry from named.conf
-      sed -i "" "/^zone \"${HOST_NAME}\"/d" /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+			# - Remove zone entry from named.conf
+			sed -i "" "/^zone \"${HOST_NAME}\"/d" /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
 
-      # - Remove the master zone file
-      rm /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db > /dev/null 2>&1
+			# - Remove the master zone file
+			rm /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db > /dev/null 2>&1
 
-      # - Reload bind server
-      JAIL_ID_FILE=`ls -1 /var/run/jail_${JAIL_NAME}.id | head -1`
-      JAIL_ID=`cat ${JAIL_ID_FILE}`
-      echo -e "\n${YELL}Reloading the named service...${NRML}\n"
-      jexec ${JAIL_ID} service named reload > /dev/null 2>&1
-      if [ ${?} -ne 0 ]
-      then
-        echo -e "${LRED}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
-        exit 3
-      else
-        echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
-      fi
-    fi
-  fi
+			# - Reload bind server
+			JAIL_ID_FILE=`ls -1 /var/run/jail_${JAIL_NAME}.id | head -1`
+			JAIL_ID=`cat ${JAIL_ID_FILE}`
+			echo -e "\n${YELL}Reloading the named service...${NRML}\n"
+			jexec ${JAIL_ID} service named reload > /dev/null 2>&1
+			if [ ${?} -ne 0 ]
+			then
+				echo -e "${LRED}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
+				exit 4
+			else
+				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
+			fi
+		fi
+	fi
 done
 
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then  
-  echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n"
-  exit 1
+	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n"
+	exit 5
 fi
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 6
+fi
+
+################################################################################
