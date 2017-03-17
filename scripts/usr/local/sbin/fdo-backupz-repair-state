@@ -83,7 +83,7 @@ do
 				FORCE_MODE="yes"
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -99,7 +99,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -107,28 +107,28 @@ fi
 BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
 if [ $? -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported."
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 3
 fi
 
 BACKUP_POOL_HEALTH=`echo ${BACKUP_POOL_ATTRIBUTES} | awk '{print $9}'`
 if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy."
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 4
 fi
 
 POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported."
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 5
 fi
 
 POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
 if [ "${POOL_HEALTH}" != "ONLINE" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy."
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 6
 fi
 
@@ -136,13 +136,13 @@ BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
 
 if [ ! -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ] && [ ! -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Unable to find failed backup from '${POOL}' to '${BACKUP_POOL}'!\nAborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} Unable to find failed backup from '${POOL}' to '${BACKUP_POOL}'!\n       Aborting.\n"
 	exit 7
 fi
 
 if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ] && [ ${FORCE_MODE} = "no" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\nConsider using the --force option.\nAborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\nConsider using the --force option.\n       Aborting.\n"
 	exit 8
 fi
 
@@ -179,7 +179,7 @@ fi
 if [ "${LAST_FAILED_BACKUP_SNAPSHOT}" = "${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The last failed backup appears to be the same as the last"
-	echo -e "       successful backup! This should never happen!\nAborting."
+	echo -e "       successful backup! This should never happen!\n       Aborting.\n"
 	exit 9
 fi
 
@@ -188,7 +188,7 @@ echo -e "\n${YELL}Destroying failed backupz snapshots from the backup pool...${N
 fdo-backupz-destroy-snapshot ${BACKUP_POOL} "@${LAST_FAILED_BACKUP_SNAPSHOT}"
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${BACKUP_POOL}'!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${BACKUP_POOL}'!\n       Aborting.\n"
 	exit 10
 fi
 
@@ -196,7 +196,7 @@ echo -e "\n${YELL}Destroying failed backupz snapshots from the production pool..
 fdo-backupz-destroy-snapshot ${POOL} "@${LAST_FAILED_BACKUP_SNAPSHOT}"
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${POOL}'!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${POOL}'!\n       Aborting.\n"
 	exit 11
 fi
 

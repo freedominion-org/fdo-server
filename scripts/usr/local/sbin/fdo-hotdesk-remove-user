@@ -87,7 +87,7 @@ do
 				FORCE_MODE-"yes"
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -103,7 +103,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -111,14 +111,14 @@ fi
 # Check that we are not currently running a backupz operation.
 ps aux | grep "backupz"  | grep -v "grep backupz"
 if [ ${?} -eq 0 ]; then
-	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\n       Aborting.\n"
 	exit 3
 fi
 
 # Check that user exists.
 grep -e "${USERNAME}" /etc/passwd > /dev/null
 if [ ${?} -ne 0 ]; then
-	echo -e "\n${LRED}ERROR:${NRML} User does not exists, please check username!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} User does not exists, please check username!\n       Aborting.\n"
 	if [ "${FORCE_MODE}" !=  "yes" ]
 	then
 		exit 4
@@ -142,7 +142,7 @@ echo -e "\n${YELL}Destroying the users' home filesystem...${NRML}\n"
 zfs destroy -r -p -f ${HOME_ZFS_NAME}/${USERNAME}
 if [ $? != 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Hotdesk user home directory not destroyed, please verify username!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Hotdesk user home directory not destroyed, please verify username!\n       Aborting.\n"
 	if [ "${FORCE_MODE}" !=  "yes" ]
 	then
 		exit 5

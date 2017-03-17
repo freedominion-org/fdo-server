@@ -79,7 +79,7 @@ do
 				OPTION1="${OPTIONAL_ARG_VALUE}"
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -95,7 +95,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi

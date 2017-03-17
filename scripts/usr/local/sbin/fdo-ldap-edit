@@ -87,7 +87,7 @@ do
 				exit
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -103,7 +103,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -111,13 +111,13 @@ fi
 which "${LDAP_EDIT_CMD}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The LDAP edit command '${LDAP_EDIT_CMD}' does not exist!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The LDAP edit command '${LDAP_EDIT_CMD}' does not exist!\n       Aborting.\n"
 	exit 3
 fi
 
 if [ "${LDAP_MGR_DN}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n'${LDAP_MGR_DN_LOOKUP_FILE}' is not valid!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n'${LDAP_MGR_DN_LOOKUP_FILE}' is not valid!\n       Aborting.\n"
 	exit 4
 fi
 

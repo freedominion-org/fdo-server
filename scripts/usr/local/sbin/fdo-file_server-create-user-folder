@@ -81,7 +81,7 @@ do
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -97,7 +97,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -105,14 +105,14 @@ fi
 zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME} > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server user folder already exists!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server user folder already exists!\n       Aborting.\n"
 	exit 3
 fi
 
 # Check that we are not currently running a backupz operation.
 ps aux | grep "backupz"  | grep -v "grep backupz"
 if [ ${?} -eq 0 ]; then
-	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\n       Aborting.\n"
 	exit 3
 fi
 

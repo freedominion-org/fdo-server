@@ -88,7 +88,7 @@ do
 				CASE_INSENSITIVE="yes"
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -104,14 +104,14 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
 
 if [ ! -e "${SEARCH_PATH}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Search path does not exist!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Search path does not exist!\n       Aborting.\n"
 	usage
 	exit 3
 fi

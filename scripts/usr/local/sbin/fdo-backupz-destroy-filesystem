@@ -91,7 +91,7 @@ do
 				SIMULATION_MODE="yes"
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -107,7 +107,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -115,14 +115,14 @@ fi
 POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported."
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 3
 fi
 
 POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
 if [ "${POOL_HEALTH}" != "ONLINE" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy."
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 4
 fi
 

@@ -85,7 +85,7 @@ do
 				LOGIN_SHELL="${OPTIONAL_ARG_VALUE}"
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -101,7 +101,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -123,7 +123,7 @@ JID_FILE=`ls -1 /var/run/jail_*.id | grep jail_${JAIL_NAME} | head -1`
 
 if [ "${JID_FILE}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} No jail found matching '${JAIL_NAME}'!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} No jail found matching '${JAIL_NAME}'!\n       Aborting.\n"
 	usage
 	exit 3
 fi
@@ -132,7 +132,7 @@ JID=`cat ${JID_FILE}`
 
 if [ "${JID}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} No jid found in '${JID_FILE}'!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} No jid found in '${JID_FILE}'!\n       Aborting.\n"
 	usage
 	exit 4
 fi

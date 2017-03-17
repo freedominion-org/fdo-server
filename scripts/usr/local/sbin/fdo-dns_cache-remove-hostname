@@ -77,7 +77,7 @@ do
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -93,7 +93,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -157,7 +157,7 @@ done
 
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then  
-	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n"
+	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n       Aborting.\n"
 	exit 5
 fi
 

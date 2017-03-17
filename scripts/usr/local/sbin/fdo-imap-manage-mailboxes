@@ -86,7 +86,7 @@ do
 				exit
 				;;
 			*)
-				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\nAborting."
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
 				exit 1
 				;;
@@ -102,7 +102,7 @@ done
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
 fi
@@ -110,7 +110,7 @@ fi
 which "${IMAP_MBOX_MGMNT_CMD}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The IMAP server management command '${IMAP_MBOX_MGMNT_CMD}' does not exist!\nAborting."
+	echo -e "\n${LRED}ERROR:${NRML} The IMAP server management command '${IMAP_MBOX_MGMNT_CMD}' does not exist!\n       Aborting.\n"
 	exit 3
 fi
 
