@@ -146,6 +146,6 @@ cook_recipe ()
 
 
 	# Mandatory: return code
-	RECIPE_SUCCESS="yes"
+	RECIPE_SUCCESS="devel"
 
 }
