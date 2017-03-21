@@ -1,0 +1,151 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+JAIL_IP="192.168.10.43"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+RECIPE_PACKAGES="ddclient"                                                     # Optional:  packages to install in the jail
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_PF_RELOAD="no"                                                 # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+START_JAIL_SERVICES="ddclient"                                                 # Optional:  jail services started after cooking (in left to right order)
+RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+USE_STRING="use=web, web=checkip.dyndns.org/, web-skip='IP Address'"           #
+################################################################################
+
+cook_recipe ()
+{
+
+	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
+	echo -e "${YELL}Please accept when prompted...${NRML}\n"
+	sleep 5
+
+	# Install essential jail recipe packages from the recipe repo
+	pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Set permissions that git doesn't track
+	chmod 0600 /jls/${JAIL_NAME}/usr/local/etc/ddclient.conf
+
+	# Get valid login name
+    USERNAME=""
+    while [ "${USERNAME}" = "" ]
+    do
+        echo -e "\n${LCYN}Enter dyndns server account login: ${NRML}\c"
+        read USERNAME_TEMP
+        # Check that the login username only contains letters, numbers, periods and underscores with a minimum of 3 characters.
+        TEST=`echo "${USERNAME_TEMP}" | sed -r "s/^[a-zA-Z0-9][a-zA-Z0-9\.\_\-]+[a-zA-Z0-9]//" | wc -L`
+        if [ ${TEST} -ne 0 ] || [ "${USERNAME_TEMP}" = "" ]
+        then
+            echo -e "\n${LRED}ERROR:${NRML} The login username can not be '${USERNAME_TEMP}'."
+            echo -e "       It must be at least three characters and only contain"
+            echo -e "       letters, numbers, periods, underscores and hyphens.\n"
+        else
+            question_yes_no "\nYou have entered '${USERNAME_TEMP}' as the login account username.\nIs this correct?"
+            if [ "${ANSWER}" = "yes" ]
+            then
+                USERNAME=${USERNAME_TEMP}
+            fi
+        fi
+    done
+
+	# Get login password
+    while [ "${PASSWORD}" = "" ]
+    do
+        echo -e "\n${LCYN}Enter login password: ${NRML}\c"
+        read PASSWORD_TEMP1
+        echo -e "${LCYN}Re-enter password  : ${NRML}\c"
+        read PASSWORD_TEMP2
+        
+        if [ "${PASSWORD_TEMP1}" != "${PASSWORD_TEMP2}" ]
+        then
+            echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+        elif [ "${PASSWORD_TEMP1}" = "" ]
+        then
+            echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+        else
+            PASSWORD=${PASSWORD_TEMP1}
+        fi
+    done
+
+	# Get dyndns protocol
+    PROTOCOL=""
+    while [ "${PROTOCOL}" = "" ]
+    do
+        echo -e "\n${LCYN}Enter dyndns server protocol (e.g. dyndns2): ${NRML}\c"
+        read PROTOCOL_TEMP
+        # Check that the protocol only contains letters, numbers, periods and underscores with a minimum of 3 characters.
+        TEST=`echo "${PROTOCOL_TEMP}" | sed -r "s/^[a-zA-Z0-9][a-zA-Z0-9\.\_\-]+[a-zA-Z0-9]//" | wc -L`
+        if [ ${TEST} -ne 0 ] || [ "${PROTOCOL_TEMP}" = "" ]
+        then
+            echo -e "\n${LRED}ERROR:${NRML} The dyndns server protocol can not be '${PROTOCOL_TEMP}'."
+            echo -e "       It must be at least three characters and only contain"
+            echo -e "       letters, numbers, periods, underscores and hyphens.\n"
+        else
+            question_yes_no "\nYou have entered '${PROTOCOL_TEMP}' as the dyndns server protocol.\nIs this correct?"
+            if [ "${ANSWER}" = "yes" ]
+            then
+                PROTOCOL=${PROTOCOL_TEMP}
+            fi
+        fi
+    done
+
+	# Get the server hostname. 
+    SERVER="" 
+    while [ "${SERVER}" = "" ] 
+    do 
+        echo -e "\n${LCYN}Enter the dyndns server hostname\n(e.g. members.dyndns.org): ${NRML}\c" 
+        read SERVER_TEMP 
+        # Check that the server hostname is a valid FQHN. 
+        test_valid_fqhn "${SERVER_TEMP}" 
+        if [ "${VALID_FQHN}" = "yes" ] 
+        then 
+            question_yes_no "\nYou have entered '${SERVER_TEMP}' as the dyndns server hostname.\nIs this correct?" 
+            if [ "${ANSWER}" = "yes" ]
+            then
+                SERVER=${SERVER_TEMP}
+            fi
+        else
+            echo -e "\n${LRED}ERROR:${NRML} The dyndns server hostname can not be '${SERVER_TEMP}'."
+            echo -e "       It must only contain letters, numbers, periods and hyphens."
+            echo -e "       It must not begin or end with a hyphen or a period.\n"
+        fi
+    done
+
+	# Get the dyndns hostname for this host. 
+    HOSTNAME="" 
+    while [ "${HOSTNAME}" = "" ] 
+    do 
+        echo -e "\n${LCYN}Enter the dyndns hostname for this host: ${NRML}\c" 
+        read HOSTNAME_TEMP 
+        # Check that the hostname is a valid FQHN. 
+        test_valid_fqhn "${HOSTNAME_TEMP}" 
+        if [ "${VALID_FQHN}" = "yes" ] 
+        then 
+            question_yes_no "\nYou have entered '${HOSTNAME_TEMP}' as this hosts dyndns hostname.\nIs this correct?" 
+            if [ "${ANSWER}" = "yes" ]
+            then
+                HOSTNAME=${HOSTNAME_TEMP}
+            fi
+        else
+            echo -e "\n${LRED}ERROR:${NRML} The entered hostname can not be '${HOSTNAME_TEMP}'."
+            echo -e "       It must only contain letters, numbers, periods and hyphens."
+            echo -e "       It must not begin or end with a hyphen or a period.\n"
+        fi
+    done
+
+	sed -i "" "s/USE_STRING/${USE_STRING}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+	sed -i "" "s/USERNAME/${USERNAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+	sed -i "" "s/PASSWORD/${PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+	sed -i "" "s/PROTOCOL/${PROTOCOL}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+	sed -i "" "s/SERVER/${SERVER}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+	sed -i "" "s/HOSTNAME/${HOSTNAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+
+
+	# Mandatory: return code
+	RECIPE_SUCCESS="yes"
+
+}
