@@ -137,7 +137,7 @@ cook_recipe ()
         fi
     done
 
-	sed -i "" "s/USE_STRING/${USE_STRING}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
+	sed -i "" "s|USE_STRING|${USE_STRING}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
 	sed -i "" "s/USERNAME/${USERNAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
 	sed -i "" "s/PASSWORD/${PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
 	sed -i "" "s/PROTOCOL/${PROTOCOL}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf 
