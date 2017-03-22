@@ -56,8 +56,8 @@ cook_recipe ()
 		echo -e "\n${LCYN}Enter the LDAP Provider host address: ${NRML}\c"
 		read LDAP_PROVIDER_HOST_TEMP
 		test_valid_inet_address ${LDAP_PROVIDER_HOST_TEMP}
-		test_valid_host_name ${LDAP_PROVIDER_HOST_TEMP}
-		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_HOST_NAME=}" = "yes" ]
+		test_valid_fqhn ${LDAP_PROVIDER_HOST_TEMP}
+		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_FQHN=}" = "yes" ]
 		then
 			test_ping_host ${LDAP_PROVIDER_HOST_TEMP}
 			if [ "${VALID_HOST_PING}" = "no" ]
@@ -125,8 +125,8 @@ cook_recipe ()
 	do
 		echo -e "\n\n${LCYN}Enter the LDAP Consumer hostname: ${NRML}\c"
 		read LDAP_CONSUMER_HOST_TEMP
-		test_valid_host_name ${LDAP_CONSUMER_HOST_TEMP}
-		if [ "${VALID_HOST_NAME=}" = "yes" ]
+		test_valid_fqhn ${LDAP_CONSUMER_HOST_TEMP}
+		if [ "${VALID_FQHN=}" = "yes" ]
 		then
 			echo -e ""
 			question_yes_no "You have entered '${LDAP_CONSUMER_HOST_TEMP}' as the Consumer hostname. Is this correct?"
