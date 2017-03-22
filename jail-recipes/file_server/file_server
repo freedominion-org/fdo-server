@@ -53,8 +53,8 @@ cook_recipe ()
 		echo -e "\n\n${LCYN}Enter the LDAP server host address: ${NRML}\c"
 		read LDAP_HOST_NAME_TEMP
 		test_valid_inet_address ${LDAP_HOST_IP_TEMP}
-		test_valid_host_name ${LDAP_HOST_NAME_TEMP}
-		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_HOST_NAME=}" = "yes" ]
+		test_valid_fqhn ${LDAP_HOST_NAME_TEMP}
+		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_FQHN=}" = "yes" ]
 		then
 			test_ping_host ${LDAP_HOST_NAME_TEMP}
 			if [ "${VALID_HOST_PING}" = "no" ]
@@ -113,8 +113,8 @@ cook_recipe ()
 	do
 		echo -e "\n\n${LCYN}Enter the file server host name: ${NRML}\c"
 		read FILE_SERVER_HOST_NAME_TEMP
-		test_valid_host_name ${FILE_SERVER_HOST_NAME_TEMP}
-		if [ "${VALID_HOST_NAME=}" = "yes" ]
+		test_valid_fqhn ${FILE_SERVER_HOST_NAME_TEMP}
+		if [ "${VALID_FQHN=}" = "yes" ]
 		then
 			echo -e ""
 			question_yes_no "You have entered '${FILE_SERVER_HOST_NAME_TEMP}' as the file server host name. Is this correct?"
