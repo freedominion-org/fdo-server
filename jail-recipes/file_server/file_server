@@ -23,8 +23,8 @@ cook_recipe ()
 	echo -e   "        Useful terminology:                                                     \n"
 	echo -e   "        LDAP Provider: The openldap server that provides the schema to          "
 	echo -e   "            consumers (master).                                                 \n"
-	echo -e   "        LDAP Consumer: The openldap server (this jail) that syncs from the      "
-	echo -e   "            provider and consumes the schema (slave).                           \n"
+	echo -e   "        LDAP Consumer: The openldap server that syncs from the provider and     "
+	echo -e   "            consumes the schema (slave).                                        \n"
 
 	question_yes_no "Would you like to continue to cook this jail recipe?"
 	if [ "${ANSWER}" = "no" ]
