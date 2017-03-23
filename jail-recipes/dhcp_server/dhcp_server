@@ -29,9 +29,9 @@ cook_recipe ()
 	# Add necessary devfs rules for isc-dhcpd to work
 	echo "" >> configs/${HOST_NAME}/etc/devfs.rules
 	echo "[dhcp_server_jail_ruleset=48]" >> configs/${HOST_NAME}/etc/devfs.rules
-	echo "add include $devfsrules_hide_all" >> configs/${HOST_NAME}/etc/devfs.rules
-	echo "add include $devfsrules_unhide_basic" >> configs/${HOST_NAME}/etc/devfs.rules
-	echo "add include $devfsrules_unhide_login" >> configs/${HOST_NAME}/etc/devfs.rules
+	echo "add include \$devfsrules_hide_all" >> configs/${HOST_NAME}/etc/devfs.rules
+	echo "add include \$devfsrules_unhide_basic" >> configs/${HOST_NAME}/etc/devfs.rules
+	echo "add include \$devfsrules_unhide_login" >> configs/${HOST_NAME}/etc/devfs.rules
 	echo "add path 'bpf*' unhide" >> configs/${HOST_NAME}/etc/devfs.rules
 	echo "add path net unhide" >> configs/${HOST_NAME}/etc/devfs.rules
 	echo "add path 'net/*' unhide" >> configs/${HOST_NAME}/etc/devfs.rules
