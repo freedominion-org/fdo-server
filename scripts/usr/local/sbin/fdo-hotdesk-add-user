@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-USERNAME="{$1}"
+USERNAME="${1}"
 DISPLAY_NAME="${2}"
 NUM_MANDATORY_ARGS=2
 HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
@@ -109,7 +109,55 @@ fi
 
 ##### FUNCTIONS ################################################################
 
+question_yes_no ()
+{
+	while true
+		do
+		echo -e "${LCYN}${1} (yes/no): ${NRML}\c"
+		read ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			break
+		fi
+		echo ""
+	done
+}
 
+test_valid_integer ()
+{
+
+	TEST_CASE="${1}"
+	TEST_MIN_VALUE=${2}
+	TEST_MAX_VALUE=${3}
+
+	VALID_INTEGER="yes"
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_INTEGER="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[0-9]+//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_INTEGER="no"
+		return 2
+	fi
+
+	if [ ${TEST_CASE} -lt ${TEST_MIN_VALUE} ]
+	then
+		VALID_INTEGER="no"
+		return 3
+	fi
+
+	if [ ${TEST_CASE} -gt ${TEST_MAX_VALUE} ]
+	then
+		VALID_INTEGER="no"
+		return 4
+	fi
+
+}
 
 ################################################################################
 
