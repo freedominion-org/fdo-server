@@ -119,8 +119,34 @@ fi
 ERROR_COUNT=0
 
 # Add new NIS user locally
-echo -e ""
-pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
+question_yes_no "\nWould you like to specify the UID of the new user?"
+if [ "${ANSWER}" = "yes" ]
+then
+	USER_UID=""
+	while [ "${USER_UID}" = "" ]
+	do
+		echo -e "\n${LCYN}Enter the new users' UID: ${NRML}\c"
+		read USER_UID_TEMP
+		# Check that the UID is valid.
+		test_valid_integer "${USER_UID_TEMP}" 1000 100000
+		if [ "${VALID_INTEGER}" = "yes" ]
+		then
+			question_yes_no "\nYou have entered '${USER_UID_TEMP}' as the new users' UID.\nIs this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				USER_UID=${USER_UID_TEMP}
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The new users' UID can not be '${USER_UID}'."
+			echo -e "       It must contain only numbers, greater than 1000 and less than 100000.\n"
+		fi
+	done
+	echo -e ""
+	pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID}
+else
+	echo -e ""
+	pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
+fi
 echo -e ""
 passwd ${USERNAME}
 echo -e ""
