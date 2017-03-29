@@ -178,7 +178,7 @@ error_occured () {
 # Create log dataset if log directory doesn't already exist.
 if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
 then
-	zfs create -o mountpoint=/${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
+	zfs create -o mountpoint=${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
 fi
 
 if [ -f ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf ]
@@ -224,13 +224,20 @@ do
 		echo "zfs dataset DOES NOT exist on backup pool:"
 		echo "${SNAPSHOT_NAME}"
 		# Send new dataset to backup pool.
-		echo "zfs send ${ZFS_SEND_FLAGS} ${SNAPSHOT_NAME} | zfs receive ${BACKUP_POOL}/${SNAPSHOT_PARENT}"
-		zfs send ${ZFS_SEND_FLAGS} ${SNAPSHOT_NAME} | zfs receive ${BACKUP_POOL}/${SNAPSHOT_PARENT}
+		echo "zfs send ${ZFS_SEND_FLAGS} ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}"
+		zfs send ${ZFS_SEND_FLAGS} ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}
 		if [ $? != 0 ]
 		then
 			ERROR_CODE=2
 			ERROR_SNAPSHOT=${SNAPSHOT_NAME}
+			zfs destroy -Rf ${BACKUP_POOL}/${SNAPSHOT_PARENT}
 			error_occured
+		fi
+
+		SNAPSHOT_PARENT_MOUNT_POINT=`zfs get -H mountpoint ${SNAPSHOT_PARENT} | awk '{print $3}'`
+		if [ "${SNAPSHOT_PARENT_MOUNT_POINT}" != "none" ]
+		then
+			zfs set mountpoint=${BACKUP_POOL_ROOT_PATH}/${POOL}${SNAPSHOT_PARENT_MOUNT_POINT} ${BACKUP_POOL}/${SNAPSHOT_PARENT}
 		fi
 
 		IS_SHARED_FS="false"
