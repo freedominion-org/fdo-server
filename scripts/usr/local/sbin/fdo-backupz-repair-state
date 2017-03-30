@@ -157,7 +157,7 @@ LAST_SUCCESSFUL_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-ba
 # Get the last failed backup snapshot suffix.
 if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
 then
-	LAST_FAILED_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf`
+	LAST_FAILED_BACKUP_SNAPSHOT=`head -1 ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf | awk '{print $3}'`
 else
 	LAST_FAILED_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-backupz-${POOL}-running.inf`
 fi

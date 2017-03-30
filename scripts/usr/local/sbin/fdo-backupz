@@ -224,8 +224,8 @@ do
 		echo "zfs dataset DOES NOT exist on backup pool:"
 		echo "${SNAPSHOT_NAME}"
 		# Send new dataset to backup pool.
-		echo "zfs send ${ZFS_SEND_FLAGS} ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}"
-		zfs send ${ZFS_SEND_FLAGS} ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}
+		echo "zfs send ${ZFS_SEND_FLAGS} -p ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}"
+		zfs send ${ZFS_SEND_FLAGS} -p ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}
 		if [ $? != 0 ]
 		then
 			ERROR_CODE=2
