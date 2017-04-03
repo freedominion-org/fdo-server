@@ -2,6 +2,7 @@
 DocumentRoot "/w3"
 ServerName FILE_SERVER_HOST_NAME
 ErrorLog "/var/log/FILE_SERVER_HOST_NAME-error_log"
+LogFormat "%h %l %u %t \"%r\" %>s %b" common
 CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
 
 <Directory "/w3">
