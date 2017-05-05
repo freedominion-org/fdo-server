@@ -30,7 +30,9 @@ SCRIPT_NAME=`basename ${0}`
 HOST_NAME="${1}"
 HOST_IP="${2}"
 NUM_MANDATORY_ARGS=2
+SILENT_MODE="no"
 DNS_CACHE_SERVER_FOUND="no"
+FDO_SERVER_SCRIPT="fdo-server"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -61,8 +63,9 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Description:${NRML} Add hostname zone to FDo dns_cache jail services on this host."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname ip_address${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname ip_address [--silent]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site1.example.net 192.168.10.20${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site2.example.net 192.168.10.21 --silent${NRML}"
 	echo -e ""
 }
 
@@ -77,6 +80,9 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
+			--silent)
+				SILENT_MODE="yes"
+				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
@@ -159,6 +165,18 @@ do
 				exit 4
 			else
 				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
+			fi
+			if [ "${SILENT_MODE}" = "no ]
+			then
+				question_yes_no "\nWould you like to update the repo with the config changes?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
+					CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS"
+					${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+					echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
+					${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
+				fi
 			fi
 		fi
 	fi

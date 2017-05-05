@@ -127,6 +127,28 @@ cook_recipe ()
 		fi
 	done
 
+	# Get short site name
+	SHORT_SITE_NAME=""
+	while [ "${SHORT_SITE_NAME}" = "" ]
+	do
+		echo -e "\n${LCYN}Enter short site name (e.g. acme-hq) : ${NRML}\c"
+		read SHORT_SITE_NAME_TEMP
+		# Check that the short site name only contains letters, numbers and hyphens with a minimum of 3 characters.
+		TEST=`echo "${SHORT_SITE_NAME_TEMP}" | sed -r "s/^[a-z0-9][a-z0-9\-]+[a-z0-9]//" | wc -L`
+		if [ ${TEST} -ne 0 ] || [ "${SHORT_SITE_NAME_TEMP}" = "" ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} The short site name can not be '${SHORT_SITE_NAME_TEMP}'."
+			echo -e "       It must be at least three characters and only contain lower case"
+			echo -e "       letters, numbers and hyphens.\n"
+		else
+			question_yes_no "\nYou have entered '${SHORT_SITE_NAME_TEMP}' as the short site name.\nIs this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				SHORT_SITE_NAME=${SHORT_SITE_NAME_TEMP}
+			fi
+		fi
+	done
+
 	# Replace variables in ldap.conf 
 	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
 	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
@@ -151,6 +173,9 @@ cook_recipe ()
 	# Rename webdav-sites file name
 	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
 
+	# Replace site specific variables in webdav-sites file
+	sed -i "" "s/SHORT_SITE_NAME/${SHORT_SITE_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+
 	# Create /w3 (WebDAV base directory)
 	mkdir /jls/${JAIL_NAME}/w3
 	chown www:www /jls/${JAIL_NAME}/w3
@@ -158,8 +183,11 @@ cook_recipe ()
 	# Enable port forwarding for file_server jail in pf.conf
 	sed -i "" "s/^#rdr on \(.*files_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
 
+	# Enable port forwarding for file_server jail in ppp.conf
+	sed -i "" "s/^ #nat port \(.*\.49\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/pf.conf
+
 	# Attempt to add file server host name to a caching dns (dns_cache) jail
-	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}
+	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --silent
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server "
@@ -190,6 +218,6 @@ cook_recipe ()
 
 
 	# Mandatory: return code
-	RECIPE_SUCCESS="devel"
+	RECIPE_SUCCESS="yes"
 
 }

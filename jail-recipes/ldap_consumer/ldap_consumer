@@ -8,6 +8,7 @@ RECIPE_REQUIRES_PF_RELOAD="yes"                                                #
 START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+LDAP_MGR_DN_LOOKUP_FILE="/usr/local/etc/fdo/ldap-manager-dn.conf"              #
 ################################################################################
 
 cook_recipe ()
@@ -213,6 +214,9 @@ cook_recipe ()
 	sed -i "" "s|LDAP_PROVIDER_SYNC_PASSWORD|${LDAP_PROVIDER_SYNC_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
 	sed -i "" "s|LDAP_CONSUMER_MANAGER_PASSWORD|${LDAP_CONSUMER_MANAGER_HASHED_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
 
+	# Replace variables in LDAP Manager DN lookup file
+	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}${LDAP_MGR_DN_LOOKUP_FILE}
+
 	# Replace variables in hosts file
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 	sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
@@ -226,8 +230,11 @@ cook_recipe ()
 	# Enable port forwarding for ldap jail in pf.conf
 	sed -i "" "s/^#rdr on \(.*ldap_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
 
+	# Enable port forwarding for file_server jail in ppp.conf
+	sed -i "" "s/^ #nat port \(.*\.50\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/pf.conf
+
 	# Attempt to add ldap consumer host name to a caching dns (dns_cache) jail
-	fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}
+	fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP} --silent
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server  "
