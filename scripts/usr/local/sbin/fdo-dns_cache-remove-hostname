@@ -157,7 +157,7 @@ do
 			else
 				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
 			fi
-			if [ "${SILENT_MODE}" = "no ]
+			if [ "${SILENT_MODE}" = "no" ]
 			then
 				question_yes_no "\nWould you like to update the repo with the config changes?"
 				if [ "${ANSWER}" = "yes" ]
