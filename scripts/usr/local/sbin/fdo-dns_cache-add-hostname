@@ -184,8 +184,7 @@ do
 				if [ "${ANSWER}" = "yes" ]
 				then
 					echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
-					CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS"
-					${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+					CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
 					echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
 					${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
 				fi
