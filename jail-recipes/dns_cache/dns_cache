@@ -39,7 +39,7 @@ cook_recipe ()
 	echo -e "        ${LBLU}fdo-dns_cache-add-hostname${NRML}\n"
 	echo -e "        To remove a hostname override from the caching DNS service,"
 	echo -e "        use the following command:\n"
-	echo -e "        ${LBLU}fdo-dns_cache-add-hostname${NRML}\n"
+	echo -e "        ${LBLU}fdo-dns_cache-remove-hostname${NRML}\n"
 	echo -e "        To list the hostname override(s) of the caching DNS service,"
 	echo -e "        use the following command:\n"
 	echo -e "        ${LBLU}fdo-dns_cache-list-hostnames${NRML}\n"

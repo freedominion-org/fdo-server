@@ -108,7 +108,19 @@ fi
 
 ##### FUNCTIONS ################################################################
 
-
+question_yes_no ()
+{
+	while true
+		do
+		echo -e "${LCYN}${1} (yes/no): ${NRML}\c"
+		read ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			break
+		fi
+		echo ""
+	done
+}
 
 ################################################################################
 
