@@ -234,7 +234,7 @@ cook_recipe ()
 	sed -i "" "s/^ #nat port \(.*\.50\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/ppp/ppp.conf
 
 	# Attempt to add ldap consumer host name to a caching dns (dns_cache) jail
-	fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP} --silent
+	DNS_CACHE_JAIL_NAME=`fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP} --silent`
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server  "
@@ -242,8 +242,6 @@ cook_recipe ()
 		echo -e   "         please run the following command on a dns_cache (recipe) jail on a host"
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}${NRML}\n"
-	else
-		cp /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
 	fi
 
 
