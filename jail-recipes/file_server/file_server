@@ -195,8 +195,6 @@ cook_recipe ()
 		echo -e   "         please use the following command on a dns_cache (recipe) jail on a host"
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}${NRML}\n"
-	else
-		cp /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
 	fi
 
 	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n"
