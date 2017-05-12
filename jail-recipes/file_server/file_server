@@ -4,7 +4,7 @@
 JAIL_IP="192.168.10.49"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="apache24"                                                     # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_PF_RELOAD="yes"                                                # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="apache24"                                                 # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
@@ -184,7 +184,7 @@ cook_recipe ()
 	sed -i "" "s/^#rdr on \(.*files_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
 
 	# Enable port forwarding for file_server jail in ppp.conf
-	sed -i "" "s/^ #nat port \(.*\.49\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/pf.conf
+	sed -i "" "s/^ #nat port \(.*\.49\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/ppp/ppp.conf
 
 	# Attempt to add file server host name to a caching dns (dns_cache) jail
 	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --silent
@@ -195,6 +195,8 @@ cook_recipe ()
 		echo -e   "         please use the following command on a dns_cache (recipe) jail on a host"
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}${NRML}\n"
+	else
+		cp /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
 	fi
 
 	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n"
@@ -202,14 +204,19 @@ cook_recipe ()
 	echo -e   "        should have their mountpoints set to the jailed paths '/w3/shares' and  "
 	echo -e   "        '/w3/users' respectively.                                               "
 	echo -e   "        They should also have user and group ownership set to 'www'.            \n"
-	echo -e   "        Example (1):                                                            "
-	echo -e   "        ${LBLU}zfs create tank/files${NRML}                                     "
-	echo -e   "        ${LBLU}zfs create -o mountpoint=/jls/${JAIL_NAME}/w3/shares tank/files/shares${NRML}"
-	echo -e   "        ${LBLU}zfs create -o mountpoint=/jls/${JAIL_NAME}/w3/users tank/files/users${NRML}"
+	echo -e   "        Example 1 (new filesytems):                                             "
+	echo -e   "        ${LBLU}zfs create -o compression=on \                                   "
+	echo -e   "         -o casesensitivity=insensitive \                                       "
+	echo -e   "         -o mountpoint=/jls/${JAIL_NAME}/w3 \                                   "
+	echo -e   "         tank/files${NRML}                                                      "
+	echo -e   "        ${LBLU}zfs create tank/files/${SHORT_SITE_NAME}/shares${NRML}           "
+	echo -e   "        ${LBLU}zfs create tank/files/${SHORT_SITE_NAME}/users${NRML}            "
 	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     "
-	echo -e   "        Example (2):                                                            "
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/shares tank/files/shares${NRML}"
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/users tank/files/users${NRML}"
+	echo -e   "        Example 2 (existing filesystems):                                       "
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \"
+	echo -e   "         tank/files/${SHORT_SITE_NAME}/shares${NRML}                            "
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \"
+	echo -e   "         tank/files/${SHORT_SITE_NAME}/users${NRML}                             "
 	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n"
 	echo -e   "        [2] ACL's control which users and groups are allowed to read and write  "
 	echo -e   "        to these shares. ACL's must be added to the following file in this jail:"

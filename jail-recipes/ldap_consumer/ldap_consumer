@@ -4,7 +4,7 @@
 JAIL_IP="192.168.10.50"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="openldap-sasl-server ldapvi"                                  # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_PF_RELOAD="yes"                                                # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
+RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
@@ -231,7 +231,7 @@ cook_recipe ()
 	sed -i "" "s/^#rdr on \(.*ldap_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
 
 	# Enable port forwarding for file_server jail in ppp.conf
-	sed -i "" "s/^ #nat port \(.*\.50\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/pf.conf
+	sed -i "" "s/^ #nat port \(.*\.50\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/ppp/ppp.conf
 
 	# Attempt to add ldap consumer host name to a caching dns (dns_cache) jail
 	fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP} --silent
@@ -242,6 +242,8 @@ cook_recipe ()
 		echo -e   "         please run the following command on a dns_cache (recipe) jail on a host"
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}${NRML}\n"
+	else
+		cp /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
 	fi
 
 
