@@ -14,30 +14,30 @@ LDAP_HOST_IP="192.168.10.50"                                                   #
 seasoning_suggestions ()
 {
 
-	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n" ${1}
-	echo -e   "        [1] The ZFS datasets holding the 'shares' and 'users' files/directories " ${1}
-	echo -e   "        should have their mountpoints set to the jailed paths;                  " ${1}
-	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'      " ${1}
-	echo -e   "        respectively.                                                           " ${1}
-	echo -e   "        They should also have user and group ownership set to 'www'.            \n" ${1}
-	echo -e   "        Example 1 (new filesytems):                                             " ${1}
-	echo -e   "        ${LBLU}zfs create -o compression=on \                                   " ${1}
-	echo -e   "          -o casesensitivity=insensitive \                                      " ${1}
-	echo -e   "          -o mountpoint=/jls/${JAIL_NAME}/w3 \                                  " ${1}
-	echo -e   "          ${POOL_NAME}/files${NRML}                                             " ${1}
-	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}   " ${1}
-	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}    " ${1}
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     " ${1}
-	echo -e   "        Example 2 (existing filesystems):                                       " ${1}
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \ " ${1}
-	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}                   " ${1}
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \ " ${1}
-	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}                    " ${1}
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n" ${1}
-	echo -e   "        [2] ACL's control which users and groups are allowed to read and write  " ${1}
-	echo -e   "        to these shares. ACL's must be added to the following file in this jail:" ${1}
-	echo -e   "        ${YELL}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}$NRML}       " ${1}
-	echo -e   "        Consult the FDo documentation for ACL management commands.              \n" ${1}
+	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n" 
+	echo -e   "        [1] The ZFS datasets holding the 'shares' and 'users' files/directories " 
+	echo -e   "        should have their mountpoints set to the jailed paths;                  " 
+	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'      " 
+	echo -e   "        respectively.                                                           " 
+	echo -e   "        They should also have user and group ownership set to 'www'.            \n" 
+	echo -e   "        Example 1 (new filesytems):                                             " 
+	echo -e   "        ${LBLU}zfs create -o compression=on \                                   " 
+	echo -e   "          -o casesensitivity=insensitive \                                      " 
+	echo -e   "          -o mountpoint=/jls/${JAIL_NAME}/w3 \                                  " 
+	echo -e   "          ${POOL_NAME}/files${NRML}                                             " 
+	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}   " 
+	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}    " 
+	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     " 
+	echo -e   "        Example 2 (existing filesystems):                                       " 
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \ " 
+	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}                   " 
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \ " 
+	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}                    " 
+	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n" 
+	echo -e   "        [2] ACL's control which users and groups are allowed to read and write  " 
+	echo -e   "        to these shares. ACL's must be added to the following file in this jail:" 
+	echo -e   "        ${YELL}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}$NRML}       " 
+	echo -e   "        Consult the FDo documentation for ACL management commands.              \n" 
 
 
 }
@@ -229,7 +229,7 @@ cook_recipe ()
 	fi
 
 	seasoning_suggestions
-	seasoning_suggestions " > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf"
+	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
 
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"

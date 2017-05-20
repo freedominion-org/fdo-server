@@ -13,15 +13,15 @@ RECIPE_ZFS_MOUNTPOINTS=""                                                      #
 seasoning_suggestions ()
 {
 
-	echo -e "\n${ORNG}NOTICE:${NRML} To add a hostname override to the caching DNS service,                  " ${1}
-	echo -e "        use the following command:                                             \n" ${1}
-	echo -e "        ${LBLU}fdo-dns_cache-add-hostname${NRML}                               \n" ${1}
-	echo -e "        To remove a hostname override from the caching DNS service,            " ${1}
-	echo -e "        use the following command:                                             \n" ${1}
-	echo -e "        ${LBLU}fdo-dns_cache-remove-hostname${NRML}                            \n" ${1}
-	echo -e "        To list the hostname override(s) of the caching DNS service,           " ${1}
-	echo -e "        use the following command:                                             \n" ${1}
-	echo -e "        ${LBLU}fdo-dns_cache-list-hostnames${NRML}                             \n" ${1}
+	echo -e "\n${ORNG}NOTICE:${NRML} To add a hostname override to the caching DNS service,                  " 
+	echo -e "        use the following command:                                             \n" 
+	echo -e "        ${LBLU}fdo-dns_cache-add-hostname${NRML}                               \n" 
+	echo -e "        To remove a hostname override from the caching DNS service,            " 
+	echo -e "        use the following command:                                             \n" 
+	echo -e "        ${LBLU}fdo-dns_cache-remove-hostname${NRML}                            \n" 
+	echo -e "        To list the hostname override(s) of the caching DNS service,           " 
+	echo -e "        use the following command:                                             \n" 
+	echo -e "        ${LBLU}fdo-dns_cache-list-hostnames${NRML}                             \n" 
 
 }
 
@@ -50,7 +50,7 @@ cook_recipe ()
 	done
 
 	seasoning_suggestions
-	seasoning_suggestions " > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf"
+	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
 
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"
