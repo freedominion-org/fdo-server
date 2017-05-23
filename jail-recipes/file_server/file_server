@@ -36,7 +36,7 @@ seasoning_suggestions ()
 	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n" 
 	echo -e   "        [2] ACL's control which users and groups are allowed to read and write  " 
 	echo -e   "        to these shares. ACL's must be added to the following file in this jail:" 
-	echo -e   "        ${YELL}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}$NRML}       " 
+	echo -e   "        ${YELL}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}${NRML}       " 
 	echo -e   "        Consult the FDo documentation for ACL management commands.              \n" 
 
 
