@@ -159,7 +159,7 @@ if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
 then
 	LAST_FAILED_BACKUP_SNAPSHOT=`head -1 ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf | awk '{print $3}'`
 else
-	LAST_FAILED_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-backupz-${POOL}-running.inf`
+	LAST_FAILED_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf`
 fi
 
 # If in force mode, kill any running backupz processes.
@@ -203,5 +203,6 @@ fi
 # After successfully destroying failed backup snapshots, let's remove the failed backup markers.
 rm -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf 2> /dev/null
 rm -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-${POOL}-running.inf 2> /dev/null
+rm -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
 
 ################################################################################
