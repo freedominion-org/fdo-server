@@ -25,6 +25,7 @@ seasoning_suggestions ()
 	echo -e   "          -o casesensitivity=insensitive \                                      " 
 	echo -e   "          -o mountpoint=/jls/${JAIL_NAME}/w3 \                                  " 
 	echo -e   "          ${POOL_NAME}/files${NRML}                                             " 
+	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}${NRML}          " 
 	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}   " 
 	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}    " 
 	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     " 
