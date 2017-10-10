@@ -1,0 +1,55 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+JAIL_IP="192.168.10.30"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+RECIPE_PACKAGES="nginx"                                                        # Optional:  packages to install in the jail
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
+START_JAIL_SERVICES="nginx"                                                    # Optional:  jail services started after cooking (in left to right order)
+RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+################################################################################
+
+seasoning_suggestions ()
+{
+
+	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n" 
+	echo -e   "        [1] Step one...                                                         " 
+	echo -e   "        Last line.                                                              \n" 
+
+
+}
+
+cook_recipe ()
+{
+
+	echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
+	echo -e "Please accept when prompted...${NRML}\n"
+	sleep 5
+
+	# Install essential jail recipe packages from the recipe repo
+	pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Replace variables in nginx.conf file
+	sed -i "" "s/WORKER_PROCESSES/${WORKER_PROCESSES}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/nginx/nginx.conf
+
+	# Enable port forwarding for http_gateway jail in pf.conf
+	sed -i "" "s/^#rdr on \(.*http_gateway_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
+
+	# Enable port forwarding for http_gateway jail in ppp.conf
+	sed -i "" "s/^ #nat port \(.*\.30\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/ppp/ppp.conf
+
+
+	seasoning_suggestions
+	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
+
+	# Mandatory: return code
+	RECIPE_SUCCESS="devel"
+
+}

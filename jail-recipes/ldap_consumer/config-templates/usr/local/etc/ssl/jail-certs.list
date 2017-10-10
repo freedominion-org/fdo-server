@@ -1,4 +1,4 @@
-# Syntax: ^${LDAP_RECIPE_NAME}.${SSL_HOST_DESCRIPTION}.[key|crt|ca-chain|crt+ca-chain|key+crt+ca-chain].pem
+# Syntax: ^${RECIPE_NAME}.${SSL_HOST_DESCRIPTION}.[key|crt|ca-chain|crt+ca-chain|key+crt+ca-chain].pem
 ldap_consumer.consumer-host.crt+ca-chain.pem
 ldap_consumer.consumer-host.crt.pem
 ldap_consumer.consumer-host.ca-chain.pem

@@ -1,4 +1,5 @@
-# Syntax: ^${LDAP_RECIPE_NAME}.${SSL_HOST_DESCRIPTION}.[key|crt|ca-chain|crt+ca-chain|key+crt+ca-chain].pem
+# Syntax: ^${RECIPE_NAME}.${SSL_HOST_DESCRIPTION}.[key|crt|ca-chain|crt+ca-chain|key+crt+ca-chain].pem
 file_server.ldap-host.crt+ca-chain.pem
+file_server.webdav-server.ca-chain.pem
 file_server.webdav-server.crt+ca-chain.pem
 file_server.webdav-server.key.pem

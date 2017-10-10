@@ -6,9 +6,10 @@ LogFormat "%h %l %u %t \"%r\" %>s %b" common
 CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
 
 <Directory "/w3/SHORT_SITE_NAME">
-    Options Indexes FollowSymLinks
-    AllowOverride None
-    Require all denied
+  Options Indexes FollowSymLinks
+  AllowOverride None
+  Order allow,deny
+  Allow from all
 </Directory>
 
 <Location "/shares">
@@ -17,10 +18,12 @@ CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
   AuthType Basic
   AuthName "WebDAV LDAP Authorization"
   AuthLDAPURL ldap://LDAP_HOST_NAME:389/LDAP_BASE_SUFFIX?uid??(objectclass=*) TLS
+  AuthzLDAPAuthoritative on
   AuthLDAPBindDN cn=Manager,LDAP_BASE_SUFFIX
   AuthLDAPBindPassword LDAP_MANAGER_PASSWORD
   Options Indexes FollowSymLinks
   IndexOptions FancyIndexing FoldersFirst NameWidth=*
+  Require valid-user
   #Require ldap-group cn=WebDAV Users,ou=groups,LDAP_BASE_SUFFIX
   #Require ldap-user joe.bloggs
 </Location>
@@ -31,11 +34,12 @@ CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
   AuthType Basic
   AuthName "WebDAV LDAP Authorization"
   AuthLDAPURL ldap://LDAP_HOST_NAME:389/LDAP_BASE_SUFFIX?uid??(objectclass=*) TLS
+  AuthzLDAPAuthoritative on
   AuthLDAPBindDN cn=Manager,LDAP_BASE_SUFFIX
   AuthLDAPBindPassword LDAP_MANAGER_PASSWORD
   Options Indexes FollowSymLinks
   IndexOptions FancyIndexing FoldersFirst NameWidth=*
-  #Require ldap-user joe.bloggs
+  Require valid-user
 </Location>
 
 #<Location "/users/joe.bloggs">

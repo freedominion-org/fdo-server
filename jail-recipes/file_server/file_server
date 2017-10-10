@@ -2,10 +2,10 @@
 
 #### Recipe Variable Definitions ###############################################
 JAIL_IP="192.168.10.49"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="apache24"                                                     # Optional:  packages to install in the jail
+RECIPE_PACKAGES="apache22"                                                     # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
-START_JAIL_SERVICES="apache24"                                                 # Optional:  jail services started after cooking (in left to right order)
+START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
 LDAP_HOST_IP="192.168.10.50"                                                   #
@@ -186,8 +186,8 @@ cook_recipe ()
 	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
 
 	# Replace variables in httpd.conf
-	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache24/httpd.conf
-	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache24/httpd.conf
+	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache22/httpd.conf
+	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache22/httpd.conf
 
 	# Replace variables in webdav-sites file
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
@@ -233,6 +233,6 @@ cook_recipe ()
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
 
 	# Mandatory: return code
-	RECIPE_SUCCESS="yes"
+	RECIPE_SUCCESS="devel"
 
 }
