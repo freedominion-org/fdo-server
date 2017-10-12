@@ -219,7 +219,7 @@ cook_recipe ()
 	sed -i "" "s/^ #nat port \(.*\.49\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/ppp/ppp.conf
 
 	# Attempt to add file server host name to a caching dns (dns_cache) jail
-	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --silent
+	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --non-interactive
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server "
@@ -227,6 +227,8 @@ cook_recipe ()
 		echo -e   "         please use the following command on a dns_cache (recipe) jail on a host"
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}${NRML}\n"
+	else
+		echo "dns_cache" > /jls/${JAIL_NAME}/.fdo-affected-recipe-jails.inf
 	fi
 
 	seasoning_suggestions
