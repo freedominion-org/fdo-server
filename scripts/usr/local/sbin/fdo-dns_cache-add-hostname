@@ -181,8 +181,13 @@ do
 			else
 				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
 			fi
-			if [ "${IS_INTERACTIVE}" = "yes" ]
+			if [ "${IS_INTERACTIVE}" = "no" ]
 			then
+				echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
+				CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+				echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
+				GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
+			else
 				question_yes_no "\nWould you like to update the repo with the config changes?"
 				if [ "${ANSWER}" = "yes" ]
 				then
