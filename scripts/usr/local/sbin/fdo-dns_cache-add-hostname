@@ -30,7 +30,7 @@ SCRIPT_NAME=`basename ${0}`
 HOST_NAME="${1}"
 HOST_IP="${2}"
 NUM_MANDATORY_ARGS=2
-SILENT_MODE="no"
+IS_INTERACTIVE="yes"
 DNS_CACHE_SERVER_FOUND="no"
 FDO_SERVER_SCRIPT="fdo-server"
 
@@ -63,9 +63,12 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Description:${NRML} Add hostname zone to FDo dns_cache jail services on this host."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname ip_address [--silent]${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} hostname ip_address [--non-interactive]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site1.example.net 192.168.10.20${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site2.example.net 192.168.10.21 --silent${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site2.example.net 192.168.10.21 --non-interactive${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e "${YELL}         --non-interactive ; will not prompt or commit changes to the config repo.${NRML}"
 	echo -e ""
 }
 
@@ -80,8 +83,8 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
-			--silent)
-				SILENT_MODE="yes"
+			--non-interactive)
+				IS_INTERACTIVE="no"
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
@@ -178,13 +181,8 @@ do
 			else
 				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
 			fi
-			if [ "${SILENT_MODE}" = "yes" ]
+			if [ "${IS_INTERACTIVE}" = "yes" ]
 			then
-				echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
-				CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
-				echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
-				GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
-			else
 				question_yes_no "\nWould you like to update the repo with the config changes?"
 				if [ "${ANSWER}" = "yes" ]
 				then
