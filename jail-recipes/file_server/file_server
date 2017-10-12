@@ -4,7 +4,7 @@
 JAIL_IP="192.168.10.49"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="apache22"                                                     # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
+RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
@@ -211,12 +211,6 @@ cook_recipe ()
 	# Create /w3 (WebDAV base directory)
 	mkdir /jls/${JAIL_NAME}/w3
 	chown www:www /jls/${JAIL_NAME}/w3
-
-	# Enable port forwarding for file_server jail in pf.conf
-	sed -i "" "s/^#rdr on \(.*files_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
-
-	# Enable port forwarding for file_server jail in ppp.conf
-	sed -i "" "s/^ #nat port \(.*\.49\:.*\)/ nat port \1/" configs/${HOST_NAME}/etc/ppp/ppp.conf
 
 	# Attempt to add file server host name to a caching dns (dns_cache) jail
 	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --non-interactive
