@@ -173,7 +173,7 @@ cook_recipe ()
 			echo -e "       It must be at least three characters and only contain lower case"
 			echo -e "       letters, numbers and hyphens.\n"
 		else
-			question_yes_no "\nYou have entered '${SHORT_SITE_NAME_TEMP}' as the short site name.\nIs this correct?"
+			question_yes_no "\nYou have entered '${SHORT_SITE_NAME_TEMP}' as the short site name. Is this correct?"
 			if [ "${ANSWER}" = "yes" ]
 			then
 				SHORT_SITE_NAME=${SHORT_SITE_NAME_TEMP}
