@@ -48,7 +48,7 @@ cook_recipe ()
 
 	# Find the http_gateway jail
 	HTTP_GATEWAY_JAIL=""
-	for RECIPE_MARKER in `ls /jls/*/.fdo_jail_recipe.inf`
+	for RECIPE_MARKER in `ls /jls/*/.fdo-jail-recipe.inf`
 	do
 		egrep "^http_gateway$" ${RECIPE_MARKER}
 		if [ $? -eq 0 ]
