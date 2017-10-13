@@ -36,8 +36,12 @@ cook_recipe ()
 		return
 	fi
 
+	## TODO: ask for number of worker processes
+	WORKER_PROCESSES=`sysctl hw.ncpu | awk '{print $2}'`
+
 	# Replace variables in nginx.conf file
 	sed -i "" "s/WORKER_PROCESSES/${WORKER_PROCESSES}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/nginx/nginx.conf
+
 
 	# Enable port forwarding for http_gateway jail in pf.conf
 	sed -i "" "s/^#rdr on \(.*http_gateway_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf

@@ -46,6 +46,25 @@ seasoning_suggestions ()
 cook_recipe ()
 {
 
+	# Find the http_gateway jail
+	HTTP_GATEWAY_JAIL=""
+	for RECIPE_MARKER in `ls /jls/*/.fdo_jail_recipe.inf`
+	do
+		egrep "^http_gateway$" ${RECIPE_MARKER}
+		if [ $? -eq 0 ]
+		then
+			HTTP_GATEWAY_JAIL=`echo ${RECIPE_MARKER} | cut -d/ -f3`
+			break
+		fi
+	done
+
+	if [ "HTTP_GATEWAY_JAIL" == "" ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} It appears there is no http_gateway recipe jail on this host. Aborting.\n" 
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
 	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a            "
 	echo -e   "        'ldap_consumer' recipe is cooked, running and accessible on the LAN     "
 	echo -e   "        (local network). You must know the LDAP servers' host name, base suffix "
@@ -211,6 +230,14 @@ cook_recipe ()
 	# Create /w3 (WebDAV base directory)
 	mkdir /jls/${JAIL_NAME}/w3
 	chown www:www /jls/${JAIL_NAME}/w3
+
+	# Generate an nginx site file for the http_gateway jail
+	sed -i "" "s|FILE_SERVER_JAIL_NAME|${JAIL_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
+	sed -i "" "s|FILE_SERVER_HOST_NAME|${FILE_SERVER_HOST_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
+	cp configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
+
+	echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf ...\n"
+	CHANGE_MESSAGE="add site '${JAIL_NAME}' config to 'http_gateway' jail" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
 
 	# Attempt to add file server host name to a caching dns (dns_cache) jail
 	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --non-interactive
