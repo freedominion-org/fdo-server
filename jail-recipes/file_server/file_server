@@ -252,6 +252,9 @@ cook_recipe ()
 		echo "dns_cache" > /jls/${JAIL_NAME}/.fdo-affected-recipe-jails.inf
 	fi
 
+	# Restart the http_gateway recipe jail nginx service
+	start_jail_service ${HTTP_GATEWAY_JAIL} nginx --allow-restart
+
 	seasoning_suggestions
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
 
