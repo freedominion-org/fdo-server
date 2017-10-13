@@ -42,6 +42,9 @@ cook_recipe ()
 	# Replace variables in nginx.conf file
 	sed -i "" "s/WORKER_PROCESSES/${WORKER_PROCESSES}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/nginx/nginx.conf
 
+	# Replace variables in hosts file
+	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 
 	# Enable port forwarding for http_gateway jail in pf.conf
 	sed -i "" "s/^#rdr on \(.*http_gateway_jail_ip\)/rdr on \1/" configs/${HOST_NAME}/etc/pf.conf
