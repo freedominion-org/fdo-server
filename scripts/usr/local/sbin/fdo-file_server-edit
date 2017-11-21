@@ -29,7 +29,7 @@
 SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=0
 WEBDAV_CONFIG_ROOT="/usr/local/etc/webdav-sites"
-WEBDAV_SERVICE=apache24
+WEBDAV_SERVICE=apache22
 DIALOG_OUT_FILE="/tmp/fdo-file_server-edit.dialog.answer"
 
 TERM="xterm"
