@@ -259,6 +259,6 @@ cook_recipe ()
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
 
 	# Mandatory: return code
-	RECIPE_SUCCESS="devel"
+	RECIPE_SUCCESS="yes"
 
 }
