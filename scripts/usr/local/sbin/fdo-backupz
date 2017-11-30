@@ -238,6 +238,7 @@ do
 		if [ "${SNAPSHOT_PARENT_MOUNT_POINT}" != "none" ]
 		then
 			zfs set mountpoint=${BACKUP_POOL_ROOT_PATH}/${POOL}${SNAPSHOT_PARENT_MOUNT_POINT} ${BACKUP_POOL}/${SNAPSHOT_PARENT}
+			zfs set quota=none ${BACKUP_POOL}/${SNAPSHOT_PARENT}
 		fi
 
 		IS_SHARED_FS="false"
