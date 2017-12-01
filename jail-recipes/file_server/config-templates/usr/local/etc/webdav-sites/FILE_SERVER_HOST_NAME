@@ -23,6 +23,8 @@ CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
   AuthLDAPBindPassword LDAP_MANAGER_PASSWORD
   Options Indexes FollowSymLinks
   IndexOptions FancyIndexing FoldersFirst NameWidth=*
+  Order deny,allow
+  Allow from all
   Require valid-user
   #Require ldap-group cn=WebDAV Users,ou=groups,LDAP_BASE_SUFFIX
   #Require ldap-user joe.bloggs
@@ -39,9 +41,13 @@ CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
   AuthLDAPBindPassword LDAP_MANAGER_PASSWORD
   Options Indexes FollowSymLinks
   IndexOptions FancyIndexing FoldersFirst NameWidth=*
+  Order deny,allow
+  Allow from all
   Require valid-user
+  Require ldap-user nologin
 </Location>
 
 #<Location "/users/joe.bloggs">
+#  Require valid-user
 #  Require ldap-user joe.bloggs
 #</Location>
