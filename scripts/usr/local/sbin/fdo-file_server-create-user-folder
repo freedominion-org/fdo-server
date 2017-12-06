@@ -34,6 +34,7 @@ WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
 WEBDAV_ROOT_MOUNTPOINT=`cat /usr/local/etc/fdo/webdav_root_mountpoint.conf`
 WEBDAV_UID=`cat /usr/local/etc/fdo/webdav_userid.conf`
 WEBDAV_GID=`cat /usr/local/etc/fdo/webdav_groupid.conf`
+USER_FOLDER_QUOTA=`cat /usr/local/etc/fdo/file_server-default-user-folder-quota.conf`
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -129,7 +130,7 @@ fi
 ERROR_COUNT=0
 
 # Create the ZFS filesystem of the file_server user folder.
-zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
+zfs create -o quota=${USER_FOLDER_QUOTA} -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
 
 # Change ownership of the file_server user folder mountpoint.
 chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME}
