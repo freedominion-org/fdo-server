@@ -223,8 +223,8 @@ cook_recipe ()
 	sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 
 	# Configure syslog to log ldap to it's own log file
-	cp /jls/${JAIL_NAME}/etc/syslog.conf configs/${JAIL_NAME}@${HOST_NAME}/etc/syslog.conf
-	echo "local4.debug                                    /var/log/ldap.log" >> configs/${JAIL_NAME}@${HOST_NAME}/etc/syslog.conf
+	mkdir -p configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/syslog.d
+	echo "local4.debug        /var/log/ldap.log" > configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/syslog.d/ldap_consumer.ldap
 	touch /jls/${JAIL_NAME}/var/log/ldap.log
 
 	# Enable port forwarding for ldap jail in pf.conf
