@@ -13,9 +13,8 @@ RECIPE_ZFS_MOUNTPOINTS=""                                                      #
 seasoning_suggestions ()
 {
 
-	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n" 
-	echo -e   "        [1] Step one...                                                         " 
-	echo -e   "        Last line.                                                              \n" 
+	echo -e "\n${ORNG}NOTICE:${NRML} The upstream web host config files should be placed in the path:       \n"
+	echo -e   "        /usr/local/etc/nginx/sites                                              \n"
 
 
 }
