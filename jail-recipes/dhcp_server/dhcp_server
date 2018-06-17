@@ -13,6 +13,17 @@ RECIPE_ZFS_MOUNTPOINTS=""                                                      #
 cook_recipe ()
 {
 
+	# Get the LAN network interface name
+	LAN_NET_IFACE=`cat /usr/local/etc/fdo/net_iface_lan.conf`
+
+	# DHCP can not run on lo1
+	if [ "${LAN_NET_IFACE}" = "lo1" ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} A DHCP server can not be run on lo1 (loopback interface).\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
 	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
 	echo -e "${YELL}Please accept when prompted...${NRML}\n"
 	sleep 5
@@ -38,16 +49,6 @@ cook_recipe ()
 
 	# Add extra jail control directives to /etc/jail.conf
 	sed -i "" "s/${JAIL_NAME}.*{.*$/${JAIL_NAME} {\\${CARRIAGE_RETURN}        allow.raw_sockets = 1;\\${CARRIAGE_RETURN}        devfs_ruleset = 48;/" configs/${HOST_NAME}/etc/jail.conf
-
-	# Get the LAN network interface name
-	LAN_NET_IFACE=`cat /usr/local/etc/fdo/net_iface_lan.conf`
-
-	# DHCP can not run on lo1
-	if [ "${LAN_NET_IFACE}" = "lo1" ]
-	then
-		RECIPE_SUCCESS="no"
-		return
-	fi
 
 	# Replace the LAN_NET_IFACE variable in the jails' rc.conf config file
 	sed -i "" "s/LAN_NET_IFACE/${LAN_NET_IFACE}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/rc.conf
