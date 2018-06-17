@@ -2,7 +2,7 @@
 
 #### Recipe Variable Definitions ###############################################
 JAIL_IP="192.168.10.48"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="isc-dhcp43-server"                                            # Optional:  packages to install in the jail
+RECIPE_PACKAGES="isc-dhcp44-server"                                            # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                 # Mandatory: set to "yes" if the hosts pf requires a restart after cooking
 START_JAIL_SERVICES="isc-dhcpd"                                                # Optional:  jail services started after cooking (in left to right order)
