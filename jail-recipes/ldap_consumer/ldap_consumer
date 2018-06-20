@@ -224,7 +224,7 @@ cook_recipe ()
 
 	# Configure syslog to log ldap to it's own log file
 	mkdir -p configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/syslog.d
-	echo "local4.debug        /var/log/ldap.log" > configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/syslog.d/ldap_consumer.ldap
+	echo "local4.debug        /var/log/ldap.log" > configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/syslog.d/ldap_consumer.conf
 	touch /jls/${JAIL_NAME}/var/log/ldap.log
 
 	# Enable port forwarding for ldap jail in pf.conf
