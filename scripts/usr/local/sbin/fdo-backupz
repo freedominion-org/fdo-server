@@ -40,6 +40,10 @@ CLONE_WINDOW_DAYS=5
 NOW_IN_SECS=`${DATE_CMD} +%s`
 DESTROY_BEFORE=`expr ${NOW_IN_SECS} - \( ${CLONE_WINDOW_DAYS} \* ${DAY_IN_SECS} \)`
 ZFS_SEND_FLAGS=`cat /usr/local/etc/fdo/backupz_send_flags.conf`
+WARNING_CODE=0
+WARNING_SNAPSHOT="NULL"
+ERROR_CODE=0
+ERROR_SNAPSHOT="NULL"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -152,16 +156,12 @@ fi
 
 ##### FUNCTIONS ################################################################
 
-WARNING_CODE=0
-WARNING_SNAPSHOT="NULL"
 warning_occured () {
 	echo "backup timestamp: ${NOW}" >> ${BACKUP_POOL_ROOT_PATH}/backupz-warning-${POOL}@${BACKUP_POOL}.inf
 	echo "snapshot: ${WARNING_SNAPSHOT}" >> ${BACKUP_POOL_ROOT_PATH}/backupz-warning-${POOL}@${BACKUP_POOL}.inf
 	echo "warning code: ${WARNING_CODE}" >> ${BACKUP_POOL_ROOT_PATH}/backupz-warning-${POOL}@${BACKUP_POOL}.inf
 }
 
-ERROR_CODE=0
-ERROR_SNAPSHOT="NULL"
 error_occured () {
 	echo "backup timestamp: ${NOW}" > ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf
 	echo "snapshot: ${ERROR_SNAPSHOT}" >> ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf
@@ -241,38 +241,6 @@ do
 			zfs set quota=none ${BACKUP_POOL}/${SNAPSHOT_PARENT}
 		fi
 
-		IS_SHARED_FS="false"
-		case ${SNAPSHOT_PARENT} in
-			*/shares*)
-				IS_SHARED_FS="true"
-				;;
-			*/users/*)
-				IS_SHARED_FS="true"
-				;;
-		esac
-		if [ "${IS_SHARED_FS}" = "true" ]
-		then
-			# Create .past mountpoint base folder inside new dataset
-			NEW_DATASET_MOUNTPOINT=`zfs get -o value mountpoint ${SNAPSHOT_PARENT} | tail -1`
-			if [ -d "${NEW_DATASET_MOUNTPOINT}/.past" ]
-			then
-				echo .past folder already exists
-			else
-				mkdir "${NEW_DATASET_MOUNTPOINT}/.past"
-				if [ $? != 0 ]
-				then
-					ERROR_CODE=3
-					ERROR_SNAPSHOT=${SNAPSHOT_NAME}
-					error_occured
-				fi
-			fi
-			chown ${DAV_SERVER_USERID}:${DAV_SERVER_GROUPID} "${NEW_DATASET_MOUNTPOINT}/.past"
-			if [ $? != 0 ]
-			then ERROR_CODE=4
-				ERROR_SNAPSHOT=${SNAPSHOT_NAME}
-				error_occured
-			fi
-		fi
 	fi
 
 done
@@ -300,30 +268,6 @@ then
 			fi
 		fi
 
-		# Mount snapshots inside .past folders (if they are /shares or /users webdav datasets).
-		case ${SNAPSHOT_PARENT} in 
-			*/shares*)
-				SNAPSHOT_PARENT_MOUNTPOINT=`zfs get -o value mountpoint ${SNAPSHOT_PARENT} | tail -1`
-				zfs clone -o readonly=on -o mountpoint=${SNAPSHOT_PARENT_MOUNTPOINT}/.past/${NOW} ${BACKUP_POOL}/${SNAPSHOT_NAME} ${BACKUP_POOL}/${SNAPSHOT_PARENT}/${NOW}
-				if [ $? != 0 ]
-				then
-					WARNING_CODE=1
-					WARNING_SNAPSHOT=${BACKUP_POOL}/${SNAPSHOT_NAME}
-					warning_occured
-				fi
-				;;
-			*/users/*)
-				SNAPSHOT_PARENT_MOUNTPOINT=`zfs get -o value mountpoint ${SNAPSHOT_PARENT} | tail -1`
-				zfs clone -o readonly=off -o mountpoint=${SNAPSHOT_PARENT_MOUNTPOINT}/.past/${NOW} ${BACKUP_POOL}/${SNAPSHOT_NAME} ${BACKUP_POOL}/${SNAPSHOT_PARENT}/${NOW}
-				if [ $? != 0 ]
-				then
-					WARNING_CODE=2
-					WARNING_SNAPSHOT=${BACKUP_POOL}/${SNAPSHOT_NAME}
-					warning_occured
-				fi
-				;;
-		esac
-
 		echo ""
 
 	done
@@ -344,32 +288,6 @@ echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.lo
 # Assuming backup successful, report last snapshot timestamp and remove 'is-running' marker.
 echo ${NOW} > ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf
 
-# Now peel off older clones.
-:> /tmp/backupz-${POOL}@${BACKUP_POOL}-clones.list
-for snapshot in `cat /tmp/backupz-${POOL}@${BACKUP_POOL}-snapshots.list`
-do
-	PROJECTED_CLONE_NAME=`echo ${snapshot} | sed "s|@|/|"`
-
-	zfs list -o origin ${PROJECTED_CLONE_NAME} > /dev/null 2>&1
-	if [ $? = 0 ]
-	then
-		CLONE_DATE=`zfs list -H -o creation ${PROJECTED_CLONE_NAME}`
-		if [ "$DATE_VERSION" = "freebsd" ]
-		then
-			TIMESTAMP=`${DATE_CMD} -j -f "%a %b %d %H:%M %Y" "${CLONE_DATE}" +%s`
-		else
-			TIMESTAMP=`${DATE_CMD} -d "${CLONE_DATE}" +%s`
-		fi
-		echo "${PROJECTED_CLONE_NAME} ${TIMESTAMP}" >> /tmp/backupz-${POOL}@${BACKUP_POOL}-clones.list
-		if [ ${TIMESTAMP} -lt ${DESTROY_BEFORE} ]
-		then
-			zfs destroy ${PROJECTED_CLONE_NAME}
-		fi
-	fi
-
-done
-
-echo "Peel off clones finished." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "Backupz finished." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 
 # Remove backup 'is-running' marker file.
