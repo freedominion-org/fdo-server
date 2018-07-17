@@ -65,7 +65,7 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e ""
-	echo -e "${YELL}--help    Display command usage.${NRML}"
+	echo -e "${YELL}         --help            ; display command usage.${NRML}"
 	echo -e ""
 }
 

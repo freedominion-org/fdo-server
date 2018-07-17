@@ -124,12 +124,45 @@ question_yes_no ()
 	done
 }
 
+test_valid_fqhn ()
+{
+
+	TEST_CASE="${1}"
+
+	VALID_FQHN="yes"
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_FQHN="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^((([a-zA-Z0-9]+[\-])*[a-zA-Z0-9]+)+\.)+[a-zA-Z0-9]+//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_FQHN="no"
+		return 2
+	fi
+
+}
+
 ################################################################################
 
 
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
+
+# Check that the hostname is valid.
+test_valid_fqhn  "${HOST_NAME}"
+if [ "${VALID_FQHN}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The hostname '${HOST_NAME}' is invalid!"
+	echo -e "       It must only contain letters, numbers, periods and hyphens."
+	echo -e "       It must not begin or end with a hyphen or a period."
+	echo -e "       Aborting.\n"
+	exit 3
+fi
 
 # Iterate through all jails...
 for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
@@ -148,8 +181,9 @@ do
 			cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
 			if [ ${?} -ne 0 ]
 			then
-				echo -e "\n${ORNG}WARNING:${NRML} The record for hostname ${HOST_NAME} doesn't exist!\n"
-				exit 3
+				echo -e "\n${LRED}ERROR:${NRML} The record for hostname ${HOST_NAME} does not exist!"
+				echo -e "       Aborting.\n"
+				exit 4
 			fi
 
 			# Hostname record exists, so now let's remove the zone for the hostname record:
@@ -167,8 +201,7 @@ do
 			jexec ${JAIL_ID} service named reload > /dev/null 2>&1
 			if [ ${?} -ne 0 ]
 			then
-				echo -e "${LRED}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
-				exit 4
+				echo -e "\n${ORNG}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
 			else
 				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
 			fi
