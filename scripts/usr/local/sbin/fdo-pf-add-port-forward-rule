@@ -69,14 +69,14 @@ usage ()
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} rule_name local_ip_address tcp_ports udp_ports [--non-interactive]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} cups_server 10.0.10.10 631 none${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} samba_server 10.0.10.3 139,445 137,138${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} vnc_servers 10.0.10.4 5900-5909 none --non-interactive${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} vnc_servers 10.0.10.4 5900:5909 none --non-interactive${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e "${YELL}         --non-interactive ; will not prompt or commit changes to the config repo.${NRML}"
 	echo -e ""
 	echo -e "${YELL}Argument syntax:${NRML}"
 	echo -e "${YELL}         tcp_ports/udp_ports ; comma seperated numerical port identifiers,${NRML}"
-	echo -e "${YELL}                               use a hyphen to indicate a range, if none set to 'none'.${NRML}"
+	echo -e "${YELL}                               use a colon to indicate a range, if none set to 'none'.${NRML}"
 	echo -e ""
 }
 
@@ -179,7 +179,7 @@ test_valid_port_list ()
 		return 1
 	fi
 
-	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[1-9]+[0-9]*([-]?[1-9]+[0-9]*)?(,[1-9]+[0-9]*([-]?[1-9]+[0-9]*)?)*//" | wc -L`
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[1-9]+[0-9]*([:]?[1-9]+[0-9]*)?(,[1-9]+[0-9]*([:]?[1-9]+[0-9]*)?)*//" | wc -L`
 	if [ ${IS_SYNTAX_OK}  -ne 0 ]
 	then
 		VALID_PORT_LIST="no"
