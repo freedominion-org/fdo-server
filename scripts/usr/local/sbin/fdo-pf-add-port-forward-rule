@@ -299,16 +299,16 @@ else
 	UDP_RULES_DEF="\\${CARRIAGE_RETURN}rdr on \$ext_if proto udp from any to any port \$${RULE_NAME}_udp_ports -> \$${RULE_NAME}_ip"
 fi
 
-# Add new port foward rule macros to ${PF_CONF_PATH}
+# Add new port foward rule macros to pf config file
 sed -i "" "s|\(^[#]* PORT FORWARD RULES MACROS [#]*\)|\1\\${CARRIAGE_RETURN}${IP_MACRO_DEF}${TCP_PORTS_MACRO_DEF}${UDP_PORTS_MACRO_DEF}|" ${PF_CONF_PATH}
 
-# Add new TCP port foward rules to ${PF_CONF_PATH}
+# Add new TCP port foward rules to pf config file
 if [ "${TCP_PORTS}" != "none" ]
 then
 	sed -i "" "s|\(^[#]* PORT FORWARD TCP RULES [#]*\)|\1\\${CARRIAGE_RETURN}${TCP_RULES_DEF}|" ${PF_CONF_PATH}
 fi
 
-# Add new UDP port foward rules to ${PF_CONF_PATH}
+# Add new UDP port foward rules to pf config file
 if [ "${UDP_PORTS}" != "none" ]
 then
 	sed -i "" "s|\(^[#]* PORT FORWARD UDP RULES [#]*\)|\1\\${CARRIAGE_RETURN}${UDP_RULES_DEF}|" ${PF_CONF_PATH}
