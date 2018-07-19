@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-RULE_NAME=${1}
+RULE_NAME="${1}"
 NUM_MANDATORY_ARGS=1
 IS_INTERACTIVE="yes"
 IS_REPO_CONF=${IS_REPO_CONF:-"no"}

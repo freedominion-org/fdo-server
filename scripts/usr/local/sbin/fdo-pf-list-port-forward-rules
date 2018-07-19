@@ -27,7 +27,6 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-RULE_NAME=${1}
 NUM_MANDATORY_ARGS=0
 IS_INTERACTIVE="yes"
 PF_CONF_PATH=${PF_CONF_PATH:-"/etc/pf.conf"}
