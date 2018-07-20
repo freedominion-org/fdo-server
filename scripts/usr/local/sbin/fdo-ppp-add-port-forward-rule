@@ -1,0 +1,336 @@
+#!/bin/sh
+
+# Copyright (c) 2018 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+RULE_NAME="${1}"
+LOCAL_IP="${2}"
+TCP_PORTS="${3}"
+UDP_PORTS="${4}"
+NUM_MANDATORY_ARGS=4
+IS_INTERACTIVE="yes"
+IS_REPO_CONF=${IS_REPO_CONF:-"no"}
+PPP_CONF_PATH=${PPP_CONF_PATH:-"/etc/ppp/ppp.conf"}
+FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} Add ppp nat rules for port forwarding for this host."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} rule_name local_ip_address tcp_ports udp_ports [--non-interactive]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} cups_server 10.0.10.10 631 none${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} samba_server 10.0.10.3 139,445 137,138${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} vnc_servers 10.0.10.4 5900:5909 none --non-interactive${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e "${YELL}         --non-interactive ; will not prompt or commit changes to the config repo.${NRML}"
+	echo -e ""
+	echo -e "${YELL}Argument syntax:${NRML}"
+	echo -e "${YELL}         tcp_ports/udp_ports ; comma seperated numerical port identifiers,${NRML}"
+	echo -e "${YELL}                               use a colon to indicate a range, if none set to 'none'.${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--non-interactive)
+				IS_INTERACTIVE="no"
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 2
+fi
+
+if [ ! -f ${PPP_CONF_PATH} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The ppp config file '${PPP_CONF_PATH}' does not exist!\n       Aborting.\n"
+	usage
+	exit 3 
+fi
+
+
+##### FUNCTIONS ################################################################
+
+question_yes_no ()
+{
+	while true
+		do
+		echo -e "${LCYN}${1} (yes/no): ${NRML}\c"
+		read ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			break
+		fi
+		echo ""
+	done
+}
+
+test_valid_rule_name ()
+{
+	TEST_CASE="${1}"
+
+	VALID_RULE_NAME="yes"
+
+	if [ ${TEST_CASE} = "" ]
+	then
+		VALID_RULE_NAME="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-z0-9]+(_[a-z0-9]+[a-z0-9]*)*//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_RULE_NAME="no"
+		return 2
+	fi
+
+}
+
+test_valid_port_list ()
+{
+
+	TEST_CASE="${1}"
+
+	VALID_PORT_LIST="yes"
+
+	if [ "${TEST_CASE}" = "none" ]
+	then
+		return 0
+	fi
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_PORT_LIST="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[1-9]+[0-9]*([:]?[1-9]+[0-9]*)?(,[1-9]+[0-9]*([:]?[1-9]+[0-9]*)?)*//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_PORT_LIST="no"
+		return 2
+	fi
+
+}
+
+test_valid_inet_address ()
+{
+
+	TEST_CASE="${1}"
+
+	VALID_INET_ADDRESS="yes"
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_INET_ADDRESS="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed "s/^[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}$//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_INET_ADDRESS="no"
+		return 2
+	fi
+
+	NO_ZEROS_IN_FRONT=`echo "${TEST_CASE}" | sed "s/\.0[0-9]//" | sed "s/^0//"`
+	if [ "${NO_ZEROS_IN_FRONT}" != "${TEST_CASE}" ]
+	then
+		VALID_INET_ADDRESS="no"
+		return 3
+	fi
+
+	ONE=`echo "${TEST_CASE}" | cut -d. -f1`
+	TWO=`echo "${TEST_CASE}" | cut -d. -f2`
+	THREE=`echo "${TEST_CASE}" | cut -d. -f3`
+	FOUR=`echo "${TEST_CASE}" | cut -d. -f4`
+
+	if [ ${ONE} -gt 255 ] || [ ${TWO} -gt 255 ] || [ ${THREE} -gt 255 ] || [ ${FOUR} -gt 255 ]
+	then
+		VALID_INET_ADDRESS="no"
+		return 4
+	fi
+
+}
+
+################################################################################
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# Test if rule_name is valid
+test_valid_rule_name "${RULE_NAME}"
+if [ "${VALID_RULE_NAME}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Rule name invalid!\n"
+	exit 4
+fi
+
+# Test if rule_name already exists
+cat ${PPP_CONF_PATH} | egrep "rule_name=${RULE_NAME}" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Rule name '${RULE_NAME}' is already in use!\n"
+	exit 5
+fi
+
+# Test if local_ip_address is valid
+test_valid_inet_address "${LOCAL_IP}"
+if [ "${VALID_INET_ADDRESS}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Local IP address is invalid!\n"
+	exit 6
+fi
+
+# Test if tcp_ports is valid
+test_valid_port_list "${TCP_PORTS}"
+if [ "${VALID_PORT_LIST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} TCP port list ('tcp_ports') is invalid!\n"
+	exit 7
+fi
+
+# Test if udp_ports is valid
+test_valid_port_list "${UDP_PORTS}"
+if [ "${VALID_PORT_LIST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} UDP port list ('udp_ports') is invalid!\n"
+	exit 8
+fi
+
+# Test if both tcp_ports and udp_ports are 'none'
+if [ "${TCP_PORTS}" = "none" ] && [ "${UDP_PORTS}" = "none" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} No ports specified!\n"
+	exit 9
+fi
+
+
+# Set IFS (internal field seperator) to comma, same as port seperator
+EXISTING_IFS=${IFS}
+IFS=","
+
+# Add new TCP port forward rules to ppp config file
+for TCP_PORT_VALUE in ${TCP_PORTS}
+do
+	if [ "${TCP_PORT_VALUE}" != "none" ]
+	then
+		PORT_VALUE=`echo ${TCP_PORT_VALUE} | sed "s|:|-|"`
+		sed -i "" "s|\(^ ## NAT port forward rules .*\)|\1\\${CARRIAGE_RETURN} nat port tcp ${LOCAL_IP}:${PORT_VALUE} ${PORT_VALUE}                # Port Forwarding (TCP); rule_name=${RULE_NAME}|" ${PPP_CONF_PATH}
+	fi
+done
+
+# Add new UDP port forward rules to ppp config file
+for UDP_PORT_VALUE in ${UDP_PORTS}
+do
+	if [ "${UDP_PORT_VALUE}" != "none" ]
+	then
+		PORT_VALUE=`echo ${UDP_PORT_VALUE} | sed "s|:|-|"`
+		sed -i "" "s|\(^ ## NAT port forward rules .*\)|\1\\${CARRIAGE_RETURN} nat port udp ${LOCAL_IP}:${PORT_VALUE} ${PORT_VALUE}                # Port Forwarding (UDP); rule_name=${RULE_NAME}|" ${PPP_CONF_PATH}
+	fi
+done
+
+# Set IFS back to what it was before
+IFS=${EXISTING_IFS}
+
+
+if [ "${IS_REPO_CONF}" = "no" ]
+then
+	# Update configuration in the local repo and if interactive mode then push to remote repo
+	if [ "${IS_INTERACTIVE}" = "no" ]
+	then
+		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH} ...\n"
+		CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to ppp config" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH}
+	else
+		question_yes_no "\nWould you like to update the repo with the config changes?"
+		if [ "${ANSWER}" = "yes" ]
+		then
+			echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH} ...\n"
+			CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to ppp config" ${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH}
+		fi
+	fi
+fi
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 10
+fi
+
+################################################################################
