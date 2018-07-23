@@ -62,16 +62,15 @@ cook_recipe ()
 		test_valid_fqhn ${LDAP_PROVIDER_HOST_TEMP}
 		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_FQHN=}" = "yes" ]
 		then
-			test_ping_host ${LDAP_PROVIDER_HOST_TEMP}
+			test_ping_host "${LDAP_PROVIDER_HOST_TEMP}"
 			if [ "${VALID_HOST_PING}" = "no" ]
 			then
 				echo -e "\n${ORNG}WARNING:${NRML} The Provider host address is not currently pingable!\n"
 			fi
-			echo -e ""
-			question_yes_no "You have entered '${LDAP_PROVIDER_HOST_TEMP}' as the Provider host address. Is this correct?"
+			question_yes_no "\nYou have entered '${LDAP_PROVIDER_HOST_TEMP}' as the Provider host address. Is this correct?"
 			if [ "${ANSWER}" = "yes" ]
 			then
-				LDAP_PROVIDER_HOST=${LDAP_PROVIDER_HOST_TEMP}
+				LDAP_PROVIDER_HOST="${LDAP_PROVIDER_HOST_TEMP}"
 			fi
 		else
 			echo -e "\n${LRED}ERROR:${NRML} The Provider host address is invalid!\n"
@@ -93,11 +92,10 @@ cook_recipe ()
 			echo -e "       with a minumum of 3 characters.\n"
 
 		else
-			echo -e ""
-			question_yes_no "You have entered '${LDAP_PROVIDER_SYNC_USERID_TEMP}' as the sync userid. Is this correct?"
+			question_yes_no "\nYou have entered '${LDAP_PROVIDER_SYNC_USERID_TEMP}' as the sync userid. Is this correct?"
 			if [ "${ANSWER}" = "yes" ]
 			then
-				LDAP_PROVIDER_SYNC_USERID=${LDAP_PROVIDER_SYNC_USERID_TEMP}
+				LDAP_PROVIDER_SYNC_USERID="${LDAP_PROVIDER_SYNC_USERID_TEMP}"
 			fi
 		fi
 	done
@@ -118,7 +116,7 @@ cook_recipe ()
 		then
 			echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
 		else
-			LDAP_PROVIDER_SYNC_PASSWORD=${LDAP_PROVIDER_SYNC_PASSWORD_TEMP1}
+			LDAP_PROVIDER_SYNC_PASSWORD="${LDAP_PROVIDER_SYNC_PASSWORD_TEMP1}"
 		fi
 	done
  
@@ -128,14 +126,13 @@ cook_recipe ()
 	do
 		echo -e "\n\n${LCYN}Enter the LDAP Consumer hostname: ${NRML}\c"
 		read LDAP_CONSUMER_HOST_TEMP
-		test_valid_fqhn ${LDAP_CONSUMER_HOST_TEMP}
+		test_valid_fqhn "${LDAP_CONSUMER_HOST_TEMP}"
 		if [ "${VALID_FQHN=}" = "yes" ]
 		then
-			echo -e ""
-			question_yes_no "You have entered '${LDAP_CONSUMER_HOST_TEMP}' as the Consumer hostname. Is this correct?"
+			question_yes_no "\nYou have entered '${LDAP_CONSUMER_HOST_TEMP}' as the Consumer hostname. Is this correct?"
 			if [ "${ANSWER}" = "yes" ]
 			then
-				LDAP_CONSUMER_HOST=${LDAP_CONSUMER_HOST_TEMP}
+				LDAP_CONSUMER_HOST="${LDAP_CONSUMER_HOST_TEMP}"
 			fi
 		else
 			echo -e "\n${LRED}ERROR:${NRML} The Consumer hostname is invalid!\n"
@@ -158,22 +155,26 @@ cook_recipe ()
 		then
 			echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
 		else
-			LDAP_CONSUMER_MANAGER_PASSWORD=${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1}
+			LDAP_CONSUMER_MANAGER_PASSWORD="${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1}"
 		fi
 	done
 
 	# Get the base suffix from user.
-	## TODO: add syntax test
 	LDAP_BASE_SUFFIX=""
 	while [ "${LDAP_BASE_SUFFIX}" = "" ]
 	do
 		echo -e "\n\n${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}\c"
 		read LDAP_BASE_SUFFIX_TEMP
-		echo -e ""
-		question_yes_no "You have entered '${LDAP_BASE_SUFFIX_TEMP}' as the base suffix. Is this correct?"
-		if [ "${ANSWER}" = "yes" ]
+		test_valid_ldap_dn "${LDAP_BASE_SUFFIX_TEMP}"
+		if [ "${VALID_LDAP_DN}" = "yes" ]
 		then
-			LDAP_BASE_SUFFIX=${LDAP_BASE_SUFFIX_TEMP}
+			question_yes_no "\nYou have entered '${LDAP_BASE_SUFFIX_TEMP}' as the base suffix. Is this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				LDAP_BASE_SUFFIX="${LDAP_BASE_SUFFIX_TEMP}"
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The LDAP base suffix is invalid!\n"
 		fi
 	done
 
@@ -190,11 +191,10 @@ cook_recipe ()
 			echo -e "\n${LRED}ERROR:${NRML} The Replication ID can not be '${LDAP_RID_TEMP}'."
 			echo -e "       It must be a number with 1 to 3 digits.\n"
 		else
-			echo -e ""
-			question_yes_no "You have entered '${LDAP_RID_TEMP}' as the replication ID. Is this correct?"
+			question_yes_no "\nYou have entered '${LDAP_RID_TEMP}' as the replication ID. Is this correct?"
 			if [ "${ANSWER}" = "yes" ]
 			then
-				LDAP_RID=${LDAP_RID_TEMP}
+				LDAP_RID="${LDAP_RID_TEMP}"
 			fi
 		fi
 	done
