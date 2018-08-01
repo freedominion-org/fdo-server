@@ -65,7 +65,7 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} local_dir remote_user remote_host remote_dir [--interval=\"value\"]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} /tmp jimbob host1.example.net /tmp${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} ~ jane 192.168.10.3 ~ --interval=\"60\"${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} ~ jane 10.0.10.3 ~ --interval=\"60\"${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e ""

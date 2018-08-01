@@ -1,13 +1,15 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-JAIL_IP="192.168.10.48"                                                        # Optional:  ip address given to the jail (see FDo IP Policy)
+JAIL_IP="10.0.11.48"                                                           # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="isc-dhcp44-server"                                            # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="isc-dhcpd"                                                # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+DNS_CACHE_IP=${DNS_CACHE_IP:-"10.0.11.47"}                                     #
+PXE_SERVER_IP=${PXE_SERVER_IP:-"10.0.11.46"}                                   #
 ################################################################################
 
 cook_recipe ()
@@ -53,8 +55,15 @@ cook_recipe ()
 	# Replace the LAN_NET_IFACE variable in the jails' rc.conf config file
 	sed -i "" "s/LAN_NET_IFACE/${LAN_NET_IFACE}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/rc.conf
 
-	# Replace the DOMAIN_NAME variable in the dhcpd.conf config file
+	# Replace the variables in the dhcpd.conf config file
+	sed -i "" "s/FDO_LAN_SUBNET_B/${FDO_LAN_SUBNET_B}/" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/dhcpd.conf
+	sed -i "" "s/FDO_LAN_SUBNET_MASK/${FDO_LAN_SUBNET_MASK}/" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/dhcpd.conf
+	sed -i "" "s/GUESTS_LAN_SUBNET_C/${GUESTS_LAN_SUBNET_C}/g" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/dhcpd.conf
 	sed -i "" "s/DOMAIN_NAME/${DOMAIN_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	sed -i "" "s/FDO_DNS_CACHE_IP/${DNS_CACHE_IP}/" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/dhcpd.conf
+	sed -i "" "s/PXE_SERVER_IP/${PXE_SERVER_IP}/" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/dhcpd.conf
+	# ASSUME that {FDO_LAN_GATEWAY_IP} is always the LAN gateway
+	sed -i "" "s/FDO_LAN_GATEWAY_IP/${FDO_LAN_GATEWAY_IP}/" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/dhcpd.conf
 
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"

@@ -31,6 +31,8 @@ USERNAME="${1}"
 DISPLAY_NAME="${2}"
 NUM_MANDATORY_ARGS=2
 HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
+NFS_SUBNET_C=${NFS_SUBNET_C:-"10.0.25"}
+NFS_SUBNET_MASK=${NFS_SUBNET_MASK:-"255.255.255.0"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -206,7 +208,7 @@ zfs create -o quota=50G ${HOME_ZFS_NAME}/${USERNAME}
 chown -R ${USERNAME}:users /fdo-hotdesk-home/${USERNAME}
 
 # Add home folder to NFS exports
-echo "/fdo-hotdesk-home/${USERNAME} -maproot=root -network 192.168.10 -mask 255.255.0.0" >> /etc/exports
+echo "/fdo-hotdesk-home/${USERNAME} -maproot=root -network ${NFS_SUBNET_C} -mask ${NFS_SUBNET_MASK}" >> /etc/exports
 echo -e ""
 service mountd reload
 

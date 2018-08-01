@@ -1,5 +1,6 @@
 domain     DOMAIN_NAME
 search     DOMAIN_NAME
-#nameserver LAN_SUBNET_C.47
+#nameserver FDO_DNS_CACHE_IP
+nameserver 1.1.1.1
 nameserver 8.8.8.8
 nameserver 8.8.4.4
