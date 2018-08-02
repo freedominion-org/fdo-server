@@ -50,7 +50,7 @@ cook_recipe ()
 	done
 
 	# Update bind global config with the jail IP
-	sed -i "" "s/FDO_DNS_CACHE_IP/${JAIL_IP}/" configs/${JAIL_NAME}@{$HOST_NAME}/usr/local/etc/namedb/named.conf
+	sed -i "" "s/FDO_DNS_CACHE_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
 
 	seasoning_suggestions
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
