@@ -61,7 +61,7 @@ cook_recipe ()
 	sed -i "" "s/GUESTS_LAN_SUBNET_C/${GUESTS_LAN_SUBNET_C}/g" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	sed -i "" "s/DOMAIN_NAME/${DOMAIN_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	sed -i "" "s/FDO_DNS_CACHE_IP/${DNS_CACHE_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
-	sed -i "" "s/PXE_SERVER_IP/${PXE_SERVER_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	sed -i "" "s/FDO_PXE_SERVER_IP/${PXE_SERVER_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	# ASSUME that {FDO_LAN_GATEWAY_IP} is always the LAN gateway
 	sed -i "" "s/FDO_LAN_GATEWAY_IP/${FDO_LAN_GATEWAY_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 
