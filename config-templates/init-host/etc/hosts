@@ -1,0 +1,4 @@
+::1				localhost
+127.0.0.1		localhost
+
+FDO_LAN_IP		FDO_HOST_NAME FDO_HOST_NAME.FDO_DOMAIN_NAME
