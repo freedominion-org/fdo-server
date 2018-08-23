@@ -205,7 +205,7 @@ SNAPSHOT_NAMES=`cat /tmp/backupz-${POOL}@${BACKUP_POOL}-datasets.list | grep ${N
 for FILESYSTEM_TO_UNMOUNT in `zfs list -r ${BACKUP_POOL}/${POOL} | awk '{print $1}' | tail +2 | sort -r`
 do
 	echo "Unmounting ${FILESYSTEM_TO_UNMOUNT} ..." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-	echo "${YELL}Unmounting ${FILESYSTEM_TO_UNMOUNT} ...${NRML}"
+	echo -e "${YELL}Unmounting ${FILESYSTEM_TO_UNMOUNT} ...${NRML}"
 	zfs umount -f ${FILESYSTEM_TO_UNMOUNT}
 done
 
@@ -286,7 +286,7 @@ fi
 for FILESYSTEM_TO_MOUNT in `zfs list -r ${BACKUP_POOL}/${POOL} | awk '{print $1}' | tail +2`
 do
 	echo "Mounting ${FILESYSTEM_TO_MOUNT} ..." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-	echo "${YELL}Mounting ${FILESYSTEM_TO_MOUNT} ...${NRML}"
+	echo -e "${YELL}Mounting ${FILESYSTEM_TO_MOUNT} ...${NRML}"
 	zfs mount ${FILESYSTEM_TO_MOUNT}
 done
 
