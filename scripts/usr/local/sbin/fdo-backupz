@@ -201,6 +201,14 @@ zfs list -H -t snapshot -r ${BACKUP_POOL} | awk '{print $1}' > /tmp/backupz-${PO
 
 SNAPSHOT_NAMES=`cat /tmp/backupz-${POOL}@${BACKUP_POOL}-datasets.list | grep ${NOW}`
 
+# Recusively unmount backup pool filesystems
+for FILESYSTEM_TO_UNMOUNT in `zfs list -r ${BACKUP_POOL}/${POOL} | awk '{print $1}' | tail +2 | sort -r`
+do
+	echo "Unmounting ${FILESYSTEM_TO_UNMOUNT} ..." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+	echo "${YELL}Unmounting ${FILESYSTEM_TO_UNMOUNT} ...${NRML}"
+	zfs umount -f ${FILESYSTEM_TO_UNMOUNT}
+done
+
 for SNAPSHOT_NAME in ${SNAPSHOT_NAMES}
 do
 	SNAPSHOT_PARENT=`echo ${SNAPSHOT_NAME} | sed "s/@.*//"`
@@ -274,14 +282,22 @@ then
 
 fi
 
+# Recusively remount backup pool filesystems
+for FILESYSTEM_TO_MOUNT in `zfs list -r ${BACKUP_POOL}/${POOL} | awk '{print $1}' | tail +2`
+do
+	echo "Mounting ${FILESYSTEM_TO_MOUNT} ..." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+	echo "${YELL}Mounting ${FILESYSTEM_TO_MOUNT} ...${NRML}"
+	zfs mount ${FILESYSTEM_TO_MOUNT}
+done
+
 # Write to log file.
 TIMESTAMP=`${DATE_CMD} +%Y-%m-%d_%H-%M-%S`
 echo "${TIMESTAMP} backup for ${NOW} finished! " >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "${timstamp} zpool list:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+echo "${TIMSTAMP} zpool list:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 zpool list >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "${timstamp} zpool status:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+echo "${TIMSTAMP} zpool status:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 zpool status >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 
