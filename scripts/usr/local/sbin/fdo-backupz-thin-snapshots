@@ -215,18 +215,35 @@ thin_snapshots_by_filesystem()
 		if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${FIRST_PROJECTION} ]
 		then
 
-			echo -e "\nDEBUG: SNAPSHOT_NAMES[${i}] = ${SNAPSHOT_NAMES[${i}]}  LAST_SUCCESSFUL_BACKUP_SNAPSHOT = ${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}\n"
+			NEXT_SNAPSHOT=${SNAPSHOT_TIMESTAMPS[$(( ${i} - 1 ))]}
+			LAST_KEPT_TO_NEXT_DELTA=$(( ${SNAPSHOT_TIMESTAMPS[${LAST_SNAPSHOT_KEPT}]} - ${NEXT_SNAPSHOT} ))
 
 			if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -gt ${PROJECTIONS[${j}]} ] && [ ${i} -gt 0 ] && [ "${SNAPSHOT_NAMES[${i}]}" != "${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}" ]
 			then
-				# We've reached the next projection, destroy this snapshot.
-				SNAPSHOT_ACTION[$i]="destroy"
+				if [ ${NEXT_SNAPSHOT} -gt ${PROJECTIONS[$(( ${j} + 1 ))]} ] && [ ${LAST_KEPT_TO_NEXT_DELTA} -lt $(( ${INTERVAL} + ${DAY_IN_SECS} )) ]
+				then
+					SNAPSHOT_ACTION[$i]="destroy"
+				fi
 			else
-				# This is the first snaphot older than the current projection, keep it and iterate to next projection.
-				j=$(( $j + 1 ))
+				NEXT_PROJECTION=0
+				while [ ${NEXT_PROJECTION} -eq 0 ] || [ ${NEXT_PROJECTION} -gt ${NEXT_SNAPSHOT_PLUS_INTERVAL} ]
+				do
+					NEXT_PROJECTION=${PROJECTIONS[$(( ${j} + 1 ))]}
+					NEXT_SNAPSHOT_PLUS_INTERVAL=$(( ${NEXT_SNAPSHOT} + ${INTERVAL} ))
+					j=$(( $j + 1 ))
+				done
+				SNAPSHOT_ACTION[${i}]="keep"
+				LAST_SNAPSHOT_KEPT=${i}
 			fi
 		fi
-		echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
+
+		if [ ${SIMULATION_MODE} = "yes" ]
+		then
+			echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/simulate.thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
+		else
+			echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
+		fi
+
 		if [ "${SNAPSHOT_ACTION[$i]}" = "destroy" ]
 		then
 			if [ ${SIMULATION_MODE} = "yes" ]
@@ -246,7 +263,7 @@ thin_snapshots_by_filesystem()
 
 ##### MAIN EXECUTION THREAD ####################################################
 
-# Gloabl dynamic variable declarations
+# Global dynamic variable declarations
 OFFSET=$((${OFFSET_DAYS} * ${DAY_IN_SECS}))
 INTERVAL=$((${INTERVAL_DAYS} * ${DAY_IN_SECS}))
 
