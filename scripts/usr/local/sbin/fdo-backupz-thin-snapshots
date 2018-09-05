@@ -37,8 +37,6 @@ SIMULATION_MODE="no"
 NOW=`date +%s`
 NOW_DATE_TIME=`date +%Y-%m-%d_%H-%M`
 DAY_IN_SECS=86400
-OFFSET=$((${OFFSET_DAYS} * ${DAY_IN_SECS}))
-INTERVAL=$((${INTERVAL_DAYS} * ${DAY_IN_SECS}))
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -247,6 +245,10 @@ thin_snapshots_by_filesystem()
 
 
 ##### MAIN EXECUTION THREAD ####################################################
+
+# Gloabl dynamic variable declarations
+OFFSET=$((${OFFSET_DAYS} * ${DAY_IN_SECS}))
+INTERVAL=$((${INTERVAL_DAYS} * ${DAY_IN_SECS}))
 
 # Create log filesystem if log directory doesn't already exist.
 if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
