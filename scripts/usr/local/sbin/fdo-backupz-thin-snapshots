@@ -208,8 +208,14 @@ thin_snapshots_by_filesystem()
 		j=$(( $j + 1 ))
 	done
 
-	j=0
+	# Add one more projection at the end (UNIX epoch +1) so we don't get out of index error
+	PROJECTIONS[${j}]=1
+
+	# Ensure that latest snapshot is always kept
 	i=$(( $i - 1 ))
+
+	j=0
+
 	while [ ${i} -ge 0 ]
 	do
 		if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${FIRST_PROJECTION} ]
