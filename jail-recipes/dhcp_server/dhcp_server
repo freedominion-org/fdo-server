@@ -8,6 +8,7 @@ RECIPE_REQUIRES_NAT_RELOAD="no"                                                #
 START_JAIL_SERVICES="isc-dhcpd"                                                # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+DNS_UPSTREAM_IP=${DNS_UPSTREAM_IP:-"1.1.1.1, 8.8.8.8"}                         #
 DNS_CACHE_IP=${DNS_CACHE_IP:-"10.0.11.47"}                                     #
 PXE_SERVER_IP=${PXE_SERVER_IP:-"10.0.11.46"}                                   #
 ################################################################################
@@ -26,6 +27,19 @@ cook_recipe ()
 		return
 	fi
 
+	echo -e "\n${ORNG}NOTICE:${NRML} It's recommended that a dns_cache' recipe (caching DNS server) is cooked"
+	echo -e   "        and running on the LAN (local network) prior to cooking this recipe.    "
+	echo -e   "        To cook a 'dns_cache' recipe, run the following command on this host    "
+	echo -e   "        (or another FDo server host on this LAN):                               "
+	echo -e   "        ${LBLU}${SCRIPT_NAME} dns dns dns_cache${NRML}                          \n"
+
+	question_yes_no "Would you like to continue to cook this jail recipe?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
 	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
 	echo -e "${YELL}Please accept when prompted...${NRML}\n"
 	sleep 5
@@ -37,6 +51,16 @@ cook_recipe ()
 		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
 		RECIPE_SUCCESS="no"
 		return
+	fi
+
+	# Determine if a caching dns server is running on the LAN
+	echo -e "\n${YELL}Determining if an FDo caching DNS server is running on this LAN...${NRML}\n"
+	host localhost ${DNS_CACHE_IP} > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		DNS_IP=${DNS_CACHE_IP}
+	else
+		DNS_IP=${DNS_UPSTREAM_IP}
 	fi
 
 	# Add necessary devfs rules for isc-dhcpd to work
@@ -60,7 +84,7 @@ cook_recipe ()
 	sed -i "" "s/FDO_LAN_SUBNET_MASK/${FDO_LAN_SUBNET_MASK}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	sed -i "" "s/GUESTS_LAN_SUBNET_C/${GUESTS_LAN_SUBNET_C}/g" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	sed -i "" "s/DOMAIN_NAME/${DOMAIN_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
-	sed -i "" "s/FDO_DNS_CACHE_IP/${DNS_CACHE_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	sed -i "" "s/FDO_DNS_IP/${DNS_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	sed -i "" "s/FDO_PXE_SERVER_IP/${PXE_SERVER_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
 	# ASSUME that {FDO_LAN_GATEWAY_IP} is always the LAN gateway
 	sed -i "" "s/FDO_LAN_GATEWAY_IP/${FDO_LAN_GATEWAY_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
