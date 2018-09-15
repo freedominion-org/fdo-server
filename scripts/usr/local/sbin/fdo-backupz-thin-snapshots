@@ -95,7 +95,7 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
-			--fiter)
+			--filter)
 				FILESYSTEM_FILTER="${OPTIONAL_ARG_VALUE}"
 				;;
 			--simulate)
