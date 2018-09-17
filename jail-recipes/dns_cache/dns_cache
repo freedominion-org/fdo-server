@@ -8,6 +8,7 @@ RECIPE_REQUIRES_NAT_RELOAD="no"                                                #
 START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+DHCP_SERVER_JAIL_IP="10.0.11.48"
 ################################################################################
 
 seasoning_suggestions ()
@@ -51,6 +52,18 @@ cook_recipe ()
 
 	# Update bind global config with the jail IP
 	sed -i "" "s/FDO_DNS_CACHE_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
+
+	# Determine if a dhcp server is running on the LAN and recommend changing it's domain-name-servers
+	nmap ${DHCP_SERVER_JAIL_IP} -sU -p 67 | egrep "^67/udp.*open\|filtered.*dhcp" > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		echo -e "\n${ORNG}NOTICE:${NRML} It seems that a DHCP server is running on the LAN (local network).      "
+		echo -e   "        It's recommended to change the 'domain-name-servers' to this jails'     "
+		echo -e   "        IP address [${JAIL_IP}].                                                "
+		echo -e   "        The DHCP server config file could be found at the following path in the "
+		echo -e   "        'dhcp_server' recipe jail:                                              "
+		echo -e   "        ${LBLU}/usr/local/etc/dhcpd.conf${NRML}                                 \n"
+	fi
 
 	seasoning_suggestions
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf

@@ -27,10 +27,10 @@ cook_recipe ()
 		return
 	fi
 
-	echo -e "\n${ORNG}NOTICE:${NRML} It's recommended that a dns_cache' recipe (caching DNS server) is cooked"
-	echo -e   "        and running on the LAN (local network) prior to cooking this recipe.    "
-	echo -e   "        To cook a 'dns_cache' recipe, run the following command on this host    "
-	echo -e   "        (or another FDo server host on this LAN):                               "
+	echo -e "\n${ORNG}NOTICE:${NRML} It's recommended that a 'dns_cache' recipe (caching DNS server) is      "
+	echo -e   "        cooked and running on the LAN (local network) prior to cooking this     "
+	echo -e   "        recipe. To cook a 'dns_cache' recipe, run the following command on this "
+	echo -e   "        host (or another FDo server host on this LAN):                          "
 	echo -e   "        ${LBLU}${SCRIPT_NAME} dns dns dns_cache${NRML}                          \n"
 
 	question_yes_no "Would you like to continue to cook this jail recipe?"
