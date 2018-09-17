@@ -65,8 +65,12 @@ cook_recipe ()
 		echo -e   "        ${LBLU}/usr/local/etc/dhcpd.conf${NRML}                                 \n"
 	fi
 
+	pause_prompt 15
+
 	seasoning_suggestions
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
+
+	pause_prompt 15
 
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"
