@@ -8,7 +8,7 @@ RECIPE_REQUIRES_NAT_RELOAD="no"                                                #
 START_JAIL_SERVICES="tftpd"                                                    # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS="${POOL_NAME}/jails/${JAIL_NAME}/images"                   # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS="/jls/${JAIL_NAME}/tftpboot/images"                     # Optional:  mountpoint of extra ZFS datasets required for recipe
-TFTPBOOT_HOST=${TFTPBOOT_HOST=:-"10.0.11.46"}                                  #
+TFTPBOOT_HOST=${TFTPBOOT_HOST:-"10.0.11.46"}                                  #
 IMAGES_DIR="/jls/${JAIL_NAME}/tftpboot/images"                                 #
 SYSLINUX_VERSION="6.03"                                                        ###################################
 SYSLINUX_URL="https://www.kernel.org/pub/linux/utils/boot/syslinux/"                                             #
