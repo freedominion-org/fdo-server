@@ -28,7 +28,7 @@
 
 SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=0
-DHCPD_CONFIG_FILE="/usr/local/etc/dhcpd.conf"
+CONFIG_FILE="/usr/local/etc/dhcpd.conf"
 RECIPE_NAME="dhcp_server"
 DIALOG_OUT_FILE="/tmp/${SCRIPT_NAME}.dialog.answer"
 
@@ -189,7 +189,7 @@ test_if_host
 
 if [ "${IS_HOST}" = "yes" ]
 then
-	# Let's try to find the dhcp_server jail
+	# Let's try to find the jail
 	find_jails_from_recipe_name ${RECIPE_NAME}
 	NUM_FOUND_JAILS=`echo ${FOUND_RECIPE_JAILS} | wc -w`
 	if [ ${NUM_FOUND_JAILS} -lt 1 ]
@@ -215,20 +215,20 @@ then
 			fi
 		done
 	fi
-	DHCPD_CONFIG_FILE="/jls/${JAIL_NAME}${DHCPD_CONFIG_FILE}"
+	CONFIG_FILE="/jls/${JAIL_NAME}${CONFIG_FILE}"
 	get_jail_id_from_name ${JAIL_NAME}
 	CMD_PREFIX="jexec ${JAIL_ID}"  
 fi
 
-if [ ! -f "${DHCPD_CONFIG_FILE}" ]
+if [ ! -f "${CONFIG_FILE}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${DHCPD_CONFIG_FILE}' does not exist!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${CONFIG_FILE}' does not exist!\n       Aborting.\n"
 	usage
 	exit 4 
 fi
 
 # Open the dhcpd server config file in users preferred editor.
-${EDITOR} ${DHCPD_CONFIG_FILE}
+${EDITOR} ${CONFIG_FILE}
 
 question_yes_no "\nWould you like to restart the service to pick up any changes now?"
 if [ "${ANSWER}" = "yes" ]
