@@ -14,7 +14,7 @@
 # TERM=xterm; 	export TERM
 
 BLOCKSIZE=K;    export BLOCKSIZE
-EDITOR=vi;   	export EDITOR
+EDITOR=vim;   	export EDITOR
 PAGER=less;  	export PAGER
 
 # set ENV to a file invoked each time sh is started for interactive use.

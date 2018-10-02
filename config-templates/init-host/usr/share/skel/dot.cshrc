@@ -19,7 +19,7 @@ alias vi	vim
 # A righteous umask
 # umask 22
 
-setenv	EDITOR	vi
+setenv	EDITOR	vim
 setenv	PAGER	less
 
 if ($?prompt) then

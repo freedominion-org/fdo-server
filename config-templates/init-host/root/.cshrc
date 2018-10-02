@@ -17,7 +17,7 @@ umask 22
 
 set path = (/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin $HOME/bin)
 
-setenv	EDITOR	vi
+setenv	EDITOR	vim
 setenv	PAGER	less
 setenv	BLOCKSIZE	K
 
