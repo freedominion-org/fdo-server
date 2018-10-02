@@ -45,5 +45,3 @@ alias vi='vim'
 
 # search path for cd(1)
 # CDPATH=:$HOME
-
-export TERM=xterm-256color
