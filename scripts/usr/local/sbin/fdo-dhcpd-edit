@@ -29,6 +29,8 @@
 SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=0
 DHCPD_CONFIG_FILE="/usr/local/etc/dhcpd.conf"
+RECIPE_NAME="dhcp_server"
+DIALOG_OUT_FILE="/tmp/${SCRIPT_NAME}.dialog.answer"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -105,14 +107,6 @@ then
 	exit 2
 fi
 
-if [ ! -f "${DHCPD_CONFIG_FILE}" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${DHCPD_CONFIG_FILE}'\ndoes not exist!\n       Aborting.\n"
-	usage
-	exit 3
-fi
-
-
 ##### FUNCTIONS ################################################################
 
 question_yes_no ()
@@ -133,12 +127,105 @@ question_yes_no ()
 
 }
 
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+find_jails_from_recipe_name ()
+{
+	FIND_RECIPE_NAME="${1}"
+	FOUND_RECIPE_JAILS=""
+	for TEST_JAIL_NAME in `ls -1 /jls | cut -d/ -f1`
+	do
+		if [ -f "/jls/${TEST_JAIL_NAME}/.fdo-jail-recipe.inf" ]
+		then
+			TEST_RECIPE_NAME=`cat /jls/${TEST_JAIL_NAME}/.fdo-jail-recipe.inf`
+			if [ "${TEST_RECIPE_NAME}" = "${FIND_RECIPE_NAME}" ]
+			then
+				if [ "${FOUND_RECIPE_JAILS}" = "" ]
+				then
+					FOUND_RECIPE_JAILS="${TEST_JAIL_NAME}"
+				else
+					FOUND_RECIPE_JAILS="${FOUND_RECIPE_JAILS} ${TEST_JAIL_NAME}"
+				fi
+			fi
+		fi
+	done
+
+}
+
+get_jail_id_from_name ()
+{
+	# ${1} is jail name
+
+	JAIL_ID_FILE=`ls -1 /var/run/jail_${1}.id 2> /dev/null | head -1`
+	if [ "${JAIL_ID_FILE}" = "" ] 
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Could not identify jail id from jail name.\n"
+		JAIL_ID=-1
+		return 1
+	fi
+	JAIL_ID=`cat ${JAIL_ID_FILE}`
+
+}
+
 ################################################################################
 
 
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
+JAIL_NAME=""
+CMD_PREFIX=""
+
+test_if_host
+
+if [ "${IS_HOST}" = "yes" ]
+then
+	# Let's try to find the dhcp_server jail
+	find_jails_from_recipe_name ${RECIPE_NAME}
+	NUM_FOUND_JAILS=`echo ${FOUND_RECIPE_JAILS} | wc -w`
+	if [ ${NUM_FOUND_JAILS} -lt 1 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Unable to find a '${RECIPE_NAME}' recipe jail!\n       Aborting.\n"
+		usage
+		exit 3
+	fi
+	if [ ${NUM_FOUND_JAILS} -lt 2 ]
+	then
+		JAIL_NAME=${FOUND_RECIPE_JAILS}
+	else
+		SELECT_JAIL_PROMPT="Select the DHCP server jail to edit:"
+		while [ "${JAIL_NAME}" = "" ]
+		do
+			dialog --no-items --no-cancel --menu "${SELECT_JAIL_PROMPT}" 12 40 10 ${FOUND_RECIPE_JAILS} 2> ${DIALOG_OUT_FILE}
+			JAIL_NAME_TEMP=`cat ${DIALOG_OUT_FILE}`
+			echo -e "\n"
+			question_yes_no "\nYou have selected '${JAIL_NAME_TEMP}' as the DHCP jail to edit.\nIs this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				JAIL_NAME="${JAIL_NAME_TEMP}"
+			fi
+		done
+	fi
+	DHCPD_CONFIG_FILE="/jls/${JAIL_NAME}${DHCPD_CONFIG_FILE}"
+	get_jail_id_from_name ${JAIL_NAME}
+	CMD_PREFIX="jexec ${JAIL_ID}"  
+fi
+
+if [ ! -f "${DHCPD_CONFIG_FILE}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${DHCPD_CONFIG_FILE}' does not exist!\n       Aborting.\n"
+	usage
+	exit 4 
+fi
 
 # Open the dhcpd server config file in users preferred editor.
 ${EDITOR} ${DHCPD_CONFIG_FILE}
@@ -146,14 +233,14 @@ ${EDITOR} ${DHCPD_CONFIG_FILE}
 question_yes_no "\nWould you like to restart the service to pick up any changes now?"
 if [ "${ANSWER}" = "yes" ]
 then
-	service isc-dhcpd restart
+	${CMD_PREFIX} service isc-dhcpd restart
 fi
 
 echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 4
+	exit 5
 fi
 
 ################################################################################
