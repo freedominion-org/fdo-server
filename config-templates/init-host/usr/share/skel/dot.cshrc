@@ -21,7 +21,6 @@ alias vi	vim
 
 setenv	EDITOR	vi
 setenv	PAGER	less
-setenv	TERM	xterm-256color
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up
