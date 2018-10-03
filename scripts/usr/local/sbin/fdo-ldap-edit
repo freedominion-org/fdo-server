@@ -31,7 +31,6 @@ NUM_MANDATORY_ARGS=0
 LDAP_EDIT_CMD=ldapvi
 LDAP_SERVER_HOST=localhost
 LDAP_MGR_DN_LOOKUP_FILE="/usr/local/etc/fdo/ldap-manager-dn.conf"
-LDAP_MGR_DN=`cat "${LDAP_MGR_DN_LOOKUP_FILE}"`
 CONFIG_FILE="/usr/local/etc/openldap/slapd.conf"
 RECIPE_NAME="ldap_provider"
 DIALOG_OUT_FILE="/tmp/${SCRIPT_NAME}.dialog.answer"
@@ -109,12 +108,6 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
 	exit 2
-fi
-
-if [ "${LDAP_MGR_DN}" = "" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n'${LDAP_MGR_DN_LOOKUP_FILE}' is not valid!\n       Aborting.\n"
-	exit 3
 fi
 
 ##### FUNCTIONS ################################################################
@@ -206,7 +199,7 @@ then
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Unable to find a '${RECIPE_NAME}' recipe jail!\n       Aborting.\n"
 		usage
-		exit 4
+		exit 3
 	fi
 	if [ ${NUM_FOUND_JAILS} -lt 2 ]
 	then
@@ -226,6 +219,7 @@ then
 		done
 	fi
 	CONFIG_FILE="/jls/${JAIL_NAME}${CONFIG_FILE}"
+	LDAP_MGR_DN="/jls/${JAIL_NAME}${LDAP_MGR_DN}"
 	get_jail_id_from_name ${JAIL_NAME}
 	CMD_PREFIX="jexec ${JAIL_ID}"  
 fi
@@ -234,6 +228,14 @@ ${CMD_PREFIX} which "${LDAP_EDIT_CMD}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The LDAP edit command '${LDAP_EDIT_CMD}' does not exist!\n       Aborting.\n"
+	exit 4
+fi
+
+LDAP_MGR_DN=`cat "${LDAP_MGR_DN_LOOKUP_FILE}"`
+
+if [ "${LDAP_MGR_DN}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n       '${LDAP_MGR_DN_LOOKUP_FILE}'i\n      is not valid! Aborting.\n"
 	exit 5
 fi
 
