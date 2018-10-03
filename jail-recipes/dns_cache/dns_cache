@@ -1,14 +1,14 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-JAIL_IP="10.0.11.47"                                                           # Optional:  ip address given to the jail (see FDo IP Policy)
+JAIL_IP="${JAILS_LAN_SUBNET_C}.47"                                             # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="bind911"                                                      # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
-DHCP_SERVER_JAIL_IP="10.0.11.48"
+DHCP_SERVER_JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                 #
 ################################################################################
 
 seasoning_suggestions ()
