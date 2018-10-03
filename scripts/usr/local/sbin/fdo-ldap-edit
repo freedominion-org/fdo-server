@@ -219,7 +219,7 @@ then
 		done
 	fi
 	CONFIG_FILE="/jls/${JAIL_NAME}${CONFIG_FILE}"
-	LDAP_MGR_DN="/jls/${JAIL_NAME}${LDAP_MGR_DN}"
+	LDAP_MGR_DN_LOOKUP_FILE="/jls/${JAIL_NAME}${LDAP_MGR_DN_LOOKUP_FILE}"
 	get_jail_id_from_name ${JAIL_NAME}
 	CMD_PREFIX="jexec ${JAIL_ID}"  
 fi
@@ -235,7 +235,7 @@ LDAP_MGR_DN=`cat "${LDAP_MGR_DN_LOOKUP_FILE}"`
 
 if [ "${LDAP_MGR_DN}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n       '${LDAP_MGR_DN_LOOKUP_FILE}'i\n      is not valid! Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n       '${LDAP_MGR_DN_LOOKUP_FILE}'\n       is not valid! Aborting.\n"
 	exit 5
 fi
 
