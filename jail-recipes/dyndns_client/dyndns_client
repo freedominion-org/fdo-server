@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-JAIL_IP="10.0.11.43"                                                           # Optional:  ip address given to the jail (see FDo IP Policy)
+JAIL_IP="${JAILS_LAN_SUBNET_C}.43"                                             # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="ddclient"                                                     # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking

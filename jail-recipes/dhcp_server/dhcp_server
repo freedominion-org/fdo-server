@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-JAIL_IP="10.0.11.48"                                                           # Optional:  ip address given to the jail (see FDo IP Policy)
+JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                             # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="isc-dhcp44-server"                                            # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
@@ -9,8 +9,8 @@ START_JAIL_SERVICES="isc-dhcpd"                                                #
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
 DNS_UPSTREAM_IP=${DNS_UPSTREAM_IP:-"1.1.1.1, 8.8.8.8"}                         #
-DNS_CACHE_IP=${DNS_CACHE_IP:-"10.0.11.47"}                                     #
-PXE_SERVER_IP=${PXE_SERVER_IP:-"10.0.11.46"}                                   #
+DNS_CACHE_IP=${DNS_CACHE_IP:-"${JAILS_LAN_SUBNET_C}.47"}                       #
+PXE_SERVER_IP=${PXE_SERVER_IP:-"${JAILS_LAN_SUBNET_C}.46"}                     #
 ################################################################################
 
 cook_recipe ()

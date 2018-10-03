@@ -1,14 +1,14 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-JAIL_IP="10.0.11.46"                                                           # Optional:  ip address given to the jail (see FDo IP Policy)
+JAIL_IP="${JAILS_LAN_SUBNET_C}.46"                                             # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="tftp-hpa"                                                     # Optional:  packages to install in the jail
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="tftpd"                                                    # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS="${POOL_NAME}/jails/${JAIL_NAME}/images"                   # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS="/jls/${JAIL_NAME}/tftpboot/images"                     # Optional:  mountpoint of extra ZFS datasets required for recipe
-TFTPBOOT_HOST=${TFTPBOOT_HOST:-"10.0.11.46"}                                  #
+TFTPBOOT_HOST=${TFTPBOOT_HOST:-"${JAILS_LAN_SUBNET_C}.46"}                     #
 IMAGES_DIR="/jls/${JAIL_NAME}/tftpboot/images"                                 #
 SYSLINUX_VERSION="6.03"                                                        ###################################
 SYSLINUX_URL="https://www.kernel.org/pub/linux/utils/boot/syslinux/"                                             #
