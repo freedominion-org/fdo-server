@@ -94,6 +94,20 @@ do
 done
 
 
+##### FUNCTIONS ################################################################
+
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+
 ##### SANITY TESTS #############################################################
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
@@ -103,26 +117,27 @@ then
 	exit 2
 fi
 
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 3
+fi
+
 zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME} > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server user folder already exists!\n       Aborting.\n"
-	exit 3
+	exit 4
 fi
 
 # Check that we are not currently running a backupz operation.
 ps aux | grep "backupz"  | grep -v "grep backupz"
 if [ ${?} -eq 0 ]; then
 	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\n       Aborting.\n"
-	exit 3
+	exit 5
 fi
-
-
-##### FUNCTIONS ################################################################
-
-
-
-################################################################################
 
 
 ##### MAIN EXECUTION THREAD ####################################################
@@ -138,5 +153,5 @@ chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/user
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 4
+	exit 6
 fi

@@ -101,15 +101,6 @@ do
 done
 
 
-##### SANITY TESTS #############################################################
-
-if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
-	usage
-	exit 2
-fi
-
 ##### FUNCTIONS ################################################################
 
 question_yes_no ()
@@ -179,7 +170,15 @@ get_jail_id_from_name ()
 
 }
 
-################################################################################
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 2
+fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
@@ -224,6 +223,7 @@ then
 	CMD_PREFIX="jexec ${JAIL_ID}"  
 fi
 
+# Test if the management command exists
 ${CMD_PREFIX} which "${LDAP_EDIT_CMD}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then

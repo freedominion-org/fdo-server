@@ -100,23 +100,6 @@ do
 done
 
 
-##### SANITY TESTS #############################################################
-
-if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
-	usage
-	exit 2
-fi
-
-if [ ! -f ${PF_CONF_PATH} ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The pf config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
-	usage
-	exit 3 
-fi
-
-
 ##### FUNCTIONS ################################################################
 
 question_yes_no ()
@@ -154,7 +137,41 @@ test_valid_rule_name ()
 
 }
 
-################################################################################
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 2
+fi
+
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 3
+fi
+
+if [ ! -f ${PF_CONF_PATH} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pf config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
+	usage
+	exit 4
+fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
@@ -177,7 +194,7 @@ done
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 6
+	exit 5
 fi
 
 ################################################################################

@@ -114,60 +114,6 @@ do
 done
 
 
-##### SANITY TESTS #############################################################
-
-if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
-	usage
-	exit 2
-fi
-
-BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
-if [ $? -ne 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported.\n       Aborting.\n"
-	exit 3
-fi
-
-BACKUP_POOL_HEALTH=`echo ${BACKUP_POOL_ATTRIBUTES} | awk '{print $9}'`
-if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
-	exit 4
-fi
-
-POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
-if [ ${?} -ne 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
-	exit 5
-fi
-
-POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
-if [ "${POOL_HEALTH}" != "ONLINE" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
-	exit 6
-fi
-
-BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The last backup from '${POOL}' to '${BACKUP_POOL}' failed!\n       Aborting.\n"
-	exit 7
-fi
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\n       Aborting.\n"
-	exit 8
-fi
-
-################################################################################
-
-
 ##### FUNCTIONS ################################################################
 
 thin_snapshots_by_filesystem()
@@ -264,7 +210,76 @@ thin_snapshots_by_filesystem()
 
 }
 
-################################################################################
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 2
+fi
+
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 3
+fi
+
+BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
+if [ $? -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported.\n       Aborting.\n"
+	exit 4
+fi
+
+BACKUP_POOL_HEALTH=`echo ${BACKUP_POOL_ATTRIBUTES} | awk '{print $9}'`
+if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
+	exit 5
+fi
+
+POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
+	exit 6
+fi
+
+POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
+if [ "${POOL_HEALTH}" != "ONLINE" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
+	exit 7
+fi
+
+BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
+
+if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The last backup from '${POOL}' to '${BACKUP_POOL}' failed!\n       Aborting.\n"
+	exit 8
+fi
+
+if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\n       Aborting.\n"
+	exit 9
+fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################

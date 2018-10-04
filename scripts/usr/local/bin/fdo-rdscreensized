@@ -23,6 +23,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+
 # NOTES:
 # Tested on FreeBSD 10.3
 # Additional FreeBSD ports/packages: py-psycopg2/py27-psycopg2, py-daemon/py27-daemon # OR install from pip: python-daemon

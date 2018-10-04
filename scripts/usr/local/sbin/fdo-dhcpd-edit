@@ -98,15 +98,6 @@ do
 done
 
 
-##### SANITY TESTS #############################################################
-
-if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
-	usage
-	exit 2
-fi
-
 ##### FUNCTIONS ################################################################
 
 question_yes_no ()
@@ -176,7 +167,15 @@ get_jail_id_from_name ()
 
 }
 
-################################################################################
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 2
+fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
@@ -220,6 +219,7 @@ then
 	CMD_PREFIX="jexec ${JAIL_ID}"  
 fi
 
+# Test if the config file exists
 if [ ! -f "${CONFIG_FILE}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${CONFIG_FILE}' does not exist!\n       Aborting.\n"

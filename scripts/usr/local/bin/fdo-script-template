@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# Copyright (c) 20?? Developer Name <username@domain.org>.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -98,6 +98,20 @@ do
 done
 
 
+##### FUNCTIONS ################################################################
+
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+
 ##### SANITY TESTS #############################################################
 
 if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
@@ -107,12 +121,13 @@ then
 	exit 2
 fi
 
-
-##### FUNCTIONS ################################################################
-
-
-
-################################################################################
+#test_if_host
+#
+#if [ "${IS_HOST}" = "no" ]
+#then
+#	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+#	exit 3
+#fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
@@ -123,7 +138,7 @@ ERROR_COUNT=0
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 3
+	exit 99
 fi
 
 ################################################################################
