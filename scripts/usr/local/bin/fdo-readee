@@ -1,0 +1,416 @@
+#!/bin/sh
+
+# Copyright (c) 2018 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+################################################################################
+#                                                                              #
+# readee : A shell function to replace the posix shell inbuilt 'read'. It is   #
+#          designed to behave a closely as possible to the 'read' command.     #
+#          However, it is designed to be more modern like the bash inbuilt     #
+#          version of 'read' with the '-e' flag. Primary, left and right arrow #
+#          keys work as expected and so do home and end keys. Just lile the    #
+#          bash version, there is '-s' for secret mode. However, in readee the #
+#          characters typed show up as '*' (asterisks) instead of nothing.     #
+#                                                                              #
+################################################################################
+
+## TODO:
+#
+# - Allow multiple variable arguments and assign entered text into them in parts
+#   separated by 'IFS' as is done in the sh 'read' command.
+# - Add support for Backslash + Carriage Return to drop to next line and -r flag
+#   to disable this interpretation, as is done in sh 'read' command.
+# - Add parsing of combined flags in arguments,
+#   e.g.: 'readee -rsp "Prompt: " SOME_VAR'.
+
+readee ()
+{
+
+	# Test for no arguments
+	if [ ${#} -eq 0 ]
+	then
+		echo -e "readee: arg count"
+		return 2
+	fi
+
+	# Parse arguments
+	READEE_PROMPT_MODE="false"
+	READEE_PROMPT_TEXT=""
+	READEE_VARIABLE=""
+	for ARG in "${@}"
+	do
+		case "${ARG}" in
+			"-e")
+				# For backwards compatibility only
+				continue
+				;;
+			"-s")
+				READEE_SILENT_MODE="true"
+				;;
+			"-p")
+				READEE_PROMPT_MODE="next_arg"
+				;;
+			*)
+				# If in prompt mode 'next_arg', capture the prompt.
+				if [ "${READEE_PROMPT_MODE}" = "next_arg" ]
+				then
+					READEE_PROMPT_TEXT="${ARG}"
+					READEE_PROMPT_MODE="true"
+					continue
+				fi
+
+				# Test for illegal option flags
+				if [ `echo "${ARG}" | cut -c1` = "-" ]
+				then
+					echo -e "readee: Illegal option "`echo "${ARG}" | cut -c1-2`
+					return 2
+				fi
+
+				# Test for variable name validity (try best to copy sh inbuilt: read)
+				IS_SYNTAX_OK=`echo "${ARG}" | sed -r "s/^[a-zA-Z\_]+[a-zA-Z0-9\_]*//" | wc -L`
+				if [ ${IS_SYNTAX_OK}  -ne 0 ]
+				then
+					echo -e "readee: ${ARG}: bad variable name"
+					return 2
+				fi
+				READEE_VARIABLE="${ARG}"
+				break
+				;;
+		esac
+	done
+
+	# Test for missing prompt argument
+	if [ "${READEE_PROMPT_MODE}" = "next_arg" ]
+	then
+		echo -e "readee: No arg for -p option"
+		return 2
+	fi
+
+	# Test for missing variable argument
+	if [ "${READEE_VARIABLE}" = "" ]
+	then
+		echo -e "readee: arg count"
+		return 2
+	fi
+
+	# Variables (re)initialisation:
+	CURS="\033[30;47m"
+	NRML="\033[0;00m"
+	HEX_CARRIAGE_RETURN="%0d"
+	HEX_ESCAPE="%1b"
+	HEX_CTRL_C="%03"
+	HEX_BACKSPACE="%7f"		# ASCII DEL, but actually comes from Backspace Key
+	HEX_DELETE="%33"		# Comes after escape character
+	HEX_HOME="%48"			# Comes after escape character
+	HEX_END="%46"			# Comes after escape character
+	HEX_D="%44"				# LEFT ARROW, comes after escape character
+	HEX_C="%43"				# RIGHT ARROW, comes after escape character
+	TYPED_CHAR=""
+	TYPED_CHAR_HEX=""
+	PRE_CURS_TEXT=""
+	CURS_TEXT=" "
+	POST_CURS_TEXT=""
+	CURSOR_AT_START="true"
+	CURSOR_AT_END="true"
+	READEE_ABORTED="false"
+	CURRENT_TTY_SETTINGS=`stty -g`
+
+	# Prepare the TTY for line editing (no echo, raw input, make cursor invisible)
+	stty -echo raw
+	tput vi
+
+	# Display initial prompt and edit line
+	echo -e "\r${NRML}${READEE_PROMPT_TEXT}${CURS}${CURS_TEXT}${NRML}\c"
+
+	# Loop taking keystrokes until carriage return key is pressed
+	while [ "${TYPED_CHAR_HEX}" != "${HEX_CARRIAGE_RETURN}" ]
+	do
+
+		# Get a 2-byte character from stdin on key press and convert to Hexidecimal value
+		TYPED_CHAR=$(dd bs=2 count=1 2> /dev/null)
+		TYPED_CHAR_HEX=`printf "%%%02x\n" "'${TYPED_CHAR}"`
+
+		# Compare the hexidecimal value of the first character with known ASCII values
+		case "${TYPED_CHAR_HEX}" in
+			"${HEX_CTRL_C}")
+				READEE_ABORTED="true"
+				break
+				;;
+			"${HEX_CARRIAGE_RETURN}")
+				continue
+				;;
+			"${HEX_BACKSPACE}")
+				# Get the length of the text left of cursor
+				PRE_CURS_TEXT_LENGTH=`echo ${#PRE_CURS_TEXT}`
+
+				if [ "${CURSOR_AT_START}" = "true" ]
+				then
+					# If cursor is already at the beginning, do nothing and continue
+					continue
+				fi
+
+				if [ ${PRE_CURS_TEXT_LENGTH} -lt 2 ]
+				then
+					# Cursor reached the first character.
+					# Set new pre-cursor text to empty, since cursor is now at the beginning;
+					NEW_PRE_CURS_TEXT=""
+					NEW_CURSOR_AT_START="true"
+				else
+					# Cursor moves left erasing the right-most character left of cursor.
+					# Truncate the pre-cursor text by one character from the right;
+					NEW_PRE_CURS_TEXT=`echo "${PRE_CURS_TEXT}" | cut -c1-$((${PRE_CURS_TEXT_LENGTH} -1))`
+					NEW_CURSOR_AT_START="false"
+				fi
+
+				# Set new values:
+				PRE_CURS_TEXT="${NEW_PRE_CURS_TEXT}"
+				CURSOR_AT_START="${NEW_CURSOR_AT_START}"
+				;;
+			"${HEX_ESCAPE}")
+
+				# The first character was the escape character, so let's get a second character and hex value
+				ESCAPED_CHAR=$(dd bs=2 count=1 2> /dev/null)
+				ESCAPED_CHAR_HEX=`printf "%%%02x\n" "'${ESCAPED_CHAR}"`
+
+				# Compare the hex value of second character with known ASCII values
+				# in order to get the extended meaning of the key stroke
+				case "${ESCAPED_CHAR_HEX}" in
+					"${HEX_HOME}")
+						if [ "${CURSOR_AT_START}" = "true" ]
+						then
+							# if cursor is already at the start, do nothing and continue
+							continue
+						fi
+
+						if [ "${CURSOR_AT_END}" = "true" ]
+						then
+							NEW_TEXT="${PRE_CURS_TEXT}"
+						else
+							NEW_TEXT="${PRE_CURS_TEXT}${CURS_TEXT}${POST_CURS_TEXT}"
+						fi
+						NEW_TEXT_LENGTH=${#NEW_TEXT}
+						NEW_CURS_TEXT=`echo "${NEW_TEXT}" | cut -c1`
+						NEW_POST_CURS_TEXT=`echo "${NEW_TEXT}" | cut -c2-${NEW_TEXT_LENGTH}`
+
+						# Set new values:
+						PRE_CURS_TEXT=""
+						CURS_TEXT="${NEW_CURS_TEXT}"
+						POST_CURS_TEXT="${NEW_POST_CURS_TEXT}"
+						CURSOR_AT_START="true"
+						CURSOR_AT_END="false"
+						;;
+					"${HEX_END}")
+						if [ "${CURSOR_AT_END}" = "true" ]
+						then
+							# if cursor is already at he end, do nothing and continue
+							continue
+						fi
+
+						NEW_TEXT="${PRE_CURS_TEXT}${CURS_TEXT}${POST_CURS_TEXT}"
+
+						# Set new values:
+						PRE_CURS_TEXT="${NEW_TEXT}"
+						CURS_TEXT=" "
+						POST_CURS_TEXT=""
+						CURSOR_AT_START="false"
+						CURSOR_AT_END="true"
+						;;
+					"${HEX_DELETE}")
+						# Get the length of the text right of cursor
+						POST_CURS_TEXT_LENGTH=${#POST_CURS_TEXT}
+
+						if [ "${CURSOR_AT_END}" = "true" ]
+						then
+							# If cursor is already at the end, do nothing and continue
+							continue
+						fi
+
+						if [ ${POST_CURS_TEXT_LENGTH} -lt 1 ]
+						then
+							# Cursor reached the last character.
+							# Set new cursor character to whitespace so we can still see it;
+							NEW_CURS_TEXT=" "
+							# Set new post-cursor text to empty, since we are at the end;
+							NEW_POST_CURS_TEXT=""
+							NEW_CURSOR_AT_END="true"
+						else
+							# Cursor erases it's character and becomes the left-most character right of cursor.
+							# Set cursor text to the left-most character of post-cursor text;
+							NEW_CURS_TEXT=`echo "${POST_CURS_TEXT}" | cut -c1`
+							# Truncate the post-cursor text by one character from the left;
+							NEW_POST_CURS_TEXT=`echo "${POST_CURS_TEXT}" | cut -c2-${POST_CURS_TEXT_LENGTH}`
+							NEW_CURSOR_AT_END="false"
+						fi
+
+						# Set new values:
+						CURS_TEXT="${NEW_CURS_TEXT}"
+						POST_CURS_TEXT="${NEW_POST_CURS_TEXT}"
+						CURSOR_AT_END="${NEW_CURSOR_AT_END}"
+						;;
+					"${HEX_D}")	# LEFT ARROW
+						# Get the length of the text left of cursor
+						PRE_CURS_TEXT_LENGTH=`echo ${#PRE_CURS_TEXT}`
+
+						if [ "${CURSOR_AT_START}" = "true" ]
+						then
+							# If cursor is already at the beginning, do nothing and continue
+							continue
+						fi
+
+						if [ ${PRE_CURS_TEXT_LENGTH} -lt 2 ]
+						then
+							# Cursor reached the first character.
+							# Set new pre-cursor text to empty, since cursor is now at the beginning;
+							NEW_PRE_CURS_TEXT=""
+							NEW_CURSOR_AT_START="true"
+							NEW_CURSOR_AT_END="false"
+						else
+							# Cursor is moving left.
+							# Set new pre-cursor text to current pre-cursor text truncated by one character from the right;
+							NEW_PRE_CURS_TEXT=`echo "${PRE_CURS_TEXT}" | cut -c1-$((${PRE_CURS_TEXT_LENGTH} -1))`
+							NEW_CURSOR_AT_START="false"
+							NEW_CURSOR_AT_END="false"
+						fi
+
+						# Set new cursor character to character left of current cursor;
+						NEW_CURS_TEXT=`echo "${PRE_CURS_TEXT}" | cut -c${#PRE_CURS_TEXT}`
+						if [ "${CURSOR_AT_END}" = "true" ]
+						then
+							# Cursor was at end, so new post-cursor text is same as before;
+							NEW_POST_CURS_TEXT="${POST_CURS_TEXT}"
+						else
+							# Set new post-cursor text to current cursor character concatenated with current post-cursor text;
+							NEW_POST_CURS_TEXT="${CURS_TEXT}${POST_CURS_TEXT}"
+						fi
+
+						# Set new values:
+						PRE_CURS_TEXT="${NEW_PRE_CURS_TEXT}"
+						CURS_TEXT="${NEW_CURS_TEXT}"
+						POST_CURS_TEXT="${NEW_POST_CURS_TEXT}"
+						CURSOR_AT_START="${NEW_CURSOR_AT_START}"
+						CURSOR_AT_END="${NEW_CURSOR_AT_END}"
+						;;
+					"${HEX_C}")	# RIGHT ARROW
+						# Get the length of the text right of cursor
+						POST_CURS_TEXT_LENGTH=${#POST_CURS_TEXT}
+
+						if [ "${CURSOR_AT_END}" = "true" ]
+						then
+							# If cursor is already at the end, do nothing and continue
+							continue
+						fi
+
+						if [ ${POST_CURS_TEXT_LENGTH} -lt 1 ]
+						then
+							# Cursor reached past last character.
+							# Set new cursor character to whitespace so we can still see it;
+							NEW_CURS_TEXT=" "
+							# Set new post-cursor text to empty, since we are at the end;
+							NEW_POST_CURS_TEXT=""
+							NEW_CURSOR_AT_START="false"
+							NEW_CURSOR_AT_END="true"
+						else
+							# Cursor is moving right.
+							# Set new cursor character to first character of current post-cursor text;
+							NEW_CURS_TEXT=`echo "${POST_CURS_TEXT}" | cut -c1`
+							# Set new post-cursor text to current post-cursor text truncated by one character from the left;
+							NEW_POST_CURS_TEXT=`echo "${POST_CURS_TEXT}" | cut -c2-${POST_CURS_TEXT_LENGTH}`
+							NEW_CURSOR_AT_START="false"
+							NEW_CURSOR_AT_END="false"
+						fi
+
+						# Set new pre-cursor text to current pre-cursor text concatenated with current cursor character;
+						NEW_PRE_CURS_TEXT="${PRE_CURS_TEXT}${CURS_TEXT}"
+
+						# Set new values:
+						PRE_CURS_TEXT="${NEW_PRE_CURS_TEXT}"
+						CURS_TEXT="${NEW_CURS_TEXT}"
+						POST_CURS_TEXT="${NEW_POST_CURS_TEXT}"
+						CURSOR_AT_START="${NEW_CURSOR_AT_START}"
+						CURSOR_AT_END="${NEW_CURSOR_AT_END}"
+						;;
+					*)
+						# For any other character, do nothing
+						continue
+						;;
+
+				esac
+				;;
+
+			*)
+				# Character is actual input
+				PRE_CURS_TEXT="${PRE_CURS_TEXT}${TYPED_CHAR}"
+				CURSOR_AT_START="false"
+				;;
+		esac
+
+		# If in silent mode, hide displayed text
+		if [ "${READEE_SILENT_MODE}" = "true" ]
+		then
+			DISPLAY_LINE="${NRML}${READEE_PROMPT_TEXT}"`echo "${PRE_CURS_TEXT}" | sed "s/./\*/g"`
+			DISPLAY_LINE="${DISPLAY_LINE}${CURS}"`echo "${CURS_TEXT}" | sed "s/[^ ]/\*/g"`
+			DISPLAY_LINE="${DISPLAY_LINE}${NRML}"`echo "${POST_CURS_TEXT}" | sed "s/./\*/g"`
+		else
+			DISPLAY_LINE="${NRML}${READEE_PROMPT_TEXT}${PRE_CURS_TEXT}${CURS}${CURS_TEXT}${NRML}${POST_CURS_TEXT}"
+		fi
+
+		# Echo display text to screen
+		echo -e "\r${DISPLAY_LINE} \c"
+
+	done
+
+	# Put tty text and cursor back to how they were before
+	stty ${CURRENT_TTY_SETTINGS}
+	tput ve
+
+	# Compile the whole entered text line from component parts
+	if [ "${CURSOR_AT_END}" = "true" ]
+	then
+		READEE_ENTERED_TEXT="${PRE_CURS_TEXT}${POST_CURS_TEXT}"
+	else
+		READEE_ENTERED_TEXT="${PRE_CURS_TEXT}${CURS_TEXT}${POST_CURS_TEXT}"
+	fi
+
+	# If in silent mode, hide final entered text once more
+	if [ "${READEE_SILENT_MODE}" = "true" ]
+	then
+		DISPLAY_LINE="${READEE_PROMPT_TEXT}"`echo "${READEE_ENTERED_TEXT}" | sed "s/./\*/g"`
+	else
+		DISPLAY_LINE="${READEE_PROMPT_TEXT}${READEE_ENTERED_TEXT}"
+	fi
+
+	# Now output final text
+	if [ "${READEE_ABORTED}" = "true" ]
+	then
+		echo -e "\r${DISPLAY_LINE}^C"
+		return 130
+	else
+		echo -e "\r${DISPLAY_LINE} "
+	fi
+
+	# Lastly, set the input variable that was passed as an argument
+	eval "${READEE_VARIABLE}=\"${READEE_ENTERED_TEXT}\""
+
+} ## END: readee ()
+
