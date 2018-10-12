@@ -103,6 +103,9 @@ done
 
 ##### FUNCTIONS ################################################################
 
+# source readee function
+. /usr/local/bin/fdo-readee
+
 question_yes_no ()
 {
 
@@ -110,8 +113,8 @@ question_yes_no ()
 
 	while [ ${LOOP} = 1 ]
 		do
-		echo -e "${LCYN}${1} (yes/no): ${NRML}\c"
-		read ANSWER
+		echo -e "${LCYN}${1}${NRML}"
+		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
 		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
 		then
 			LOOP=0
