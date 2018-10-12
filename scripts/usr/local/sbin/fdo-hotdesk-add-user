@@ -94,12 +94,15 @@ done
 
 ##### FUNCTIONS ################################################################
 
+# source readee function
+. /usr/local/bin/fdo-readee
+
 question_yes_no ()
 {
 	while true
 		do
-		echo -e "${LCYN}${1} (yes/no): ${NRML}\c"
-		read ANSWER
+		echo -e "${LCYN}${1}${NRML}"
+		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
 		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
 		then
 			break
@@ -192,8 +195,8 @@ then
 	USER_UID=""
 	while [ "${USER_UID}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the new users' UID: ${NRML}\c"
-		read USER_UID_TEMP
+		echo -e ""
+		readee -p "${LCYN}Enter the new users' UID: ${NRML}" USER_UID_TEMP
 		# Check that the UID is valid.
 		test_valid_integer "${USER_UID_TEMP}" 1000 100000
 		if [ "${VALID_INTEGER}" = "yes" ]
