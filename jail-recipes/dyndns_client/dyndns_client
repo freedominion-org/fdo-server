@@ -34,8 +34,8 @@ cook_recipe ()
     USERNAME=""
     while [ "${USERNAME}" = "" ]
     do
-        echo -e "\n${LCYN}Enter dyndns server account login: ${NRML}\c"
-        read USERNAME_TEMP
+        echo -e ""
+        readee -p "${LCYN}Enter dyndns server account login: ${NRML}" USERNAME_TEMP
         # Check that the login username only contains letters, numbers, periods and underscores with a minimum of 3 characters.
         TEST=`echo "${USERNAME_TEMP}" | sed -r "s/^[a-zA-Z0-9][a-zA-Z0-9\.\_\-]+[a-zA-Z0-9]//" | wc -L`
         if [ ${TEST} -ne 0 ] || [ "${USERNAME_TEMP}" = "" ]
@@ -44,7 +44,7 @@ cook_recipe ()
             echo -e "       It must be at least three characters and only contain"
             echo -e "       letters, numbers, periods, underscores and hyphens.\n"
         else
-            question_yes_no "\nYou have entered '${USERNAME_TEMP}' as the login account username.\nIs this correct?"
+            question_yes_no "\nYou have entered '${NRML}${USERNAME_TEMP}${LCYN}' as the login account username.\nIs this correct?"
             if [ "${ANSWER}" = "yes" ]
             then
                 USERNAME=${USERNAME_TEMP}
@@ -55,10 +55,9 @@ cook_recipe ()
 	# Get login password
     while [ "${PASSWORD}" = "" ]
     do
-        echo -e "\n${LCYN}Enter login password: ${NRML}\c"
-        read PASSWORD_TEMP1
-        echo -e "${LCYN}Re-enter password   : ${NRML}\c"
-        read PASSWORD_TEMP2
+        echo -e ""
+        readee -s -p "${LCYN}Enter login password: ${NRML}" PASSWORD_TEMP1
+        readee -s -p "${LCYN}Re-enter password   : ${NRML}" PASSWORD_TEMP2
         
         if [ "${PASSWORD_TEMP1}" != "${PASSWORD_TEMP2}" ]
         then
@@ -75,8 +74,8 @@ cook_recipe ()
     PROTOCOL=""
     while [ "${PROTOCOL}" = "" ]
     do
-        echo -e "\n${LCYN}Enter dyndns server protocol (e.g. dyndns2): ${NRML}\c"
-        read PROTOCOL_TEMP
+        echo -e ""
+        readee -p "${LCYN}Enter dyndns server protocol (e.g. dyndns2): ${NRML}" PROTOCOL_TEMP
         # Check that the protocol only contains letters, numbers, periods and underscores with a minimum of 3 characters.
         TEST=`echo "${PROTOCOL_TEMP}" | sed -r "s/^[a-zA-Z0-9][a-zA-Z0-9\.\_\-]+[a-zA-Z0-9]//" | wc -L`
         if [ ${TEST} -ne 0 ] || [ "${PROTOCOL_TEMP}" = "" ]
@@ -97,8 +96,8 @@ cook_recipe ()
     SERVER="" 
     while [ "${SERVER}" = "" ] 
     do 
-        echo -e "\n${LCYN}Enter the dyndns server hostname\n(e.g. members.dyndns.org): ${NRML}\c" 
-        read SERVER_TEMP 
+        echo -e ""
+        readee -p "${LCYN}Enter the dyndns server hostname\n(e.g. members.dyndns.org): ${NRML}" SERVER_TEMP
         # Check that the server hostname is a valid FQHN. 
         test_valid_fqhn "${SERVER_TEMP}" 
         if [ "${VALID_FQHN}" = "yes" ] 
@@ -119,8 +118,8 @@ cook_recipe ()
     HOSTNAME="" 
     while [ "${HOSTNAME}" = "" ] 
     do 
-        echo -e "\n${LCYN}Enter the dyndns hostname for this host: ${NRML}\c" 
-        read HOSTNAME_TEMP 
+        echo -e ""
+        readee -p "${LCYN}Enter the dyndns hostname for this host: ${NRML}" HOSTNAME_TEMP
         # Check that the hostname is a valid FQHN. 
         test_valid_fqhn "${HOSTNAME_TEMP}" 
         if [ "${VALID_FQHN}" = "yes" ] 

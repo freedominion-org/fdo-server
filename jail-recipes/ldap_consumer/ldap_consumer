@@ -56,8 +56,8 @@ cook_recipe ()
 	LDAP_PROVIDER_HOST=""
 	while [ "${LDAP_PROVIDER_HOST}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the LDAP Provider host address: ${NRML}\c"
-		read LDAP_PROVIDER_HOST_TEMP
+		echo -e ""
+		readee -p "${LCYN}Enter the LDAP Provider host address: ${NRML}" LDAP_PROVIDER_HOST_TEMP
 		test_valid_inet_address ${LDAP_PROVIDER_HOST_TEMP}
 		test_valid_fqhn ${LDAP_PROVIDER_HOST_TEMP}
 		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_FQHN=}" = "yes" ]
@@ -81,8 +81,8 @@ cook_recipe ()
 	LDAP_PROVIDER_SYNC_USERID=""
 	while [ "${LDAP_PROVIDER_SYNC_USERID}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the LDAP Providers' sync userid (e.g. proxy.user): ${NRML}\c"
-		read LDAP_PROVIDER_SYNC_USERID_TEMP
+		echo -e ""
+		readee -p "${LCYN}Enter the LDAP Providers' sync userid (e.g. proxy.user): ${NRML}" LDAP_PROVIDER_SYNC_USERID_TEMP
 		# Check that the userid only contains letters, numbers, periods, hyphens and unsderscores with a minimum of 3 characters.
 		TEST=`echo "${LDAP_PROVIDER_SYNC_USERID_TEMP}" | sed "s/^[a-zA-Z0-9._-]\{3,\}$//" | wc -w`
 		if [ ${TEST} -ne 0 ] || [ "${LDAP_PROVIDER_SYNC_USERID_TEMP}" = "" ]
@@ -104,10 +104,9 @@ cook_recipe ()
 	LDAP_PROVIDER_SYNC_PASSWORD=""
 	while [ "${LDAP_PROVIDER_SYNC_PASSWORD}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the LDAP Providers' sync user password: ${NRML}\c"
-		read LDAP_PROVIDER_SYNC_PASSWORD_TEMP1
-		echo -e "${LCYN}Re-enter password                           : ${NRML}\c"
-		read LDAP_PROVIDER_SYNC_PASSWORD_TEMP2
+		echo -e ""
+		readee -s -p "${LCYN}Enter the LDAP Providers' sync user password: ${NRML}" LDAP_PROVIDER_SYNC_PASSWORD_TEMP1
+		readee -s -p "${LCYN}Re-enter password                           : ${NRML}" LDAP_PROVIDER_SYNC_PASSWORD_TEMP2
 		
 		if [ "${LDAP_PROVIDER_SYNC_PASSWORD_TEMP1}" != "${LDAP_PROVIDER_SYNC_PASSWORD_TEMP2}" ]
 		then
@@ -124,8 +123,8 @@ cook_recipe ()
 	LDAP_CONSUMER_HOST=""
 	while [ "${LDAP_CONSUMER_HOST}" = "" ]
 	do
-		echo -e "\n\n${LCYN}Enter the LDAP Consumer hostname: ${NRML}\c"
-		read LDAP_CONSUMER_HOST_TEMP
+		echo -e "\n"
+		readee -p "${LCYN}Enter the LDAP Consumer hostname: ${NRML}" LDAP_CONSUMER_HOST_TEMP
 		test_valid_fqhn "${LDAP_CONSUMER_HOST_TEMP}"
 		if [ "${VALID_FQHN=}" = "yes" ]
 		then
@@ -143,10 +142,9 @@ cook_recipe ()
 	LDAP_CONSUMER_MANAGER_PASSWORD=""
 	while [ "${LDAP_CONSUMER_MANAGER_PASSWORD}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the LDAP Consumers' Manager password: ${NRML}\c"
-		read LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1
-		echo -e "${LCYN}Re-enter password                         : ${NRML}\c"
-		read LDAP_CONSUMER_MANAGER_PASSWORD_TEMP2
+		echo -e ""
+		readee -s -p "${LCYN}Enter the LDAP Consumers' Manager password: ${NRML}" LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1
+		readee -s -p "${LCYN}Re-enter password                         : ${NRML}" LDAP_CONSUMER_MANAGER_PASSWORD_TEMP2
 		
 		if [ "${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP1}" != "${LDAP_CONSUMER_MANAGER_PASSWORD_TEMP2}" ]
 		then
@@ -163,8 +161,8 @@ cook_recipe ()
 	LDAP_BASE_SUFFIX=""
 	while [ "${LDAP_BASE_SUFFIX}" = "" ]
 	do
-		echo -e "\n\n${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}\c"
-		read LDAP_BASE_SUFFIX_TEMP
+		echo -e "\n"
+		readee -p "${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}" LDAP_BASE_SUFFIX_TEMP
 		test_valid_ldap_dn "${LDAP_BASE_SUFFIX_TEMP}"
 		if [ "${VALID_LDAP_DN}" = "yes" ]
 		then
@@ -182,8 +180,8 @@ cook_recipe ()
 	LDAP_RID=""
 	while [ "${LDAP_RID}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the unique sync replication ID (sycrepl rid): ${NRML}\c"
-		read LDAP_RID_TEMP
+		echo -e ""
+		readee -p "${LCYN}Enter the unique sync replication ID (sycrepl rid): ${NRML}" LDAP_RID_TEMP
 		# Check that the rid only contains numbers with a minimum of 1 and maximum of 3 characters.
 		TEST=`echo "${LDAP_RID_TEMP}" | sed "s/^[0-9]\{1,3\}$//" | wc -w`
 		if [ ${TEST} -ne 0 ] || [ "${LDAP_RID_TEMP}" = "" ]

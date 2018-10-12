@@ -14,31 +14,31 @@ LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 seasoning_suggestions ()
 {
 
-	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n" 
-	echo -e   "        ${ORNG}[1]${NRML} The ZFS datasets holding the 'shares' and 'users' files/directories " 
-	echo -e   "        should have their mountpoints set to the jailed paths;                  " 
-	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'      " 
-	echo -e   "        respectively.                                                           " 
-	echo -e   "        They should also have user and group ownership set to 'www'.            \n" 
-	echo -e   "        Example 1 (new filesytems):                                             " 
-	echo -e   "        ${LBLU}zfs create -o compression=on \                                   " 
-	echo -e   "          -o casesensitivity=insensitive \                                      " 
-	echo -e   "          -o mountpoint=/jls/${JAIL_NAME}/w3 \                                  " 
-	echo -e   "          ${POOL_NAME}/files${NRML}                                             " 
-	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}${NRML}          " 
-	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}   " 
-	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}    " 
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     " 
-	echo -e   "        Example 2 (existing filesystems):                                       " 
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \ " 
-	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}                   " 
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \ " 
-	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}                    " 
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n" 
-	echo -e   "        ${ORNG}[2]${NRML} ACL's control which users and groups are allowed to read and write " 
-	echo -e   "        to these shares. ACL's must be added to the following file in this jail:" 
-	echo -e   "        ${LBLU}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}${NRML}       " 
-	echo -e   "        Consult the FDo documentation for ACL management commands.              \n" 
+	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n"
+	echo -e   "        ${ORNG}[1]${NRML} The ZFS datasets holding the 'shares' and 'users' files/directories "
+	echo -e   "        should have their mountpoints set to the jailed paths;                  "
+	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'      "
+	echo -e   "        respectively.                                                           "
+	echo -e   "        They should also have user and group ownership set to 'www'.            \n"
+	echo -e   "        Example 1 (new filesytems):                                             "
+	echo -e   "        ${LBLU}zfs create -o compression=on \                                   "
+	echo -e   "          -o casesensitivity=insensitive \                                      "
+	echo -e   "          -o mountpoint=/jls/${JAIL_NAME}/w3 \                                  "
+	echo -e   "          ${POOL_NAME}/files${NRML}                                             "
+	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}${NRML}          "
+	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}   "
+	echo -e   "        ${LBLU}zfs create ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}    "
+	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     "
+	echo -e   "        Example 2 (existing filesystems):                                       "
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \ "
+	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}                   "
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \ "
+	echo -e   "          ${POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}                    "
+	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n"
+	echo -e   "        ${ORNG}[2]${NRML} ACL's control which users and groups are allowed to read and write "
+	echo -e   "        to these shares. ACL's must be added to the following file in this jail:"
+	echo -e   "        ${LBLU}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}${NRML}       "
+	echo -e   "        Consult the FDo documentation for ACL management commands.              \n"
 
 
 }
@@ -101,8 +101,8 @@ cook_recipe ()
 	LDAP_HOST_NAME=""
 	while [ "${LDAP_HOST_NAME}" = "" ]
 	do
-		echo -e "\n\n${LCYN}Enter the LDAP server host address: ${NRML}\c"
-		read LDAP_HOST_NAME_TEMP
+		echo -e "\n"
+		readee -p "${LCYN}Enter the LDAP server host address: ${NRML}" LDAP_HOST_NAME_TEMP
 		test_valid_inet_address ${LDAP_HOST_IP_TEMP}
 		test_valid_fqhn ${LDAP_HOST_NAME_TEMP}
 		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_FQHN=}" = "yes" ]
@@ -128,8 +128,8 @@ cook_recipe ()
 	LDAP_BASE_SUFFIX=""
 	while [ "${LDAP_BASE_SUFFIX}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}\c"
-		read LDAP_BASE_SUFFIX_TEMP
+		echo -e ""
+		readee -p "${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}" LDAP_BASE_SUFFIX_TEMP
 		echo -e ""
 		question_yes_no "You have entered '${LDAP_BASE_SUFFIX_TEMP}' as the base suffix. Is this correct?"
 		if [ "${ANSWER}" = "yes" ]
@@ -142,10 +142,9 @@ cook_recipe ()
 	LDAP_MANAGER_PASSWORD=""
 	while [ "${LDAP_MANAGER_PASSWORD}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter the LDAP Manager password: ${NRML}\c"
-		read LDAP_MANAGER_PASSWORD_TEMP1
-		echo -e "${LCYN}Re-enter password              : ${NRML}\c"
-		read LDAP_MANAGER_PASSWORD_TEMP2
+		echo -e ""
+		readee -s -p "${LCYN}Enter the LDAP Manager password: ${NRML}" LDAP_MANAGER_PASSWORD_TEMP1
+		readee -s -p "${LCYN}Re-enter password              : ${NRML}" LDAP_MANAGER_PASSWORD_TEMP2
 		
 		if [ "${LDAP_MANAGER_PASSWORD_TEMP1}" != "${LDAP_MANAGER_PASSWORD_TEMP2}" ]
 		then
@@ -162,8 +161,8 @@ cook_recipe ()
 	FILE_SERVER_HOST_NAME=""
 	while [ "${FILE_SERVER_HOST_NAME}" = "" ]
 	do
-		echo -e "\n\n${LCYN}Enter the file server host name: ${NRML}\c"
-		read FILE_SERVER_HOST_NAME_TEMP
+		echo -e "\n"
+		readee -p "${LCYN}Enter the file server host name: ${NRML}" FILE_SERVER_HOST_NAME_TEMP
 		test_valid_fqhn ${FILE_SERVER_HOST_NAME_TEMP}
 		if [ "${VALID_FQHN=}" = "yes" ]
 		then
@@ -182,8 +181,8 @@ cook_recipe ()
 	SHORT_SITE_NAME=""
 	while [ "${SHORT_SITE_NAME}" = "" ]
 	do
-		echo -e "\n${LCYN}Enter short site name (e.g. acme-hq) : ${NRML}\c"
-		read SHORT_SITE_NAME_TEMP
+		echo -e ""
+		readee -p "${LCYN}Enter short site name (e.g. acme-hq) : ${NRML}" SHORT_SITE_NAME_TEMP
 		# Check that the short site name only contains letters, numbers and hyphens with a minimum of 3 characters.
 		TEST=`echo "${SHORT_SITE_NAME_TEMP}" | sed -r "s/^[a-z0-9][a-z0-9\-]+[a-z0-9]//" | wc -L`
 		if [ ${TEST} -ne 0 ] || [ "${SHORT_SITE_NAME_TEMP}" = "" ]
