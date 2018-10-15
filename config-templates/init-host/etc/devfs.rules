@@ -2,6 +2,3 @@
 add path 'usb/*' mode 0660 group operator
 add path 'ugen*' mode 0660 group operator
 add path 'uhid*' mode 0660 group operator
-#add path 'usb/*' mode 0660 group vboxusers
-#add path 'ugen*' mode 0660 group vboxusers
-#add path 'uhid*' mode 0660 group vboxusers
