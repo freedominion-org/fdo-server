@@ -21,10 +21,12 @@ start_cmd="${name}_start"
 stop_cmd="${name}_stop"
 extra_commands="status"
 
+CARRIAGE_RETURN="
+"
+
 sshfsd_start () {
 
-  IFS="
-"
+  IFS=${CARRIAGE_RETURN}
   for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
   do
     SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
@@ -45,8 +47,7 @@ sshfsd_start () {
 
 sshfsd_stop () {
 
-  IFS="
-"
+  IFS=${CARRIAGE_RETURN}
   for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
   do
     SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
@@ -65,8 +66,8 @@ sshfsd_stop () {
 }
 
 sshfsd_status () {
-  IFS="
-"
+
+  IFS=${CARRIAGE_RETURN}
   for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
   do
     SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
