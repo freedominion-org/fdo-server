@@ -72,6 +72,7 @@ usage ()
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} log host3.example.net /var/log /remote-logs/host3 --non-interactive${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
+	echo -e "${YELL}         --port ; specify a non-standard ssh port number.${NRML}"
 	echo -e "${YELL}         --non-interactive ; will not prompt or commit changes to the config repo.${NRML}"
 	echo -e ""
 }
@@ -88,7 +89,7 @@ do
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
 			--port)
-				PORT_NUMBER="${OPTIONAL_ARG_VALUE}"
+				REMOTE_PORT="${OPTIONAL_ARG_VALUE}"
 				# TODO: add support for optional non-standard port number
 				echo -e "\n${ORNG}UNAVAILABLE:${NRML} Sorry, the non-standard port option is not implemented yet.\n             Aborting.\n"
 				exit 1
@@ -283,10 +284,10 @@ fi
 # Use exit codes 6 and 7.
 
 
-test_valid_integer "${PORT_NUMBER}" 1 65535
+test_valid_integer "${REMOTE_PORT}" 1 65535
 if [ "${VALID_INTEGER}" = "no" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The port number '${PORT_NUMBER}' is invalid!"
+	echo -e "\n${LRED}ERROR:${NRML} The port number '${REMOTE_PORT}' is invalid!"
 	echo -e "       It must be a number between 1 and 65535."
 	echo -e "       Aborting.\n"
 	exit 8
