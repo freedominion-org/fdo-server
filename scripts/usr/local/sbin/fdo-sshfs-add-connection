@@ -27,7 +27,7 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-USER_NAME="${1}"
+REMOTE_USER="${1}"
 REMOTE_HOST="${2}"
 REMOTE_PATH="${3}"
 LOCAL_PATH="${4}"
