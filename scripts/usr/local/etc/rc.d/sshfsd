@@ -51,11 +51,16 @@ sshfsd_start () {
 		mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "\n${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
+			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
 		else
-			echo -e "\n${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
-			echo timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
+			echo -e "\n  ${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
 			timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
+			if [ ${?} -eq 0 ]
+			then
+				echo -e "\n${LGRN}Successfully mounted the remote share.${NRML}\n"
+			else
+				echo -e "\n${LRED}Failed to mount the remote share!${NRML}\n"
+			fi
 		fi
 	done
 
@@ -72,10 +77,10 @@ sshfsd_stop () {
 		mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "\n${YELL}Unmounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
+			echo -e "\n  ${YELL}Unmounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
 			umount ${SHARE_MOUNTPOINT}
 		else
-			echo -e "\n${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted!${NRML}\n"
+			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted!${NRML}\n"
 		fi
 	done
 
@@ -92,9 +97,9 @@ sshfsd_status () {
 		mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "\n${LGRN}The mount point '${NRML}${SHARE_MOUNTPOINT}${LGRN}' is mounted.${NRML}\n"
+			echo -e "\n  ${LGRN}The mount point '${NRML}${SHARE_MOUNTPOINT}${LGRN}' is mounted.${NRML}\n"
 		else
-			echo -e "\n${LRED}The mount point '${NRML}${SHARE_MOUNTPOINT}${LRED}' is not mounted.${NRML}\n"
+			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted.${NRML}\n"
 		fi
 	done
 
