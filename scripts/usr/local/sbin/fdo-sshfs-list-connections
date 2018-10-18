@@ -144,12 +144,19 @@ ERROR_COUNT=0
 
 IFS=${CARRIAGE_RETURN}
 
-echo -e "\n${YELL}        SSHFS URI        :      Local path      :  Port  :${NRML}\n"
+echo -e ""
+echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+echo -e "[ SSHFS URI ] ${LBLU}[ Local path ] ${GREY}[ Port ]${NRML}"
+echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
 for CONNECTION in `cat ${SSHFSD_CONF_PATH} | grep -v "^#"`
 do
-	echo -e "${LBLU}${CONNECTION}${NRML}"
+	CONNECTION_URI=`echo "${CONNECTION}" | awk '{print $1}'`
+	CONNECTION_PATH=`echo "${CONNECTION}" | awk '{print $2}'`
+	CONNECTION_PORT=`echo "${CONNECTION}" | awk '{print $3}'`
+	echo -e "${CONNECTION_URI}   ${LBLU}${CONNECTION_PATH}   ${GREY}${CONNECTION_PORT}${NRML}"
 done
 
+echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
 echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
