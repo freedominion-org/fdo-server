@@ -16,10 +16,24 @@
 name="sshfsd"
 rcvar=${name}_enable
 
+load_rc_config ${name}
+sshfsd_opts=${sshfsd_opts:-"rw,allow_other,reconnect,ServerAliveInterval=10"}
+
 status_cmd="${name}_status"
 start_cmd="${name}_start"
 stop_cmd="${name}_stop"
 extra_commands="status"
+
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
 
 CARRIAGE_RETURN="
 "
@@ -31,15 +45,16 @@ sshfsd_start () {
   do
     SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
     SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
-    mount | grep "${SHARE_MOUNTPOINT}"
+    SHARE_PORT=`echo ${SHARE} | awk '{print $3}'`
+	echo -e "\n${YELL}Starting sshfs share '${NRML}${SHARE_URI}${YELL}':${NRML}" 
+    mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
     if [ $? = 0 ]
     then
-      echo ""
-      echo "mount point is already mounted."
+      echo -e "\n${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
     else
-      echo "mounting '${SHARE_MOUNTPOINT}' ..."
-      echo ""
-      timeout --foreground 30 /usr/local/bin/sshfs ${SHARE_URI} ${SHARE_MOUNTPOINT} -o rw,allow_other,reconnect,ServerAliveInterval=10
+      echo -e "\n${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
+      echo timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
+      timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
     fi
   done
 
@@ -52,14 +67,14 @@ sshfsd_stop () {
   do
     SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
     SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
-    mount | grep "${SHARE_MOUNTPOINT}"
+	echo -e "\n${YELL}Stopping sshfs share '${NRML}${SHARE_URI}${YELL}':${NRML}" 
+    mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
     if [ $? = 0 ]
     then
-      echo ""
-      echo "unmounting '${SHARE_MOUNTPOINT}'"
+      echo -e "\n${YELL}Unmounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
       umount ${SHARE_MOUNTPOINT}
     else
-      echo "nothing to do, '${SHARE_MOUNTPOINT}' was not mounted."
+      echo -e "\n${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted!${NRML}\n"
     fi
   done
 
@@ -72,19 +87,17 @@ sshfsd_status () {
   do
     SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
     SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
-    mount | grep "${SHARE_MOUNTPOINT}"
+    mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
+	echo -e "\n${YELL}Status for sshfs share '${NRML}${SHARE_URI}${YELL}':${NRML}" 
     if [ $? = 0 ]
     then
-      echo ""
-      echo "the folder '${SHARE_MOUNTPOINT}' IS mounted"
+      echo -e "\n${LGRN}The mount point '${NRML}${SHARE_MOUNTPOINT}${LGRN}' is mounted.${NRML}\n"
     else
-      echo "the folder '${SHARE_MOUNTPOINT}' IS NOT mounted."
+      echo -e "\n${LRED}The mount point '${NRML}${SHARE_MOUNTPOINT}${LRED}' is not mounted.${NRML}\n"
     fi
   done
 
 }
-
-load_rc_config ${name} 
 
 : ${sshfsd_enable="NO"}
 

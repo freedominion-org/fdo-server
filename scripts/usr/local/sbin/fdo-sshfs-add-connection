@@ -35,7 +35,9 @@ REMOTE_PORT="22"
 NUM_MANDATORY_ARGS=4
 IS_INTERACTIVE="yes"
 FDO_SERVER_SCRIPT="fdo-server"
-SSHFSD_CONF_PATH="/usr/local/etc/fdo/sshfsd_shares.conf"
+FDO_CONF_DIR="/usr/local/etc/fdo"
+SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
+SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -90,9 +92,6 @@ do
 		case ${OPTIONAL_ARG_NAME} in
 			--port)
 				REMOTE_PORT="${OPTIONAL_ARG_VALUE}"
-				# TODO: add support for optional non-standard port number
-				echo -e "\n${ORNG}UNAVAILABLE:${NRML} Sorry, the non-standard port option is not implemented yet.\n             Aborting.\n"
-				exit 1
 				;;
 			--non-interactive)
 				IS_INTERACTIVE="no"
@@ -205,23 +204,24 @@ test_valid_inet_address ()
 
 }
 
-test_valid_fqhn ()
+test_valid_host_name ()
 {
 
 	TEST_CASE="${1}"
 
-	VALID_FQHN="yes"
+	VALID_HOST_NAME="yes"
 
 	if [ "${TEST_CASE}" = "" ]
 	then
-		VALID_FQHN="no"
+		VALID_HOST_NAME="no"
 		return 1
 	fi
 
-	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^((([a-zA-Z0-9]+[\-])*[a-zA-Z0-9]+)+\.)+[a-zA-Z0-9]+//" | wc -L`
+	# NOTE: we do not force the need for a multi-level hostname (FQHN)
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^((([a-zA-Z0-9]+[\-])*[a-zA-Z0-9]+)+\.)*[a-zA-Z0-9]+//" | wc -L`
 	if [ ${IS_SYNTAX_OK}  -ne 0 ]
 	then
-		VALID_FQHN="no"
+		VALID_HOST_NAME="no"
 		return 2
 	fi
 
@@ -269,7 +269,7 @@ fi
 # Test that the remote host is valid.
 test_valid_fqhn  "${REMOTE_HOST}"
 test_valid_inet_address "${REMOTE_HOST}"
-if [ "${VALID_FQHN}" = "no" ] && [ "${VALID_INET_ADDRESS}" = "no" ]
+if [ "${VALID_HOST_NAME}" = "no" ] && [ "${VALID_INET_ADDRESS}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The remote host '${REMOTE_HOST}' is invalid!"
 	echo -e "       For host names:"
@@ -322,6 +322,38 @@ if [ ${TEST} -gt 0 ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} The following local path is not empty;"
 	echo -e "         '${LOCAL_PATH}'\n"
+fi
+
+# Ask if we should create an ssh key and copy it the remote users' authorized keys
+# for an unattended login.
+question_yes_no "\nUNATTENDED LOGIN: Would you like to use an SSH key to authenticate as the remote user?"
+if [ "${ANSWER}" = "yes" ]
+then
+	# Flatten the local_path so we can use it in a file name
+	LOCAL_PATH_FLAT=`echo ${LOCAL_PATH} | sed "s/\//_/g"`
+	# Generate an SSH key and store it in a programatically accessible place
+	ssh-keygen -q -f "${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}" -N ""	
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} A problem occured generating the SSH key file;"
+		echo -e "       '${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}'"
+		echo -e "       Aborting.\n"
+		exit 11
+	fi
+
+	echo -e "\n${YELL}SSH key generated!${NRML}"
+	echo -e "\n${YELL}Next we need to copy it to the remote users' authorized_keys file.\nEnter the remote users password when prompted.${NRML}\n"
+
+	# Copy the SSH key to the remote users' authorized keys file (~/.ssh/authorized_keys)
+	ssh-copy-id -p "${REMOTE_PORT}" -i "${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}" "${REMOTE_USER}@${REMOTE_HOST}"
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} A problem occured copying the SSH key file to the remote user/host;"
+		echo -e "       '${REMOTE_USER}@${REMOTE_HOST}'"
+		echo -e "       Aborting.\n"
+		exit 12
+	fi
+
 fi
 
 # Now let's add the entry to the sshfs daemon config file
