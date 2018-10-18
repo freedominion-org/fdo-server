@@ -39,10 +39,14 @@ NRML="\033[0;00m"
 CARRIAGE_RETURN="
 "
 
+FDO_CONF_DIR="/usr/local/etc/fdo"
+SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
+SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
+
 sshfsd_start () {
 
 	IFS=${CARRIAGE_RETURN}
-	for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
+	for SHARE in `cat ${SSHFSD_CONF_PATH} | grep -v "^#"`
 	do
 		SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
 		SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
@@ -52,14 +56,20 @@ sshfsd_start () {
 		if [ ${?} -eq 0 ]
 		then
 			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
+		fi
 		else
+			MOUNTPOINT_FLAT=`echo ${SHARE_MOUNTPOINT} | sed "s/\//_/g"`
+			SHARE_SSH_KEY="${SSHFSD_KEY_PREFIX}${MOUNTPOINT_FLAT}"
+			if [ -f "${SHARE_SSH_KEY}" ]
+			then
+				sshfs_opts="${sshfs_opts},IdentityFile=\"${SHARE_SSH_KEY}\""
 			echo -e "\n  ${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
 			timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
 			if [ ${?} -eq 0 ]
 			then
-				echo -e "\n${LGRN}Successfully mounted the remote share.${NRML}\n"
+				echo -e "\n  ${LGRN}Successfully mounted the remote share.${NRML}\n"
 			else
-				echo -e "\n${LRED}Failed to mount the remote share!${NRML}\n"
+				echo -e "\n  ${LRED}Failed to mount the remote share!${NRML}\n"
 			fi
 		fi
 	done

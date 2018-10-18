@@ -267,7 +267,7 @@ then
 fi
 
 # Test that the remote host is valid.
-test_valid_fqhn  "${REMOTE_HOST}"
+test_valid_host_name  "${REMOTE_HOST}"
 test_valid_inet_address "${REMOTE_HOST}"
 if [ "${VALID_HOST_NAME}" = "no" ] && [ "${VALID_INET_ADDRESS}" = "no" ]
 then
@@ -322,6 +322,11 @@ if [ ${TEST} -gt 0 ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} The following local path is not empty;"
 	echo -e "         '${LOCAL_PATH}'\n"
+	question_yes_no "Would you like to continue regardless of the mount state?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		exit 11
+	fi
 fi
 
 # Ask if we should create an ssh key and copy it the remote users' authorized keys
@@ -338,7 +343,7 @@ then
 		echo -e "\n${LRED}ERROR:${NRML} A problem occured generating the SSH key file;"
 		echo -e "       '${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}'"
 		echo -e "       Aborting.\n"
-		exit 11
+		exit 12
 	fi
 
 	echo -e "\n${YELL}SSH key generated!${NRML}"
@@ -351,13 +356,13 @@ then
 		echo -e "\n${LRED}ERROR:${NRML} A problem occured copying the SSH key file to the remote user/host;"
 		echo -e "       '${REMOTE_USER}@${REMOTE_HOST}'"
 		echo -e "       Aborting.\n"
-		exit 12
+		exit 13
 	fi
 
 fi
 
 # Now let's add the entry to the sshfs daemon config file
-echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH} ${LOCAL_PATH}" >> "${SSHFSD_CONF_PATH}"
+echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH} ${LOCAL_PATH} ${REMOTE_PORT}" >> "${SSHFSD_CONF_PATH}"
 
 # Update configuration in the local repo and if interactive mode then push to remote repo
 if [ "${IS_INTERACTIVE}" = "no" ]
@@ -375,7 +380,7 @@ fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 11
+	exit 14
 fi
 
 ################################################################################
