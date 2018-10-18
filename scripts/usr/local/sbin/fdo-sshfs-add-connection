@@ -336,6 +336,7 @@ if [ "${ANSWER}" = "yes" ]
 then
 	# Flatten the local_path so we can use it in a file name
 	LOCAL_PATH_FLAT=`echo ${LOCAL_PATH} | sed "s/\//_/g"`
+	echo -e ""
 	# Generate an SSH key and store it in a programatically accessible place
 	ssh-keygen -q -f "${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}" -N ""	
 	if [ ${?} -ne 0 ]
@@ -377,6 +378,8 @@ else
 		CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
 	fi
 fi
+
+echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
