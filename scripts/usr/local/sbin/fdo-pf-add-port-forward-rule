@@ -342,7 +342,7 @@ then
 		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
 		CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to pf config" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
 	else
-		question_yes_no "\nWould you like to update the repo with the config changes?"
+		question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 		if [ "${ANSWER}" = "yes" ]
 		then
 			echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
@@ -350,6 +350,8 @@ then
 		fi
 	fi
 fi
+
+echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
