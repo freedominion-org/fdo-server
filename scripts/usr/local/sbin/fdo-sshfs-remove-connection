@@ -130,6 +130,20 @@ test_if_host ()
 	fi
 }
 
+is_mounted () {
+
+	IFS=${CARRIAGE_RETURN}
+	SSHFS_MOUNTPOINTS=`mount -p -t fusefs.sshfs | awk -F '\t'+ '{print $2}' | awk -F " fusefs.sshfs" '{print $1}'`
+	for MOUNTPOINT in ${SSHFS_MOUNTPOINTS}
+	do
+		if [ "${MOUNTPOINT}" = "${1}" ]
+		then
+			return 0
+		fi
+	done
+	return 1
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -155,27 +169,23 @@ then
 	exit 4
 fi
 
-# TODO: Test that the local_path is valid. Considering that
-# UNIX paths can contain just about any character, this may not be practical.
-# Use exit code 5.
+# Check if the local_path exists in sshfsd_shares.conf
+cat "${SSHFSD_CONF_PATH}" | grep -v "^#" | awk -F "///" '{print $2}' | grep "^${LOCAL_PATH}$" > /dev/null 2>&1
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} No connection exists with the local path;"
+	echo -e "       '${LOCAL_PATH}'"
+	echo -e "       Aborting.\n"
+	exit 5
+fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
 
-# Check if the local_path exists in sshfsd_shares.conf
-cat "${SSHFSD_CONF_PATH}" | grep -v "^#" | awk '{print $2}' | grep "^${LOCAL_PATH}$" > /dev/null 2>&1
-if [ ${?} -ne 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} No connection exists with the local path;"
-	echo -e "       '${LOCAL_PATH}'"
-	echo -e "       Aborting.\n"
-	exit 6
-fi
-
 # Warn if the local_path is mounted
-mount | grep "${LOCAL_PATH}" > /dev/null 2>&1
+is_mounted "${LOCAL_PATH}"
 if [ ${?} -eq 0 ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} The following local path appears to be mounted;"
@@ -183,7 +193,7 @@ then
 	question_yes_no "Would you like to continue regardless of the mount state?"
 	if [ "${ANSWER}" = "no" ]
 	then
-		exit 7
+		exit 6
 	else
 		# Unmount the connection
 		echo -e "\n${YELL}Unmounting the connection...${NRML}\n"
@@ -193,34 +203,52 @@ fi
 
 # Flatten the local_path so we can use it in a file name
 LOCAL_PATH_FLAT=`echo ${LOCAL_PATH} | sed "s/\//_/g"`
-SSHFSD_KEY="${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}"
+LOCAL_PATH_MD5=`echo "${LOCAL_PATH}" | md5 -q`
+SSHFSD_KEY="${SSHFSD_KEY_PREFIX}_${LOCAL_PATH_MD5}${LOCAL_PATH_FLAT}"
+
+# Remove the connection from the sshfsd shares config file
+echo -e "\n${YELL}Removing sshfs connection...${NRML}\n"
+LOCAL_PATH_ESCAPED=`echo "${LOCAL_PATH}" | sed "s|\/|\\\\\/|g"`
+sed -i "" "/\/\/\/${LOCAL_PATH_ESCAPED}\/\/\//d" "${SSHFSD_CONF_PATH}"
 
 # Remove any ssh keys
 echo -e "\n${YELL}Removing any SSH keys...${NRML}\n"
 if [ -f "${SSHFSD_KEY}" ]
 then
 	rm "${SSHFSD_KEY}"
-	# TODO: add message explaining the need to manually remove ssh public key from remoter users autrhorized_keys file
 fi
 if [ -f "${SSHFSD_KEY}.pub" ]
 then
 	rm "${SSHFSD_KEY}.pub"
+	echo -e "\n${ORNG}You may need to manually remove any public ssh keys from the remote users' ${NRML}"
+	echo -e "${ORNG}authorized_keys file on the remote system.${NRML}\n"
+else
+	SSHFSD_KEY="none"
 fi
-
-# Remove the connection from the sshfsd shares config file
-sed -i "" "/ ${LOCAL_PATH} /d" "${SSHFSD_CONF_PATH}"
-
-# TODO: test for failure of above
 
 # Update configuration in the local repo and if interactive mode then push to remote repo
 if [ "${IS_INTERACTIVE}" = "no" ]
 then
+	if [ "${SSHFSD_KEY}" != "none" ]
+	then
+		echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY} ...\n"
+		GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
+		echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY}.pub ...\n"
+		GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
+	fi
 	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
 	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
 else
-	question_yes_no "\nWould you like to update the repo with the config changes?"
+	question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 	if [ "${ANSWER}" = "yes" ]
 	then
+		if [ "${SSHFSD_KEY}" != "none" ]
+		then
+			echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY} ...\n"
+			GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
+			echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY}.pub ...\n"
+			GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
+		fi
 		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
 		CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
 	fi
@@ -230,7 +258,7 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 15
+	exit 7
 fi
 
 ################################################################################

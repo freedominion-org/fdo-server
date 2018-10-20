@@ -264,12 +264,13 @@ then
 fi
 
 # Test that the remote user is valid
-TEST=`echo "${REMOTE_USER}" | sed "s/^[a-zA-Z0-9._-]\{3,\}$//" | wc -w`
+TEST=`echo "${REMOTE_USER}" | sed "s/^[a-zA-Z0-9._-]\{3,\}$//" | wc -L`
 if [ ${TEST} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The remote user '${REMOTE_USER}' is invalid!"
 	echo -e "       It must only contain letters, numbers, hyphens, underscores and periods "
-	echo -e "       with a minumum of 3 characters.\n"
+	echo -e "       with a minumum of 3 characters."
+	echo -e "       Aborting.\n"
 	exit 5
 fi
 
@@ -286,42 +287,71 @@ then
 	exit 6
 fi
 
-# TODO: Test that the remote_path and local_path are valid. Considering that
-# UNIX paths can contain just about any character, this may not be practical.
-# Use exit codes 7 and 8.
+# Check if the remote_path does not end in a forward slash or a space
+TEST=`echo "${REMOTE_PATH}" | sed -r "s/.+.*[/ ]+$//" | wc -L`
+if [ ${TEST} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The remote path is invalid!"
+	echo -e "       It must not end with a forward slash or a space."
+	echo -e "       Aborting.\n"
+	exit 7
+fi
 
 
+# Check if the local_path already exists in sshfsd_shares.conf
+cat "${SSHFSD_CONF_PATH}" | grep -v "^#" | awk -F "///" '{print $2}' | grep "^${LOCAL_PATH}$" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} A connection already exists with the local path;"
+	echo -e "       '${LOCAL_PATH}'"
+	echo -e "       Aborting.\n"
+	exit 8
+fi
+
+# Check if the local_path is a valid directory
+if [ ! -d "${LOCAL_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Cannot find the local path (mountpoint);"
+	echo -e "       '${LOCAL_PATH}'"
+	echo -e "       Aborting.\n"
+	exit 9
+fi
+
+# Check if the local_path is a valid absolute path
+LOCAL_PATH_CHAR1=`echo "${LOCAL_PATH}" | cut -c1`
+if [ "${LOCAL_PATH_CHAR1}" != "/" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The local path (mountpoint) is not a valid absolute path!"
+	echo -e "       It must begin with a forward slash ('/')."
+	echo -e "       Aborting.\n"
+	exit 10
+fi
+LOCAL_PATH_DIRNAME=`dirname "${LOCAL_PATH}"`
+LOCAL_PATH_BASENAME=`basename "${LOCAL_PATH}"`
+if [ "${LOCAL_PATH_DIRNAME}/${LOCAL_PATH_BASENAME}" != "${LOCAL_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The local path (mountpoint) is not a valid absolute path!"
+	echo -e "       It must not use any redundant forward slashes ('/')."
+	echo -e "       Consider using the following path;"
+	echo -e "       '${LOCAL_PATH_DIRNAME}/${LOCAL_PATH_BASENAME}'"
+	echo -e "       Aborting.\n"
+	exit 11
+fi
+
+# Check if the port number is valid
 test_valid_integer "${REMOTE_PORT}" 1 65535
 if [ "${VALID_INTEGER}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The port number '${REMOTE_PORT}' is invalid!"
 	echo -e "       It must be a number between 1 and 65535."
 	echo -e "       Aborting.\n"
-	exit 9
+	exit 12
 fi
+
 
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
-
-# Check if the local_path already exists in sshfsd_shares.conf
-cat "${SSHFSD_CONF_PATH}" | grep -v "^#" | awk '{print $2}' | grep "^${LOCAL_PATH}$" > /dev/null 2>&1
-if [ ${?} -eq 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} A connection already exists with the local path;"
-	echo -e "       '${LOCAL_PATH}'"
-	echo -e "       Aborting.\n"
-	exit 10
-fi
-
-# Check if the local_path is a valid directory
-if [ ! -d "${LOCAL_PATH}" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Cannot find the local path;"
-	echo -e "       '${LOCAL_PATH}'"
-	echo -e "       Aborting.\n"
-	exit 11
-fi
 
 # Warn if the local_path is not empty
 TEST=`ls -A1 "${LOCAL_PATH}" | wc -l`
@@ -332,18 +362,20 @@ then
 	question_yes_no "Would you like to continue regardless of the mountpoint state?"
 	if [ "${ANSWER}" = "no" ]
 	then
-		exit 12
+		exit 13
 	fi
 fi
 
 # Ask if we should create an ssh key and copy it to the remote users' authorized keys
 # for an unattended login.
+SSHFSD_KEY="none"
 question_yes_no "\nUNATTENDED LOGIN: Would you like to use an SSH key to authenticate as the remote user?"
 if [ "${ANSWER}" = "yes" ]
 then
 	# Flatten the local_path so we can use it in a file name
 	LOCAL_PATH_FLAT=`echo ${LOCAL_PATH} | sed "s/\//_/g"`
-	SSHFSD_KEY="${SSHFSD_KEY_PREFIX}${LOCAL_PATH_FLAT}"
+	LOCAL_PATH_MD5=`echo "${LOCAL_PATH}" | md5 -q`
+	SSHFSD_KEY="${SSHFSD_KEY_PREFIX}_${LOCAL_PATH_MD5}${LOCAL_PATH_FLAT}"
 	echo -e ""
 	# Generate an SSH key and store it in a programatically accessible place
 	ssh-keygen -q -f "${SSHFSD_KEY}" -N ""
@@ -354,7 +386,7 @@ then
 		echo -e "       Aborting.\n"
 		rm ${SSHFSD_KEY}
 		rm ${SSHFSD_KEY}.pub
-		exit 13
+		exit 14
 	fi
 
 	echo -e "\n${YELL}SSH key generated!${NRML}"
@@ -369,23 +401,37 @@ then
 		echo -e "       Aborting.\n"
 		rm ${SSHFSD_KEY}
 		rm ${SSHFSD_KEY}.pub
-		exit 14
+		exit 15
 	fi
 
 fi
 
 # Now let's add the entry to the sshfs daemon config file
-echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH} ${LOCAL_PATH} ${REMOTE_PORT}" >> "${SSHFSD_CONF_PATH}"
+echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}///${LOCAL_PATH}///${REMOTE_PORT}" >> "${SSHFSD_CONF_PATH}"
 
 # Update configuration in the local repo and if interactive mode then push to remote repo
 if [ "${IS_INTERACTIVE}" = "no" ]
 then
+	if [ "${SSHFSD_KEY}" != "none" ]
+	then
+		echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY} ...\n"
+		GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}"
+		echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY}.pub ...\n"
+		GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}.pub"
+	fi
 	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
 	CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
 else
-	question_yes_no "\nWould you like to update the repo with the config changes?"
+	question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 	if [ "${ANSWER}" = "yes" ]
 	then
+		if [ "${SSHFSD_KEY}" != "none" ]
+		then
+			echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY} ...\n"
+			GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}"
+			echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY}.pub ...\n"
+			GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}.pub"
+		fi
 		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
 		CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
 	fi
@@ -395,7 +441,7 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 15
+	exit 16
 fi
 
 ################################################################################

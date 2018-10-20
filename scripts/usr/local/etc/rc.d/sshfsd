@@ -43,19 +43,34 @@ FDO_CONF_DIR="/usr/local/etc/fdo"
 SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
 SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
 
+
+is_mounted () {
+
+	IFS=${CARRIAGE_RETURN}
+	SSHFS_MOUNTPOINTS=`mount -p -t fusefs.sshfs | awk -F '\t'+ '{print $2}' | awk -F " fusefs.sshfs" '{print $1}'`
+	for MOUNTPOINT in ${SSHFS_MOUNTPOINTS}
+	do
+		if [ "${MOUNTPOINT}" = "${1}" ]
+		then
+			return 0
+		fi
+	done
+	return 1
+}
+
 sshfsd_start () {
 
 	IFS=${CARRIAGE_RETURN}
 	for SHARE in `cat ${SSHFSD_CONF_PATH} | grep -v "^#"`
 	do
-		SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
-		SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
-		SHARE_PORT=`echo ${SHARE} | awk '{print $3}'`
+		SHARE_URI=`echo ${SHARE} | awk -F "///" '{print $1}'`
+		SHARE_MOUNTPOINT=`echo ${SHARE} | awk -F "///" '{print $2}'`
+		SHARE_PORT=`echo ${SHARE} | awk -F "///" '{print $3}'`
 		echo -e "\n${YELL}Starting sshfs share '${NRML}${SHARE_URI}${YELL}':${NRML}" 
-		mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
+		is_mounted "${SHARE_MOUNTPOINT}"
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
+			echo -e "  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
 		else
 			MOUNTPOINT_FLAT=`echo ${SHARE_MOUNTPOINT} | sed "s/\//_/g"`
 			SHARE_SSH_KEY="${SSHFSD_KEY_PREFIX}${MOUNTPOINT_FLAT}"
@@ -63,13 +78,13 @@ sshfsd_start () {
 			then
 				sshfsd_opts="${sshfsd_opts},IdentityFile=\"${SHARE_SSH_KEY}\""
 			fi
-			echo -e "\n  ${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
+			echo -e "  ${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}"
 			timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
 			if [ ${?} -eq 0 ]
 			then
-				echo -e "\n  ${LGRN}Successfully mounted the remote share.${NRML}\n"
+				echo -e "  ${LGRN}Successfully mounted the remote share.${NRML}\n"
 			else
-				echo -e "\n  ${LRED}Failed to mount the remote share!${NRML}\n"
+				echo -e "  ${LRED}Failed to mount the remote share!${NRML}\n"
 			fi
 		fi
 	done
@@ -81,16 +96,22 @@ sshfsd_stop () {
 	IFS=${CARRIAGE_RETURN}
 	for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
 	do
-		SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
-		SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
+		SHARE_URI=`echo ${SHARE} | awk -F "///" '{print $1}'`
+		SHARE_MOUNTPOINT=`echo ${SHARE} | awk -F "///" '{print $2}'`
 		echo -e "\n${YELL}Stopping sshfs share '${NRML}${SHARE_URI}${YELL}':${NRML}" 
-		mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
+		is_mounted "${SHARE_MOUNTPOINT}"
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "\n  ${YELL}Unmounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}\n"
+			echo -e "  ${YELL}Unmounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}"
 			umount ${SHARE_MOUNTPOINT}
+			if [ ${?} -eq 0 ]
+			then
+				echo -e "  ${LGRN}Successfully unmounted the remote share.${NRML}\n"
+			else
+				echo -e "  ${LRED}Failed to mount the remote share!${NRML}\n"
+			fi
 		else
-			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted!${NRML}\n"
+			echo -e "  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted!${NRML}\n"
 		fi
 	done
 
@@ -101,15 +122,15 @@ sshfsd_status () {
 	IFS=${CARRIAGE_RETURN}
 	for SHARE in `cat /usr/local/etc/fdo/sshfsd_shares.conf | grep -v "^#"`
 	do
-		SHARE_URI=`echo ${SHARE} | awk '{print $1}'`
-		SHARE_MOUNTPOINT=`echo ${SHARE} | awk '{print $2}'`
+		SHARE_URI=`echo ${SHARE} | awk -F "///" '{print $1}'`
+		SHARE_MOUNTPOINT=`echo ${SHARE} | awk -F "///" '{print $2}'`
 		echo -e "\n${YELL}Status for sshfs share '${NRML}${SHARE_URI}${YELL}':${NRML}" 
-		mount | grep "${SHARE_MOUNTPOINT}" > /dev/null 2>&1
+		is_mounted "${SHARE_MOUNTPOINT}"
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "\n  ${LGRN}The mount point '${NRML}${SHARE_MOUNTPOINT}${LGRN}' is mounted.${NRML}\n"
+			echo -e "  ${LGRN}The mount point '${NRML}${SHARE_MOUNTPOINT}${LGRN}' is mounted.${NRML}\n"
 		else
-			echo -e "\n  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted.${NRML}\n"
+			echo -e "  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is not mounted.${NRML}\n"
 		fi
 	done
 
