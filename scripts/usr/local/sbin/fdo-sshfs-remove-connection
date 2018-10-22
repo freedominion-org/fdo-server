@@ -193,6 +193,7 @@ then
 	question_yes_no "Would you like to continue regardless of the mount state?"
 	if [ "${ANSWER}" = "no" ]
 	then
+		echo -e ""
 		exit 6
 	else
 		# Unmount the connection

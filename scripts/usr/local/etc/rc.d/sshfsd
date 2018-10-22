@@ -73,7 +73,8 @@ sshfsd_start () {
 			echo -e "  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
 		else
 			MOUNTPOINT_FLAT=`echo ${SHARE_MOUNTPOINT} | sed "s/\//_/g"`
-			SHARE_SSH_KEY="${SSHFSD_KEY_PREFIX}${MOUNTPOINT_FLAT}"
+			MOUNTPOINT_MD5=`echo "${SHARE_MOUNTPOINT}" | md5 -q`
+			SHARE_SSH_KEY="${SSHFSD_KEY_PREFIX}_${MOUNTPOINT_MD5}${MOUNTPOINT_FLAT}"
 			if [ -f "${SHARE_SSH_KEY}" ]
 			then
 				sshfsd_opts="${sshfsd_opts},IdentityFile=\"${SHARE_SSH_KEY}\""
