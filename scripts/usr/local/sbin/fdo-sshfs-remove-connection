@@ -29,7 +29,7 @@
 SCRIPT_NAME=`basename ${0}`
 LOCAL_PATH="${1}"
 NUM_MANDATORY_ARGS=1
-FDO_SERVER_SCRIPT="fdo-server"
+FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 FDO_CONF_DIR="/usr/local/etc/fdo"
 SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
 SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
@@ -233,9 +233,9 @@ then
 	if [ "${SSHFSD_KEY}" != "none" ]
 	then
 		echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY} ...\n"
-		GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
+		GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
 		echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY}.pub ...\n"
-		GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
+		GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
 	fi
 	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
 	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
@@ -246,12 +246,12 @@ else
 		if [ "${SSHFSD_KEY}" != "none" ]
 		then
 			echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY} ...\n"
-			GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
+			GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
 			echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY}.pub ...\n"
-			GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
+			GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
 		fi
 		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
-		CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
+		CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
 	fi
 fi
 

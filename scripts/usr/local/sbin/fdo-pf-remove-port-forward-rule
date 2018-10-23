@@ -208,13 +208,13 @@ then
 	if [ "${IS_INTERACTIVE}" = "no" ]
 	then
 		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
-		CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
+		CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
 	else
 		question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 		if [ "${ANSWER}" = "yes" ]
 		then
 			echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
-			CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
+			CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
 		fi
 	fi
 fi

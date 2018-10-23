@@ -31,7 +31,7 @@ HOST_NAME="${1}"
 NUM_MANDATORY_ARGS=1
 IS_INTERACTIVE="yes"
 DNS_CACHE_SERVER_FOUND="no"
-FDO_SERVER_SCRIPT="fdo-server"
+FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -228,17 +228,17 @@ do
 			if [ "${IS_INTERACTIVE}" = "no" ]
 			then
 				echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
-				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
 				echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
-				GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
+				GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
 			else
 				question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 				if [ "${ANSWER}" = "yes" ]
 				then
 					echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
-					CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+					CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
 					echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
-					${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
+					FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
 				fi
 			fi
 		fi
