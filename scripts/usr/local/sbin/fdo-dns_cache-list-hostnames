@@ -134,7 +134,7 @@ fi
 ERROR_COUNT=0
 
 # Iterate through all jails...
-for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
+for JAIL_NAME in `ls -1 /jls 2> /dev/null | cut -d/ -f1 | egrep -v "template"`
 do
 	# ...and if a bind server exists...
 	if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
@@ -144,16 +144,33 @@ do
 		if [ ${?} -eq 0 ] 
 		then
 			DNS_CACHE_SERVER_FOUND=yes
+
 			# Now that we've found a caching server, let's list the hostname zones:
-			cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"" | egrep -v ${EXCLUDED_ZONES} | cut -d'"' -f2
+			echo -e ""
+			echo -e "${GREY}==============================================================================${NRML}"
+			echo -e "[ Host name ] ${LBLU}[ IP Address ] ${NRML}"
+			echo -e "${GREY}==============================================================================${NRML}"
+
+			IFS=${CARRIAGE_RETURN}
+			ZONES=`cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"" | egrep -v ${EXCLUDED_ZONES} | cut -d'"' -f2`
+			for ZONE in ${ZONES}
+			do
+				ZONE_FILE_PATH=`cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${ZONE}\"" | cut -d'"' -f4`
+				HOST_IP=`cat "/jls/${JAIL_NAME}/${ZONE_FILE_PATH}" | egrep "^${ZONE}" | awk '{print $3}'`
+				echo -e "${ZONE}  ${LBLU}${HOST_IP}${NRML}"
+				echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+			done
 		fi
 	fi
 done
 
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then
+	echo -e "\n${LRED}ERROR:${NRML} No valid dns_cache server was found!\n       Aborting.\n"
 	exit 4
 fi
+
+echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
