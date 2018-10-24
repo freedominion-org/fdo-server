@@ -182,24 +182,52 @@ fi
 
 ERROR_COUNT=0
 
+echo -e ""
+echo -e "${GREY}==============================================================================${NRML}"
+echo -e "[ Rule name ] ${LBLU}[Destination IP] ${CYAN}[ TCP ports ] ${YELL}[ UDP ports ]${NRML}"
+echo -e "${GREY}==============================================================================${NRML}"
+
 # Extract and display list of port forward rule names
 FOUND_RULE_NAMES=$( cat ${PPP_CONF_PATH} | egrep "^ nat port .*rule_name=" | sed "s|\(^ nat port .*rule_name=\)\([a-z0-9_]*\)\(.*\)|\2|" | sort | uniq )
-for FOUND_RULE_NAME in ${FOUND_RULE_NAMES}
+for RULE_NAME in ${FOUND_RULE_NAMES}
 do
-	test_valid_rule_name "${FOUND_RULE_NAME}"
+	test_valid_rule_name "${RULE_NAME}"
 	if [ "${VALID_RULE_NAME}" = "yes" ]
 	then
-		if [ "${IS_INTERACTIVE}" = "yes" ]
-		then
-			echo -e "${LBLU}${FOUND_RULE_NAME}${NRML}"
-		else
-			echo -e "${FOUND_RULE_NAME}"
-		fi
-	elif [ "${IS_INTERACTIVE}" = "yes" ]
-	then
-		>&2 echo -e "${ORNG}${FOUND_RULE_NAME}${NRML}    <- ${ORNG}WARNING:${NRML} Rule name found, but is invalid!"
+		DEST_IP=$(cat ${PPP_CONF_PATH} | egrep " rule_name=${RULE_NAME}" | egrep "^ nat port tcp|udp" | awk '{print $4}' | cut -d: -f1 | sort | uniq)
+
+		TCP_PORTS=""
+		TCP_PORT_LIST=$(cat ${PPP_CONF_PATH} | egrep " rule_name=${RULE_NAME}" | egrep "^ nat port tcp" | awk '{print $4}' | cut -d: -f2 | sort | uniq)
+		for TCP_PORT in ${TCP_PORT_LIST}
+		do
+			if [ "${TCP_PORTS}" = "" ]
+			then
+				TCP_PORTS="${TCP_PORT}"
+			else
+				TCP_PORTS="${TCP_PORTS},${TCP_PORT}"
+			fi
+		done
+
+		UDP_PORTS=""
+		UDP_PORT_LIST=$(cat ${PPP_CONF_PATH} | egrep " rule_name=${RULE_NAME}" | egrep "^ nat port udp" | awk '{print $4}' | cut -d: -f2 | sort | uniq)
+		for UDP_PORT in ${UDP_PORT_LIST}
+		do
+			if [ "${UDP_PORTS}" = "" ]
+			then
+				UDP_PORTS="${UDP_PORT}"
+			else
+				UDP_PORTS="${UDP_PORTS},${UDP_PORT}"
+			fi
+		done
+
+		echo -e "${RULE_NAME}  ${LBLU}${DEST_IP}  ${CYAN}${TCP_PORTS}  ${YELL}${UDP_PORTS}${NRML}"
+	else
+		>&2 echo -e "${ORNG}${RULE_NAME}${NRML}    <- ${ORNG}WARNING:${NRML} Rule name found, but is invalid!"
 	fi
+	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
 done
+
+echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
