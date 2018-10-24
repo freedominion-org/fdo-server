@@ -28,7 +28,6 @@
 
 SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=0
-IS_INTERACTIVE="yes"
 PF_CONF_PATH=${PF_CONF_PATH:-"/etc/pf.conf"}
 
 TERM="xterm"
@@ -60,12 +59,11 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Description:${NRML} Remove pf rules for port forwarding for this host."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help] [--non-interactive]${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e "${YELL}         --help            : display command usage.${NRML}"
-	echo -e "${YELL}         --non-interactive ; will not prompt or commit changes to the config repo.${NRML}"
 	echo -e ""
 }
 
@@ -83,9 +81,6 @@ do
 			--help)
 				usage
 				exit
-				;;
-			--non-interactive)
-				IS_INTERACTIVE="no"
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
@@ -181,19 +176,29 @@ fi
 
 ERROR_COUNT=0
 
+echo -e ""
+echo -e "${GREY}==============================================================================${NRML}"
+echo -e "[ Rule name ] ${LBLU}[Destination IP] ${CYAN}[ TCP ports ] ${YELL}[ UDP ports ]${NRML}"
+echo -e "${GREY}==============================================================================${NRML}"
+
 # Extract and display list of port forward rule names
 FOUND_RULE_NAMES=$( cat ${PF_CONF_PATH} | egrep "^rdr on .*_??p_ports ->.*_ip$" | sed "s|\(.* -> \\$\)\(.*\)\(_ip\)|\2|" | sort | uniq )
-for FOUND_RULE_NAME in ${FOUND_RULE_NAMES}
+for RULE_NAME in ${FOUND_RULE_NAMES}
 do
-	test_valid_rule_name "${FOUND_RULE_NAME}"
+	test_valid_rule_name "${RULE_NAME}"
 	if [ "${VALID_RULE_NAME}" = "yes" ]
 	then
-		echo -e "${LBLU}${FOUND_RULE_NAME}${NRML}"
-	elif [ "${IS_INTERACTIVE}" = "yes" ]
-	then
-		>&2 echo -e "${ORNG}${FOUND_RULE_NAME}${NRML}    <- ${ORNG}WARNING:${NRML} Rule name found, but is invalid!"
+		DEST_IP=$(cat ${PF_CONF_PATH} | egrep "^${RULE_NAME}_ip.*=" | cut -d'"' -f2)
+		TCP_PORTS=$(cat ${PF_CONF_PATH} | egrep "^${RULE_NAME}_tcp_ports.*=" | cut -d{ -f2 | cut -d} -f1)
+		UDP_PORTS=$(cat ${PF_CONF_PATH} | egrep "^${RULE_NAME}_udp_ports.*=" | cut -d{ -f2 | cut -d} -f1)
+		echo -e "${RULE_NAME}  ${LBLU}${DEST_IP}  ${CYAN}${TCP_PORTS}  ${YELL}${UDP_PORTS}${NRML}"
+	else
+		>&2 echo -e "${ORNG}${RULE_NAME}${NRML}    <- ${ORNG}WARNING:${NRML} Rule name found, but is invalid!"
 	fi
+	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
 done
+
+echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
