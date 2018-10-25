@@ -21,6 +21,9 @@ alias vi	vim
 
 setenv	EDITOR	vim
 setenv	PAGER	less
+tabs -4
+setenv LESS "--tabs=4"
+setenv MORE "--tabs=4"
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up

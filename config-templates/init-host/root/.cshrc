@@ -20,6 +20,9 @@ set path = (/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin $HOME/b
 setenv	EDITOR	vim
 setenv	PAGER	less
 setenv	BLOCKSIZE	K
+tabs -4
+setenv LESS "--tabs=4"
+setenv MORE "--tabs=4"
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up
