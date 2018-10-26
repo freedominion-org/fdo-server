@@ -55,6 +55,7 @@ readee ()
 	fi
 
 	# Parse arguments
+	READEE_SILENT_MODE="false"
 	READEE_PROMPT_MODE="false"
 	READEE_PROMPT_TEXT=""
 	READEE_VARIABLE=""
