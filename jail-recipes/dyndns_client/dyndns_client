@@ -57,7 +57,7 @@ cook_recipe ()
 	do
 		echo -e ""
 		readee -s -p "${LCYN}Enter login password: ${NRML}" PASSWORD_TEMP1
-		readee -s -p "${LCYN}Re-enter password	 : ${NRML}" PASSWORD_TEMP2
+		readee -s -p "${LCYN}Re-enter password   : ${NRML}" PASSWORD_TEMP2
 
 		if [ "${PASSWORD_TEMP1}" != "${PASSWORD_TEMP2}" ]
 		then
