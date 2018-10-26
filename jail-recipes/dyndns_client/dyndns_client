@@ -96,8 +96,8 @@ cook_recipe ()
 	SERVER=""
 	while [ "${SERVER}" = "" ]
 	do
-		echo -e ""
-		readee -p "${LCYN}Enter the dyndns server hostname\n(e.g. members.dyndns.org): ${NRML}" SERVER_TEMP
+		echo -e "\n${LCYN}Enter the dyndns server hostname.${NRML}"
+		readee -p "${LCYN}(e.g. members.dyndns.org): ${NRML}" SERVER_TEMP
 		# Check that the server hostname is a valid FQHN.
 		test_valid_fqhn "${SERVER_TEMP}"
 		if [ "${VALID_FQHN}" = "yes" ]
