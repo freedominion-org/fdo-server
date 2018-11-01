@@ -11,6 +11,8 @@ alias la	ls -aF
 alias lf	ls -FA
 alias ll	ls -lAF
 alias vi	vim
+alias less	less --tabs=4
+alias more	more --tabs=4
 
 # A righteous umask
 umask 22
@@ -21,8 +23,6 @@ setenv	EDITOR	vim
 setenv	PAGER	less
 setenv	BLOCKSIZE	K
 tabs -4
-setenv LESS "--tabs=4"
-setenv MORE "--tabs=4"
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up

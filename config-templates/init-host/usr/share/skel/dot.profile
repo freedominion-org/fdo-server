@@ -17,8 +17,6 @@ BLOCKSIZE=K;    export BLOCKSIZE
 EDITOR=vim;   	export EDITOR
 PAGER=less;  	export PAGER
 tabs -4
-LESS="--tabs=4"; export LESS
-MORE="--tabs=4"; export MORE
 
 # set ENV to a file invoked each time sh is started for interactive use.
 ENV=$HOME/.shrc; export ENV

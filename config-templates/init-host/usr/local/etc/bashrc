@@ -43,9 +43,10 @@ $BLOCK_SP$CHAR_SP$EXE_SUID$EXE_GUID\
 $DIR_STICKY$DIR_WO_STICKY"
 
 export CLICOLOR="YES"
-alias ls='ls -FG'
+alias ls="ls -FG"
 alias vi="vim"
-
+alias less="less --tabs=4"
+alias more="more --tabs=4"
 
 # Source alias definitions.
 if [ -f /usr/local/etc/bash_aliases ]; then

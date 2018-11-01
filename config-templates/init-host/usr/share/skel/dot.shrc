@@ -29,6 +29,8 @@ alias ll='ls -laFo'
 alias l='ls -l'
 alias g='egrep -i'
 alias vi='vim'
+alias less='less --tabs=4'
+alias more='more --tabs=4'
  
 # # be paranoid
 # alias cp='cp -ip'
