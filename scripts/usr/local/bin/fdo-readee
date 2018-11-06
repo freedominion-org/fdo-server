@@ -121,7 +121,9 @@ readee ()
 	HEX_CARRIAGE_RETURN="%0d"
 	HEX_ESCAPE="%1b"
 	HEX_CTRL_C="%03"
-	HEX_BACKSPACE="%7f"		# ASCII DEL, but actually comes from Backspace Key
+	HEX_CTRL_D="%04"
+	HEX_ASCII_DEL="%7f"		# ASCII DEL, but actually comes from Backspace Key in some terminals
+	HEX_BACKSPACE="%08"
 	HEX_DELETE="%33"		# Comes after escape character
 	HEX_HOME="%48"			# Comes after escape character
 	HEX_END="%46"			# Comes after escape character
@@ -152,10 +154,21 @@ readee ()
 		TYPED_CHAR=$(dd bs=2 count=1 2> /dev/null)
 		TYPED_CHAR_HEX=`printf "%%%02x\n" "'${TYPED_CHAR}"`
 
+		if [ "${TYPED_CHAR_HEX}" = "${HEX_ASCII_DEL}" ]
+		then
+			TYPED_CHAR_HEX=${HEX_BACKSPACE}
+		fi
+
 		# Compare the hexidecimal value of the first character with known ASCII values
 		case "${TYPED_CHAR_HEX}" in
 			"${HEX_CTRL_C}")
 				READEE_ABORTED="true"
+				READEE_ABORT_TYPE="C"
+				break
+				;;
+			"${HEX_CTRL_D}")
+				READEE_ABORTED="true"
+				READEE_ABORT_TYPE="D"
 				break
 				;;
 			"${HEX_CARRIAGE_RETURN}")
@@ -404,8 +417,15 @@ readee ()
 	# Now output final text
 	if [ "${READEE_ABORTED}" = "true" ]
 	then
-		echo -e "\r${DISPLAY_LINE}^C"
-		return 130
+		if [ "${READEE_ABORT_TYPE}" = "C" ]
+		then
+			echo -e "\r${DISPLAY_LINE}^C"
+			kill -INT $$
+		elif [ "${READEE_ABORT_TYPE}" = "D" ]
+		then
+			echo -e "\r${DISPLAY_LINE}\c"
+			return 1
+		fi
 	else
 		echo -e "\r${DISPLAY_LINE} "
 	fi
