@@ -328,6 +328,11 @@ then
 fi
 LOCAL_PATH_DIRNAME=`dirname "${LOCAL_PATH}"`
 LOCAL_PATH_BASENAME=`basename "${LOCAL_PATH}"`
+if [ "${LOCAL_PATH_DIRNAME}" = "/" ]
+then
+	# The local path is one level above root, so we need to compensate the dirname 
+	LOCAL_PATH_DIRNAME=""
+fi
 if [ "${LOCAL_PATH_DIRNAME}/${LOCAL_PATH_BASENAME}" != "${LOCAL_PATH}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The local path (mountpoint) is not a valid absolute path!"
