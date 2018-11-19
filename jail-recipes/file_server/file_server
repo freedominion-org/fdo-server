@@ -235,6 +235,7 @@ cook_recipe ()
 	sed -i "" "s|FILE_SERVER_JAIL_IP|${JAIL_IP}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
 	sed -i "" "s|FILE_SERVER_HOST_NAME|${FILE_SERVER_HOST_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
 	cp configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
+	cp configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf configs/${HTTP_GATEWAY_JAIL}@${HOST_NAME}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
 
 	echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf ...\n"
 	CHANGE_MESSAGE="add site '${JAIL_NAME}' config to 'http_gateway' jail" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
