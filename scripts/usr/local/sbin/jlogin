@@ -144,7 +144,7 @@ echo -e "\n${YELL}Logging in to ${REAL_JAIL_NAME}...${NRML}\n"
 
 if [ "${LOGIN_SHELL}" = "/usr/local/bin/bash" ]
 then
-  jexec ${JID} ${LOGIN_SHELL} -l
+  jexec -l ${JID} ${LOGIN_SHELL}
 else
   jexec ${JID} ${LOGIN_SHELL}
 fi
