@@ -130,14 +130,14 @@ then
 	exit 3
 fi
 
-POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
+POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 4
 fi
 
-POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
+POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
 if [ "${POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"

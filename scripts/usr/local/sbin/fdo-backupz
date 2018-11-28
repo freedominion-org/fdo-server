@@ -145,28 +145,28 @@ then
 	exit 4
 fi
 
-BACKUP_POOL_ATTRIBUTES=`zpool list -H | egrep "^${BACKUP_POOL}	" 2> /dev/null`
+BACKUP_POOL_ATTRIBUTES=`zpool get -H all ${BACKUP_POOL} 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 5
 fi
 
-BACKUP_POOL_HEALTH=`echo ${BACKUP_POOL_ATTRIBUTES} | awk '{print $9}'`
+BACKUP_POOL_HEALTH=`zpool get -H health ${BACKUP_POOL} | awk '{print $3}' 2> /dev/null`
 if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 6
 fi
 
-POOL_ATTRIBUTES=`zpool list -H | egrep "^${POOL}	" 2> /dev/null`
+POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 7
 fi
 
-POOL_HEALTH=`echo ${POOL_ATTRIBUTES} | awk '{print $9}'`
+POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
 if [ "${POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
