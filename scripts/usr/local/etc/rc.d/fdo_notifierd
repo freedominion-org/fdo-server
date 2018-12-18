@@ -1,39 +1,40 @@
 #!/bin/sh
 #
 #
-# PROVIDE: fdo-proceventd
+# PROVIDE: fdo_notifierd
 # REQUIRE: DAEMON
 #
-# Add the following lines to /etc/rc.conf to enable the fdo-proceventd system:
+# Add the following lines to /etc/rc.conf to enable the fdo_notifierd system:
 #
-# fdo-proceventd_enable="YES"
+# fdo_notifierd_enable="YES"
 #
 
 . /etc/rc.subr
 
-name="fdo-proceventd"
+name="fdo_notifierd"
 rcvar=${name}_enable
 
 load_rc_config ${name}
+: ${fdo_notifierd_enable="NO"}
 
-command="/usr/local/bin/fdo-proceventd"
-pidfile="/var/run/fdo-proceventd.pid"
+command="/usr/local/bin/fdo_notifierd"
+pidfile="/var/run/fdo_notifierd.pid"
 
-start_precmd="fdo-proceventd_prestart"
-stop_postcmd="fdo-proceventd_poststop"
-start_cmd="fdo-proceventd_start"
-stop_cmd="fdo-proceventd_stop"
-restart_cmd="fdo-proceventd_restart"
-status_cmd="fdo-proceventd_status"
+start_precmd="fdo_notifierd_prestart"
+stop_postcmd="fdo_notifierd_poststop"
+start_cmd="fdo_notifierd_start"
+stop_cmd="fdo_notifierd_stop"
+restart_cmd="fdo_notifierd_restart"
+status_cmd="fdo_notifierd_status"
 
-fdo-proceventd_prestart()
+fdo_notifierd_prestart()
 {
-    if [ ! -d /var/log/fdo-proceventd ]; then
-        mkdir -p /var/log/fdo-proceventd
+    if [ ! -d /var/log/fdo_notifierd ]; then
+        mkdir -p /var/log/fdo_notifierd
     fi
 }
 
-fdo-proceventd_start()
+fdo_notifierd_start()
 {
     if [ -f ${pidfile} ]; then
         echo "${name} is already running as pid `cat ${pidfile}`"
@@ -42,7 +43,7 @@ fdo-proceventd_start()
     fi
 }
 
-fdo-proceventd_stop()
+fdo_notifierd_stop()
 {
     if [ ! -f ${pidfile} ]; then
         echo "${name} is not running"
@@ -51,7 +52,7 @@ fdo-proceventd_stop()
     fi
 }
 
-fdo-proceventd_restart()
+fdo_notifierd_restart()
 {
     if [ ! -f ${pidfile} ]; then
         echo "${name} is not running. To start it run: ${name} start"
@@ -60,7 +61,7 @@ fdo-proceventd_restart()
     fi
 }
 
-fdo-proceventd_status()
+fdo_notifierd_status()
 {
     if [ -f ${pidfile} ]; then
     echo "${name} is running as pid `cat ${pidfile}`"
@@ -69,7 +70,7 @@ fdo-proceventd_status()
     fi
 }
 
-fdo-proceventd_poststop()
+fdo_notifierd_poststop()
 {
 }
 
