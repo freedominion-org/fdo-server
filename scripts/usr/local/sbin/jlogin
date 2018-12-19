@@ -27,10 +27,11 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-JAIL_NAME="${1}"
+JAIL_SEARCH_STRING="${1}"
 NUM_MANDATORY_ARGS=1
-LOGIN_SHELL="/usr/local/bin/bash"
+LOGIN_SHELL=""
 
+CURRENT_TERM="${TERM}"
 TERM="xterm"
 LRED="\033[1;31m"
 LGRN="\033[1;32m"
@@ -118,12 +119,35 @@ fi
 
 ERROR_COUNT=0
 
-# start here
-JID_FILE=`ls -1 /var/run/jail_*.id | grep jail_${JAIL_NAME} | head -1`
+# Get the jail name and jid file name of closest match
+JID_FILES=`ls -1 /var/run/jail_*.id | grep -- "${JAIL_SEARCH_STRING}"`
 
-if [ "${JID_FILE}" = "" ]
+JAIL_NAME=""
+JAIL_NAME_REMAINDER=0
+
+for JID_FILE_CANDIDATE in ${JID_FILES}
+do
+	JAIL_NAME_CANDIDATE=`echo "${JID_FILE_CANDIDATE}" | sed "s|/var/run/jail_\(.*\).id|\1|"`
+	CANDIDATE_REMAINDER=`echo "${JAIL_NAME_CANDIDATE}" | sed "s|${JAIL_SEARCH_STRING}||" | wc -c`
+	if [ "${JAIL_NAME}" = "" ]
+	then
+		JAIL_NAME="${JAIL_NAME_CANDIDATE}"
+		JID_FILE="${JID_FILE_CANDIDATE}"
+		JAIL_NAME_REMAINDER=${CANDIDATE_REMAINDER}
+	else
+		if [ ${CANDIDATE_REMAINDER} -lt ${JAIL_NAME_REMAINDER} ]
+		then
+			JAIL_NAME="${JAIL_NAME_CANDIDATE}"
+			JID_FILE="${JID_FILE_CANDIDATE}"
+			JAIL_NAME_REMAINDER=${CANDIDATE_REMAINDER}
+		fi
+	fi
+done
+
+# If nothing found, inform user and exit
+if [ "${JAIL_NAME}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} No jail found matching '${JAIL_NAME}'!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} No jail found matching '${JAIL_SEARCH_STRING}'!\n       Aborting.\n"
 	usage
 	exit 3
 fi
@@ -137,16 +161,15 @@ then
 	exit 4
 fi
 
-REAL_JAIL_NAME=`echo ${JID_FILE} | sed "s|^/var/run/jail_||" | sed "s|.id||"`
+echo -e "\n${YELL}Logging in to ${JAIL_NAME}...${NRML}\n"
 
+TERM="${CURRENT_TERM}"
 
-echo -e "\n${YELL}Logging in to ${REAL_JAIL_NAME}...${NRML}\n"
-
-if [ "${LOGIN_SHELL}" = "/usr/local/bin/bash" ]
+if [ "${LOGIN_SHELL}" = "" ]
 then
-  jexec -l ${JID} ${LOGIN_SHELL}
+	jexec ${JID}
 else
-  jexec ${JID} ${LOGIN_SHELL}
+	jexec ${JID} ${LOGIN_SHELL}
 fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
