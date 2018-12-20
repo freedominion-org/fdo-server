@@ -10,6 +10,7 @@ RECIPE_UDP_PORTS="none"                                                        #
 START_JAIL_SERVICES="nginx"                                                    # Optional:  jail services started after cooking (in left to right order)
 RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
 RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+NOHOST_CERT_FILE="/usr/local/etc/ssl/certs/nohost.pem"                         #
 ################################################################################
 
 seasoning_suggestions ()
@@ -46,6 +47,8 @@ cook_recipe ()
 	# Replace variables in hosts file
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 	sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+
+	openssl req -new -newkey rsa:1024 -days 3650 -nodes -x509 -subj "/C=ZZ/ST=None/L=None/O=None/CN=nohost" -keyout ${NOHOST_CERT_FILE} -out ${NOHOST_CERT_FILE}
 
 	seasoning_suggestions
 	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
