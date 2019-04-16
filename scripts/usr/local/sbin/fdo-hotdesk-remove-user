@@ -168,9 +168,7 @@ fi
 
 
 echo -e "\n${YELL}Removing the user from the exports file...${NRML}\n"
-cp /etc/exports /etc/exports.previous
-sed "/${USERNAME} /d" /etc/exports > /etc/exports.next
-cat /etc/exports.next > /etc/exports
+sed -i "" "/${USERNAME} /d" /etc/exports
 
 echo -e "\n${YELL}Restarting mountd...${NRML}\n"
 service mountd reload

@@ -30,8 +30,24 @@ SCRIPT_NAME=`basename ${0}`
 USERNAME="${1}"
 DISPLAY_NAME="${2}"
 NUM_MANDATORY_ARGS=2
-HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
-NFS_SUBNET_C=${NFS_SUBNET_C:-"10.0.25"}
+FDO_CONFIG_ROOT="/usr/local/etc/fdo"
+HOME_ZFS_NAME=`cat ${FDO_CONFIG_ROOT}/hotdesk-home-zfs-name.conf`
+DEFAULT_LAN_SUBNET_B="10.0"
+CONFIG_LAN_NET_IFACE=`cat ${FDO_CONFIG_ROOT}/net_iface_lan.conf 2> /dev/null`
+if [ ${?} -ne 0 ]
+then
+    SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
+else
+    DETECTED_LAN_SUBNET_B=`ifconfig ${CONFIG_LAN_NET_IFACE} | grep "inet.*netmask 0xffff0000" | awk '{print $2}' | sort | head -1 | cut -d. -f1,2`
+    if [ "${DETECTED_LAN_SUBNET_B}" = "" ]
+    then
+        SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
+    else
+        SET_LAN_SUBNET_B="${DETECTED_LAN_SUBNET_B}"
+    fi
+fi
+FDO_LAN_SUBNET_B=${FDO_LAN_SUBNET_B:-"${SET_LAN_SUBNET_B}"}
+NFS_SUBNET_C=${NFS_SUBNET_C:-"${FDO_LAN_SUBNET_B}.40"}
 NFS_SUBNET_MASK=${NFS_SUBNET_MASK:-"255.255.255.0"}
 
 TERM="xterm"
