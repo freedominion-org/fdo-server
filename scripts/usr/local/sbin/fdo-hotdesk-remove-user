@@ -32,6 +32,8 @@ HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
 NUM_MANDATORY_ARGS=1
 FORCE_MODE="no"
 DEFAULT_BACKUP_POOL="backup"
+DATE_CMD=/bin/date
+NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
 
 TERM="xterm"
 LRED="\033[1;31m"
