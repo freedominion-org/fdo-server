@@ -31,6 +31,7 @@ USERNAME="${1}"
 HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
 NUM_MANDATORY_ARGS=1
 FORCE_MODE="no"
+DEFAULT_BACKUP_POOL="backup"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -164,8 +165,20 @@ then
 	fi
 else
 	echo -e "\n${YELL}Hotdesk user home folder destroyed.${NRML}\n"
+	zfs list -H ${DEFAULT_BACKUP_POOL}/${HOME_ZFS_NAME}/${USERNAME} > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		echo -e "\n${YELL}Renaming backup filesystem for the users' home filesystem...\n"
+		zfs rename -f ${DEFAULT_BACKUP_POOL}/${HOME_ZFS_NAME}/${USERNAME} ${DEFAULT_BACKUP_POOL}/${HOME_ZFS_NAME}/DESTROYED-${NOW}_${USERNAME} > /dev/null 2>&1
+		if [ ${?} -eq 1 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} An error occured trying to rename the filesystem:\n       ${DEFAULT_BACKUP_POOL}/${HOME_ZFS_NAME}/${USERNAME}\n"
+		fi
+	else
+		echo -e "\n${ORNG}WARNING:${NRML} If backupz is in use for the hotdesk users' filesystem,\n         consider destroying or renaming it."
+		echo -e "         (<backup_pool>/${HOME_ZFS_NAME}/${USERNAME})\n"
+	fi
 fi
-
 
 echo -e "\n${YELL}Removing the user from the exports file...${NRML}\n"
 sed -i "" "/${USERNAME} /d" /etc/exports
@@ -173,15 +186,15 @@ sed -i "" "/${USERNAME} /d" /etc/exports
 echo -e "\n${YELL}Restarting mountd...${NRML}\n"
 service mountd reload
 
-echo "\n${YELL}Removing the user from NIS...${NRML}\n"
+echo -e "\n${YELL}Removing the user from NIS...${NRML}\n"
 cd /var/yp
 sed -i "" "/${USERNAME}/d" master.passwd
 make
 
-echo "\n${YELL}Removing the user from system...${NRML}\n"
+echo -e "\n${YELL}Removing the user from system...${NRML}\n"
 rmuser -y ${USERNAME}
 
-echo "\n${LGRN}Operation complete!${NRML}\n"
+echo -e "\n${LGRN}Operation complete!${NRML}\n"
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
