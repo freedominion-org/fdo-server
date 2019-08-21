@@ -1,0 +1,352 @@
+#!/bin/sh
+
+# Copyright (c) 2018 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+NUM_MANDATORY_ARGS=1
+VM_NAME="${1}"
+VMS_CONF_PATH=${VMS_CONF_PATH:-"/usr/local/etc/fdo/vms.conf"}
+VMM_PATH="/dev/vmm"
+UCL_CMD="/usr/local/bin/uclcmd"
+DISPLAY_TYPE="instance"
+VM_NAME_MIN="3"
+VM_NAME_MAX="30"
+VM_STOP_TRIES=30
+VM_STOP_TIMEOUT=4
+FORCEFUL_STOP="false"
+DEBUG=${DEBUG:-"false"}
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} Stop a specific VM on this host."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} vm_name [--force]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} legacy_software1${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} debian10 --force${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${RML}"
+	echo -e "${YELL}         --force           : after timeouts, do a forceful shutdown.${NRML}"
+	echo -e ""
+	echo -e "${YELL}Notes:${NRML}"
+	echo -e "${YELL}         vm_name must be between 3 and 30 characters.${NRML}"
+	echo -e "${YELL}         vm_name must only contain a-z, A-Z, 0-9 and _ (underscore).${NRML}"
+	echo -e "${YELL}         vm_name must not begin or end with an underscore.${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--force)
+				FORCEFUL_STOP="true"
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### FUNCTIONS ################################################################
+
+# source readee function
+. /usr/local/bin/fdo-readee
+
+question_yes_no ()
+{
+	while true
+		do
+		echo -e "${LCYN}${1}${NRML}"
+		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			break
+		fi
+		echo ""
+	done
+}
+
+test_valid_vm_name ()
+{
+	TEST_CASE="${1}"
+
+	VALID_VM_NAME="yes"
+
+	if [ "${TEST_CASE}" = "null" ] || [ "${TEST_CASE}" = "all" ] || [ "${TEST_CASE}" = "_ALL" ] || [ "${TEST_CASE}" = "" ]
+	then
+		VALID_VM_NAME="no"
+		return 1
+	fi
+
+	if [ ${#TEST_CASE} -gt ${VM_NAME_MAX} ] || [ ${#TEST_CASE} -lt ${VM_NAME_MIN} ]
+	then
+		VALID_VM_NAME="no"
+		return 2
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-z0-9]+(_[a-z0-9]+[a-z0-9]*)*//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_VM_NAME="no"
+		return 3
+	fi
+}
+
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+get_vm_state ()
+{
+	TEST_VM_NAME="${1}"
+
+	ls -1 ${VMM_PATH} 2> /dev/null | grep "^fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	if [ ${?} -eq 0 ]
+	then
+		VM_IS_LOADED="yes"
+	else
+		VM_IS_LOADED="no"
+	fi
+
+	pgrep -fl "^bhyve.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	if [ ${?} -eq 0 ]
+	then
+		VM_IS_RUNNING="yes"
+	else
+		VM_IS_RUNNING="no"
+	fi
+
+	if [ "${VM_IS_LOADED}" = "yes" ] && [ "${VM_IS_RUNNING}" = "yes" ]
+	then
+		VM_STATE="running"
+	elif [ "${VM_IS_LOADED}" = "yes" ] && [ "${VM_IS_RUNNING}" = "no" ]
+	then
+		VM_STATE="loaded"
+	elif [ "${VM_IS_LOADED}" = "no" ] && [ "${VM_IS_RUNNING}" = "no" ]
+	then
+		VM_STATE="stopped"
+	else
+		VM_STATE="unknown"
+	fi
+
+}
+
+stop_vm ()
+{
+	get_vm_state "${VM_NAME}"
+	if [ "${VM_STATE}" = "running" ]
+	then
+		VM_BHYVE_PID=`pgrep -fl "^bhyve.* fdo-vm-${VM_NAME}$" | awk '{print $1}'`
+		echo -e "\n${YELL}Stopping VM ${VM_NAME} ...${NRML}\n"
+		kill ${VM_BHYVE_PID}
+		STOP_TRY_COUNT=0
+		while [ "${VM_STATE}" = "running" ] && [ ${STOP_TRY_COUNT} -lt ${VM_STOP_TRIES} ]
+		do
+			sleep ${VM_STOP_TIMEOUT}
+			get_vm_state "${VM_NAME}"
+			STOP_TRY_COUNT=$(( ${STOP_TRY_COUNT} +1 ))
+		done
+	fi
+
+	get_vm_state "${VM_NAME}"
+	if [ "${VM_STATE}" = "running" ] && [ "${FORCEFUL_STOP}" = "true" ]
+	then
+		echo -e "\n${ORNG}Forcefully stopping VM ${VM_NAME} ...${NRML}\n"
+		bhyvectl --force-poweroff --vm="fdo-vm-${VM_NAME}"
+		sleep ${VM_STOP_TIMEOUT}
+	fi
+
+	get_vm_state "${VM_NAME}"
+	if [ "${VM_STATE}" = "loaded" ]
+	then
+		bhyvectl --destroy --vm="fdo-vm-${VM_NAME}"
+		sleep ${VM_STOP_TIMEOUT}
+	fi
+
+	get_vm_state "${VM_NAME}"
+	if [ "${VM_STATE}" = "stopped" ]
+	then
+		echo -e "\n${LGRN}The VM is now stopped!${NRML}\n"
+		return 0
+	else
+		echo -e "\n${ORNG}WARNING:${NRML} The VM did not appear to stop successfully!\n"
+		return 1
+	fi
+
+}
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 2
+fi
+
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 3
+fi
+
+if [ ! -f ${VMS_CONF_PATH} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The VMs config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
+	exit 4
+fi
+
+VMS_POOL_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .general.pool_name`
+if [ "${VMS_POOL_NAME}" = "null" ] || [ "${VMS_POOL_NAME}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The VM subsystem appears to be uninitialised!\n       Aborting.\n"
+	exit 5
+fi
+
+test_valid_vm_name "${VM_NAME}"
+if [ "${VALID_VM_NAME}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The given VM name (${VM_NAME}) is invalid!\n       Aborting.\n"
+	exit 6
+fi
+
+get_vm_state "${VM_NAME}"
+if [ "${VM_STATE}" = "stopped" ]
+then
+	echo -e "\n${ORNG}WARNING:${NRML} The VM (${VM_NAME}) is already stopped!\n         Skipping stop routine.\n"
+	exit 7
+fi
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+TEMPLATE_INDEX=0
+INSTANCE_INDEX=0
+
+# Search for VM in templates and stop if found
+while [ `${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}` != "null" ]
+do
+	TEMPLATE_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.name`
+	test_valid_vm_name "${TEMPLATE_NAME}"
+	if [ "${VALID_VM_NAME}" = "yes" ]
+	then
+		if [ "${TEMPLATE_NAME}" = "${VM_NAME}" ]
+		then
+			# OK, we've found the VM, now let's shut it down.
+			stop_vm
+			if [ ${?} -ne 0 ]
+			then
+				exit 8
+			fi
+			
+		fi
+	else
+		>&2 echo -e "\n${ORNG}WARNING:${NRML} Invalid VM name (${TEMPLATE_NAME}) found in vms.conf!"
+	fi
+
+	TEMPLATE_INDEX=$(( ${TEMPLATE_INDEX} +1 ))
+done
+
+# Search for VM in instances and start if found
+while [ `${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}` != "null" ]
+do
+	INSTANCE_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.name`
+	test_valid_vm_name "${INSTANCE_NAME}"
+	if [ "${VALID_VM_NAME}" = "yes" ]
+	then
+		if [ "${INSTANCE_NAME}" = "${VM_NAME}" ]
+		then
+			# OK, we've found the VM, now let's shut it down.
+			stop_vm
+			if [ ${?} -ne 0 ]
+			then
+				exit 9
+			fi
+		fi
+	else
+		>&2 echo -e "\n${ORNG}WARNING:${NRML} Invalid VM name (${INSTANCE_NAME}) found in vms.conf!"
+	fi
+
+	INSTANCE_INDEX=$(( ${INSTANCE_INDEX} +1 ))
+done
+
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 10
+fi
+
+################################################################################

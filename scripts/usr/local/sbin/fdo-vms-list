@@ -1,0 +1,340 @@
+#!/bin/sh
+
+# Copyright (c) 2018 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+NUM_MANDATORY_ARGS=0
+VMS_CONF_PATH=${VMS_CONF_PATH:-"/usr/local/etc/fdo/vms.conf"}
+VMM_PATH="/dev/vmm"
+UCL_CMD="/usr/local/bin/uclcmd"
+DISPLAY_CONCISE_LIST="no"
+DISPLAY_TYPE="instance"
+VM_NAME_MIN="3"
+VM_NAME_MAX="30"
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} List VMs and their status for this host."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help] [--concise] [--type=\"vm_type\"]]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} --type=\"template\"${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e "${YELL}         --help            : display command usage.${NRML}"
+	echo -e "${YELL}         --concise         : only print VM names.${NRML}"
+	echo -e "${YELL}         --type            : VM type [instance|template|all].${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--help)
+				usage
+				exit
+				;;
+			--concise)
+				DISPLAY_CONCISE_LIST="yes"
+				;;
+			--type)
+				DISPLAY_TYPE="${OPTIONAL_ARG_VALUE}"
+				if [ "${DISPLAY_TYPE}" != "template" ] && [ "${DISPLAY_TYPE}" != "instance" ] && [ "${DISPLAY_TYPE}" != "all" ]
+				then
+					echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
+					usage
+					exit 1
+				fi
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
+				usage
+				exit 2
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### FUNCTIONS ################################################################
+
+# source readee function
+. /usr/local/bin/fdo-readee
+
+question_yes_no ()
+{
+	while true
+		do
+		echo -e "${LCYN}${1}${NRML}"
+		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			break
+		fi
+		echo ""
+	done
+}
+
+test_valid_vm_name ()
+{
+	TEST_CASE="${1}"
+
+	VALID_VM_NAME="yes"
+
+	if [ "${TEST_CASE}" = "null" ] || [ "${TEST_CASE}" = "all" ] || [ "${TEST_CASE}" = "_ALL" ] || [ "${TEST_CASE}" = "" ]
+	then
+		VALID_VM_NAME="no"
+		return 1
+	fi
+
+	if [ ${#TEST_CASE} -gt ${VM_NAME_MAX} ] || [ ${#TEST_CASE} -lt ${VM_NAME_MIN} ]
+	then
+		VALID_VM_NAME="no"
+		return 2
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-z0-9]+(_[a-z0-9]+[a-z0-9]*)*//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_VM_NAME="no"
+		return 3
+	fi
+}
+
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+get_vm_state ()
+{
+	TEST_VM_NAME="${1}"
+
+	ls -1 ${VMM_PATH} 2> /dev/null | grep "^fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	if [ ${?} -eq 0 ]
+	then
+		VM_IS_LOADED="yes"
+	else
+		VM_IS_LOADED="no"
+	fi
+
+	pgrep -fl "^bhyve.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	if [ ${?} -eq 0 ]
+	then
+		VM_IS_RUNNING="yes"
+	else
+		VM_IS_RUNNING="no"
+	fi
+
+	if [ "${VM_IS_LOADED}" = "yes" ] && [ "${VM_IS_RUNNING}" = "yes" ]
+	then
+		VM_STATE="running"
+	elif [ "${VM_IS_LOADED}" = "yes" ] && [ "${VM_IS_RUNNING}" = "no" ]
+	then
+		VM_STATE="loaded"
+	elif [ "${VM_IS_LOADED}" = "no" ] && [ "${VM_IS_RUNNING}" = "no" ]
+	then
+		VM_STATE="stopped"
+	else
+		VM_STATE="unknown"
+	fi
+
+}
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 3
+fi
+
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 4
+fi
+
+if [ ! -f ${VMS_CONF_PATH} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The VMs config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
+	exit 5
+fi
+
+VMS_POOL_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .general.pool_name`
+if [ "${VMS_POOL_NAME}" = "null" ] || [ "${VMS_POOL_NAME}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The VM subsystem appears to be uninitialised!\n       Aborting.\n"
+	exit 6
+fi
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+TEMPLATE_INDEX=0
+INSTANCE_INDEX=0
+
+if [ "${DISPLAY_TYPE}" = "template" ] || [ "${DISPLAY_TYPE}" = "all" ]
+then
+	if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+	then
+		echo -e ""
+		echo -e "${LGRN}Templates:${NRML}"
+		echo -e ""
+		echo -e "${GREY}==============================================================================${NRML}"
+		echo -e "Template name                                               VNC       State   "
+		echo -e "${GREY}==============================================================================${NRML}"
+	fi
+
+	while [ `${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}` != "null" ]
+	do
+		TEMPLATE_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.name`
+		test_valid_vm_name "${TEMPLATE_NAME}"
+		if [ "${VALID_VM_NAME}" = "yes" ]
+		then
+			VM_VNC_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_enabled`
+			get_vm_state ${TEMPLATE_NAME}
+			if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+			then
+				printf "%-60s%-10s%-8s\n" ${TEMPLATE_NAME} ${VM_VNC_ENABLED} ${VM_STATE}
+			else
+				echo -e "${TEMPLATE_NAME} ${VM_STATE}"
+			fi
+		else
+			>&2 echo -e "${TEMPLATE_NAME}    <- ${ORNG}WARNING:${NRML} VM name found, but is invalid!"
+		fi
+		if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+		then
+			echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+		fi
+
+		TEMPLATE_INDEX=$(( ${TEMPLATE_INDEX} +1 ))
+	done
+
+	if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+	then
+		echo -e ""
+	fi
+fi
+
+if [ "${DISPLAY_TYPE}" = "instance" ] || [ "${DISPLAY_TYPE}" = "all" ]
+then
+	if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+	then
+		echo -e ""
+		echo -e "${LGRN}Instances:${NRML}"
+		echo -e ""
+		echo -e "${GREY}==============================================================================${NRML}"
+		echo -e "${NRML}VM name                       Template name                 VNC       State   ${NRML}"
+		echo -e "${GREY}==============================================================================${NRML}"
+	fi
+
+	while [ `${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}` != "null" ]
+	do
+		VM_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.name`
+		test_valid_vm_name "${VM_NAME}"
+		if [ "${VALID_VM_NAME}" = "yes" ]
+		then
+			VM_TEMPLATE_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.template_name`
+			VM_VNC_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_enabled`
+			get_vm_state ${VM_NAME}
+			if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+			then
+				printf "%-30s%-30s%-10s%-8s\n" ${VM_NAME} ${VM_TEMPLATE_NAME} ${VM_VNC_ENABLED} ${VM_STATE}
+			else
+				echo -e "${VM_NAME} ${VM_STATE}"
+			fi
+		else
+			>&2 echo -e "${VM_NAME}    <- ${ORNG}WARNING:${NRML} VM name found, but is invalid!"
+		fi
+		if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+		then
+			echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+		fi
+
+		INSTANCE_INDEX=$(( ${INSTANCE_INDEX} +1 ))
+	done
+
+	if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
+	then
+		echo -e ""
+	fi
+fi
+
+if [ ${ERROR_COUNT} -gt 0 ]
+then
+	exit 7
+fi
+
+################################################################################

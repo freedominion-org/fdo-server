@@ -1,0 +1,137 @@
+#!/bin/sh
+#
+#
+# PROVIDE: fdo_vms
+# REQUIRE: LOGIN FILESYSTEMS NETWORKING
+# KEYWORD: shutdown nojail
+# Add the following lines to /etc/rc.conf to enable fdo_vms:
+#
+# fdo_vms_enable (bool): Set it to "YES" to enable fdo_vms.
+# Default is "NO"
+#
+#
+
+. /etc/rc.subr
+
+name="fdo_vms"
+rcvar=${name}_enable
+
+status_cmd="${name}_status"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+extra_commands="status"
+
+FDO_VMS_LIST_PATH="/usr/local/sbin/fdo-vms-list"
+FDO_VMS_START_PATH="/usr/local/sbin/fdo-vms-start"
+FDO_VMS_STOP_PATH="/usr/local/sbin/fdo-vms-stop"
+
+fdo_vms_start () {
+
+	if [ ${#} -eq 1 ] && [ "${1}" = "_ALL" ]
+	then
+		for VM_NAME in `${FDO_VMS_LIST_PATH} --concise | egrep -v " running$" | awk '{print $1}'`
+		do
+			${FDO_VMS_START_PATH} "${VM_NAME}"
+		done
+		exit
+	fi
+
+	for VM_NAME in ${@}
+	do
+		${FDO_VMS_LIST_PATH} --concise --type=all | awk '{print $1}' | egrep "^${VM_NAME}$" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${VM_NAME} does not seem to exist!"
+			continue
+		fi
+		${FDO_VMS_LIST_PATH} --concise --type=all | egrep -v " running$" | awk '{print $1}' | egrep "^${VM_NAME}$" > /dev/null 2>&1
+		if [ ${?} -eq 0 ]
+		then
+			${FDO_VMS_START_PATH} "${VM_NAME}"
+		fi
+	done
+
+}
+
+fdo_vms_stop () {
+
+	if [ "${fdo_vms_force_stop}" = "YES" ]
+	then
+		FDO_VMS_STOP_OPTIONS="${FDO_VMS_STOP_OPTIONS} --force"
+	fi
+
+	if [ ${#} -eq 1 ] && [ "${1}" = "_ALL" ]
+	then
+		for VM_NAME in `${FDO_VMS_LIST_PATH} --concise | egrep -v " stopped$" | awk '{print $1}'`
+		do
+			${FDO_VMS_STOP_PATH} "${VM_NAME}"
+		done
+		exit
+	fi
+
+	for VM_NAME in ${@}
+	do
+		${FDO_VMS_LIST_PATH} --concise --type=all | awk '{print $1}' | egrep "^${VM_NAME}$" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${VM_NAME} does not seem to exist!"
+			continue
+		fi
+		${FDO_VMS_LIST_PATH} --concise --type=all | egrep -v " stopped$" | awk '{print $1}' | egrep "^${VM_NAME}$" > /dev/null 2>&1
+		if [ ${?} -eq 0 ]
+		then
+			${FDO_VMS_STOP_PATH} "${VM_NAME}" "${FDO_VMS_STOP_OPTIONS}"
+		fi
+	done
+}
+
+fdo_vms_status () {
+
+	case ${#} in
+		0)
+			# This should never happen
+			echo -e "\nToo few arguments!\n"
+			exit 1
+			;;
+		1)
+			VM_TYPE="${1}"
+			;;
+		*)
+			echo -e "\nToo many arguments!\n"
+			exit 1
+			;;
+	esac
+
+	case "${VM_TYPE}" in
+		"all")
+			${FDO_VMS_LIST_PATH} --type=all
+			;;
+		"_ALL")
+			# The default types (no type given)
+			${FDO_VMS_LIST_PATH}
+			;;
+		"instance")
+			${FDO_VMS_LIST_PATH} --type=instance
+			;;
+		"template")
+			${FDO_VMS_LIST_PATH} --type=template
+			;;
+		*)
+			echo -e "\nIllegal VM type: '${VM_TYPE}'! Allowed: [template|instance|all]\n"
+			exit 2
+			;;
+	esac
+}
+
+load_rc_config ${name}
+
+: ${fdo_vms_enable="NO"}
+
+case $# in
+	1)
+		run_rc_command $@ _ALL
+		;;
+	*)
+		run_rc_command $@
+		;;
+esac
