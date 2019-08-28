@@ -223,7 +223,7 @@ start_vm ()
 		IMAGE_INDEX=$(( ${IMAGE_INDEX} +1 ))
 	done
 
-	START_COMMAND="${START_COMMAND} -s 5,${VM_NIC_DRIVER},tap${VM_TAP_INTERFACE}"
+	START_COMMAND="${START_COMMAND} -s 5,${VM_NIC_DRIVER},${VM_TAP_INTERFACE}"
 
 	if [ "${VM_VNC_ENABLED}" = "enabled" ]
 	then
