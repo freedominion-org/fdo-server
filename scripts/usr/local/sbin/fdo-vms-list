@@ -153,7 +153,7 @@ test_valid_vm_name ()
 		return 2
 	fi
 
-	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-z0-9]+(_[a-z0-9]+[a-z0-9]*)*//" | wc -L`
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-zA-Z0-9]+(_[a-zA-Z0-9]+[a-zA-Z0-9]*)*//" | wc -L`
 	if [ ${IS_SYNTAX_OK}  -ne 0 ]
 	then
 		VALID_VM_NAME="no"
