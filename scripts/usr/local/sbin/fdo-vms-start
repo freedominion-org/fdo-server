@@ -230,7 +230,7 @@ start_vm ()
 	then
 		if [ "${VM_VNC_PASSWORD}" != "" ] && [ "${VM_VNC_PASSWORD}" != "null" ]
 		then
-			VM_VNC_PASSWORD_STRING=",${VM_VNC_PASSWORD}"
+			VM_VNC_PASSWORD_STRING=",password=${VM_VNC_PASSWORD}"
 		fi
 		START_COMMAND="${START_COMMAND} -s 29,fbuf,tcp=${VM_VNC_IPV4_ADDRESS}:${VM_VNC_PORT},w=${VM_VNC_WIDTH},h=${VM_VNC_HEIGHT}${VM_VNC_WAIT_STRING}${VM_VNC_PASSWORD_STRING}"
 	elif [ "${VM_VNC_WAIT_STRING}" != "" ]
