@@ -36,7 +36,8 @@ TMUX_CMD="/usr/local/bin/tmux"
 DISPLAY_TYPE="instance"
 VM_NAME_MIN="3"
 VM_NAME_MAX="30"
-WAIT_STRING=""
+VM_VNC_WAIT_STRING=""
+VM_VNC_PASSWORD_STRING=""
 VM_START_TRIES=5
 VM_START_TIMEOUT=4
 DEBUG=${DEBUG:-"false"}
@@ -96,7 +97,7 @@ do
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
 			--wait)
-				WAIT_STRING=",wait"
+				VM_VNC_WAIT_STRING=",wait"
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
@@ -227,8 +228,12 @@ start_vm ()
 
 	if [ "${VM_VNC_ENABLED}" = "enabled" ]
 	then
-		START_COMMAND="${START_COMMAND} -s 29,fbuf,tcp=${VM_VNC_IPV4_ADDRESS}:${VM_VNC_PORT},w=${VM_VNC_WIDTH},h=${VM_VNC_HEIGHT}${WAIT_STRING}"
-	elif [ "${WAIT_STRING}" != "" ]
+		if [ "${VM_VNC_PASSWORD}" != "" ] && [ "${VM_VNC_PASSWORD}" != "null" ]
+		then
+			VM_VNC_PASSWORD_STRING=",${VM_VNC_PASSWORD}"
+		fi
+		START_COMMAND="${START_COMMAND} -s 29,fbuf,tcp=${VM_VNC_IPV4_ADDRESS}:${VM_VNC_PORT},w=${VM_VNC_WIDTH},h=${VM_VNC_HEIGHT}${VM_VNC_WAIT_STRING}${VM_VNC_PASSWORD_STRING}"
+	elif [ "${VM_VNC_WAIT_STRING}" != "" ]
 	then
 		echo -e "\n${ORNG}WARNING:${NRML} VNC is disabled on this VM, so the --wait flag is redundant.\n"
 	fi
@@ -335,6 +340,7 @@ do
 			VM_VNC_PORT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_port`
 			VM_VNC_WIDTH=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_width`
 			VM_VNC_HEIGHT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_height`
+			VM_VNC_PASSWORD=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_password`
 			VM_IMAGE_0_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.type`
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.filename`
 			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.sectorsize`
