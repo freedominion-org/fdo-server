@@ -30,6 +30,12 @@ SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=1
 VM_NAME="${1}"
 VMS_CONF_PATH=${VMS_CONF_PATH:-"/usr/local/etc/fdo/vms.conf"}
+VMS_ROOT_FS="fdo-vms"
+VMS_ROOT_PATH="/${VMS_ROOT_FS}"
+VM_RESOURCES_DIRNAME="resources"
+VM_TEMPLATES_DIRNAME="templates"
+VM_INSTANCES_DIRNAME="instances"
+VM_RESOURCES_PATH="${VMS_ROOT_PATH}/${VM_RESOURCES_DIRNAME}"
 VMM_PATH="/dev/vmm"
 UCL_CMD="/usr/local/bin/uclcmd"
 TMUX_CMD="/usr/local/bin/tmux"
@@ -40,6 +46,7 @@ VM_VNC_WAIT_STRING=""
 VM_VNC_PASSWORD_STRING=""
 VM_START_TRIES=5
 VM_START_TIMEOUT=4
+BHYVE_FLAGS="-H"
 DEBUG=${DEBUG:-"false"}
 
 TERM="xterm"
@@ -212,13 +219,21 @@ start_vm ()
 	do
 		VAR_IMAGE_TYPE="VM_IMAGE_${IMAGE_INDEX}_TYPE"
 		eval IMAGE_TYPE="\$${VAR_IMAGE_TYPE}"
-		if [ "${IMAGE_TYPE}" != "null" ]
+
+		if [ "${IMAGE_TYPE}" = "ahci-hd" ]
 		then
 			VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
 			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
 			VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 			eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 			START_COMMAND="${START_COMMAND} -s $((${IMAGE_INDEX}+2)),${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+		fi
+
+		if [ "${IMAGE_TYPE}" = "ahci-cd" ]
+		then
+			VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
+			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
+			START_COMMAND="${START_COMMAND} -s $((${IMAGE_INDEX}+2)),${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
 		fi
 
 		IMAGE_INDEX=$(( ${IMAGE_INDEX} +1 ))
@@ -238,7 +253,7 @@ start_vm ()
 		echo -e "\n${ORNG}WARNING:${NRML} VNC is disabled on this VM, so the --wait flag is redundant.\n"
 	fi
 
-	START_COMMAND="${START_COMMAND} -s 31,lpc -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd -m ${VM_MEMSIZE} -H -w fdo-vm-${VM_NAME}'"
+	START_COMMAND="${START_COMMAND} -s 31,lpc -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd -m ${VM_MEMSIZE} ${BHYVE_FLAGS} fdo-vm-${VM_NAME}'"
 
 	if [ "${DEBUG}" = "true" ]
 	then
