@@ -207,7 +207,7 @@ stop_vm ()
 	if [ "${VM_STATE}" = "running" ]
 	then
 		VM_BHYVE_PID=`pgrep -fl "^bhyve.* fdo-vm-${VM_NAME}$" | awk '{print $1}'`
-		echo -e "\n${YELL}Stopping VM ${VM_NAME} ...${NRML}\n"
+		echo -e "\n${YELL}Stopping VM ${VM_NAME} ...${NRML}"
 		kill ${VM_BHYVE_PID}
 		STOP_TRY_COUNT=0
 		while [ "${VM_STATE}" = "running" ] && [ ${STOP_TRY_COUNT} -lt ${VM_STOP_TRIES} ]
@@ -223,7 +223,7 @@ stop_vm ()
 	get_vm_state "${VM_NAME}"
 	if [ "${VM_STATE}" = "running" ] && [ "${FORCEFUL_STOP}" = "true" ]
 	then
-		echo -e "\n${ORNG}Forcefully stopping VM ${VM_NAME} ...${NRML}\n"
+		echo -e "\n${ORNG}Forcefully stopping VM ${VM_NAME} ...${NRML}"
 		bhyvectl --force-poweroff --vm="fdo-vm-${VM_NAME}"
 		sleep ${VM_STOP_TIMEOUT}
 	fi

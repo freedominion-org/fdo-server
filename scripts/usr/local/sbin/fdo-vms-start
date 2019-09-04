@@ -261,7 +261,7 @@ start_vm ()
 	fi
 
 	get_vm_state "${VM_NAME}"
-	echo -e "\n${YELL}Starting VM ${VM_NAME} ...${NRML}\n"
+	echo -e "\n${YELL}Starting VM ${VM_NAME} ...${NRML}"
 	sh -c "${START_COMMAND}"
 	START_TRY_COUNT=0
 	while [ "${VM_STATE}" != "running" ] && [ ${START_TRY_COUNT} -lt ${VM_START_TRIES} ]
