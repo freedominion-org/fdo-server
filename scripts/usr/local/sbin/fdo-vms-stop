@@ -216,6 +216,8 @@ stop_vm ()
 			get_vm_state "${VM_NAME}"
 			STOP_TRY_COUNT=$(( ${STOP_TRY_COUNT} +1 ))
 		done
+	else
+		echo -e "\n${YELL}VM ${VM_NAME} was not running.${NRML}\n"
 	fi
 
 	get_vm_state "${VM_NAME}"
