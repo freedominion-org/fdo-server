@@ -365,6 +365,7 @@ do
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.sectorsize`
+			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
 			then
@@ -408,6 +409,7 @@ do
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.sectorsize`
+			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
 			then
