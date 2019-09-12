@@ -180,7 +180,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 
@@ -201,7 +201,7 @@ then
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Unable to find a '${RECIPE_NAME}' recipe jail!\n       Aborting.\n"
 		usage
-		exit 3
+		exit 1
 	fi
 	if [ ${NUM_FOUND_JAILS} -lt 2 ]
 	then
@@ -231,7 +231,7 @@ ${CMD_PREFIX} which "${LDAP_EDIT_CMD}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The LDAP edit command '${LDAP_EDIT_CMD}' does not exist!\n       Aborting.\n"
-	exit 4
+	exit 1
 fi
 
 LDAP_MGR_DN=`cat "${LDAP_MGR_DN_LOOKUP_FILE}"`
@@ -239,14 +239,14 @@ LDAP_MGR_DN=`cat "${LDAP_MGR_DN_LOOKUP_FILE}"`
 if [ "${LDAP_MGR_DN}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The LDAP manager DN specified in the lookup file\n       '${LDAP_MGR_DN_LOOKUP_FILE}'\n       is not valid! Aborting.\n"
-	exit 5
+	exit 1
 fi
 
 ${CMD_PREFIX} ${LDAP_EDIT_CMD} -Z -h ${LDAP_SERVER_HOST} -D "${LDAP_MGR_DN}"
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 6
+	exit 2
 fi
 
 ################################################################################

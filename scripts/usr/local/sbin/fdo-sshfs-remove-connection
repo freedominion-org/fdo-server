@@ -151,7 +151,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 test_if_host
@@ -159,14 +159,14 @@ test_if_host
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
-	exit 3
+	exit 1
 fi
 
 if [ ! -f ${SSHFSD_CONF_PATH} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file '${SSHFSD_CONF_PATH}' does not exist!\n       Aborting.\n"
 	usage
-	exit 4
+	exit 1
 fi
 
 # Check if the local_path exists in sshfsd_shares.conf
@@ -176,7 +176,7 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} No connection exists with the local path;"
 	echo -e "       '${LOCAL_PATH}'"
 	echo -e "       Aborting.\n"
-	exit 5
+	exit 1
 fi
 
 
@@ -194,7 +194,7 @@ then
 	if [ "${ANSWER}" = "no" ]
 	then
 		echo -e ""
-		exit 6
+		exit 1
 	else
 		# Unmount the connection
 		echo -e "\n${YELL}Unmounting the connection...${NRML}\n"
@@ -259,7 +259,7 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 7
+	exit 2
 fi
 
 ################################################################################

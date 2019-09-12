@@ -109,14 +109,14 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 if [ ! -e "${SEARCH_PATH}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Search path does not exist!\n       Aborting.\n"
 	usage
-	exit 3
+	exit 1
 fi
 
 
@@ -198,7 +198,7 @@ fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 4
+	exit 2
 fi
 
 ################################################################################

@@ -123,7 +123,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 test_if_host
@@ -131,21 +131,21 @@ test_if_host
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
-	exit 3
+	exit 1
 fi
 
 POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
-	exit 4
+	exit 1
 fi
 
 POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
 if [ "${POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
-	exit 5
+	exit 1
 fi
 
 
@@ -177,7 +177,7 @@ fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 6
+	exit 2
 fi
 
 ################################################################################

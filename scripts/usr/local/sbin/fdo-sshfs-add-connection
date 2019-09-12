@@ -245,7 +245,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 test_if_host
@@ -253,14 +253,14 @@ test_if_host
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
-	exit 3
+	exit 1
 fi
 
 if [ ! -f ${SSHFSD_CONF_PATH} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file '${SSHFSD_CONF_PATH}' does not exist!\n       Aborting.\n"
 	usage
-	exit 4
+	exit 1
 fi
 
 # Test that the remote user is valid
@@ -271,7 +271,7 @@ then
 	echo -e "       It must only contain letters, numbers, hyphens, underscores and periods "
 	echo -e "       with a minumum of 3 characters."
 	echo -e "       Aborting.\n"
-	exit 5
+	exit 1
 fi
 
 # Test that the remote host is valid.
@@ -284,7 +284,7 @@ then
 	echo -e "       It must only contain letters, numbers, periods and hyphens."
 	echo -e "       It must not begin or end with a hyphen or a period."
 	echo -e "       Aborting.\n"
-	exit 6
+	exit 1
 fi
 
 # Check if the remote_path does not end in a forward slash or a space
@@ -294,7 +294,7 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} The remote path is invalid!"
 	echo -e "       It must not end with a forward slash or a space."
 	echo -e "       Aborting.\n"
-	exit 7
+	exit 1
 fi
 
 
@@ -305,7 +305,7 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} A connection already exists with the local path;"
 	echo -e "       '${LOCAL_PATH}'"
 	echo -e "       Aborting.\n"
-	exit 8
+	exit 1
 fi
 
 # Check if the local_path is a valid directory
@@ -314,7 +314,7 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} Cannot find the local path (mountpoint);"
 	echo -e "       '${LOCAL_PATH}'"
 	echo -e "       Aborting.\n"
-	exit 9
+	exit 1
 fi
 
 # Check if the local_path is a valid absolute path
@@ -324,7 +324,7 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} The local path (mountpoint) is not a valid absolute path!"
 	echo -e "       It must begin with a forward slash ('/')."
 	echo -e "       Aborting.\n"
-	exit 10
+	exit 1
 fi
 LOCAL_PATH_DIRNAME=`dirname "${LOCAL_PATH}"`
 LOCAL_PATH_BASENAME=`basename "${LOCAL_PATH}"`
@@ -340,7 +340,7 @@ then
 	echo -e "       Consider using the following path;"
 	echo -e "       '${LOCAL_PATH_DIRNAME}/${LOCAL_PATH_BASENAME}'"
 	echo -e "       Aborting.\n"
-	exit 11
+	exit 1
 fi
 
 # Check if the port number is valid
@@ -350,7 +350,7 @@ then
 	echo -e "\n${LRED}ERROR:${NRML} The port number '${REMOTE_PORT}' is invalid!"
 	echo -e "       It must be a number between 1 and 65535."
 	echo -e "       Aborting.\n"
-	exit 12
+	exit 1
 fi
 
 
@@ -368,7 +368,7 @@ then
 	if [ "${ANSWER}" = "no" ]
 	then
 		echo -e ""
-		exit 13
+		exit 1
 	fi
 fi
 
@@ -392,7 +392,7 @@ then
 		echo -e "       Aborting.\n"
 		rm ${SSHFSD_KEY}
 		rm ${SSHFSD_KEY}.pub
-		exit 14
+		exit 2
 	fi
 
 	echo -e "\n${YELL}SSH key generated!${NRML}"
@@ -407,7 +407,7 @@ then
 		echo -e "       Aborting.\n"
 		rm ${SSHFSD_KEY}
 		rm ${SSHFSD_KEY}.pub
-		exit 15
+		exit 2
 	fi
 
 fi
@@ -447,7 +447,7 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 16
+	exit 2
 fi
 
 ################################################################################

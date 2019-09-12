@@ -232,7 +232,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 test_if_host
@@ -240,14 +240,14 @@ test_if_host
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
-	exit 3
+	exit 1
 fi
 
 if [ ! -f ${PF_CONF_PATH} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pf config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
 	usage
-	exit 4
+	exit 1
 fi
 
 # Test if rule_name is valid
@@ -255,7 +255,7 @@ test_valid_rule_name "${RULE_NAME}"
 if [ "${VALID_RULE_NAME}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Rule name invalid!\n"
-	exit 5
+	exit 1
 fi
 
 # Test if rule_name already exists
@@ -263,7 +263,7 @@ cat ${PF_CONF_PATH} | egrep "${RULE_NAME}_ip =" > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Rule name '${RULE_NAME}' is already in use!\n"
-	exit 6
+	exit 1
 fi
 
 # Test if local_ip_address is valid
@@ -271,7 +271,7 @@ test_valid_inet_address "${LOCAL_IP}"
 if [ "${VALID_INET_ADDRESS}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Local IP address is invalid!\n"
-	exit 7
+	exit 1
 fi
 
 # Test if tcp_ports is valid
@@ -279,7 +279,7 @@ test_valid_port_list "${TCP_PORTS}"
 if [ "${VALID_PORT_LIST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} TCP port list ('tcp_ports') is invalid!\n"
-	exit 8
+	exit 1
 fi
 
 # Test if udp_ports is valid
@@ -287,14 +287,14 @@ test_valid_port_list "${UDP_PORTS}"
 if [ "${VALID_PORT_LIST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} UDP port list ('udp_ports') is invalid!\n"
-	exit 9
+	exit 1
 fi
 
 # Test if both tcp_ports and udp_ports are 'none'
 if [ "${TCP_PORTS}" = "none" ] && [ "${UDP_PORTS}" = "none" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} No ports specified!\n"
-	exit 10
+	exit 1
 fi
 
 
@@ -355,7 +355,7 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 11
+	exit 2
 fi
 
 ################################################################################

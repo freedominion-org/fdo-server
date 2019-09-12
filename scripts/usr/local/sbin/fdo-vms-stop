@@ -254,7 +254,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 test_if_host
@@ -262,34 +262,34 @@ test_if_host
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
-	exit 3
+	exit 1
 fi
 
 if [ ! -f ${VMS_CONF_PATH} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The VMs config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
-	exit 4
+	exit 1
 fi
 
 VMS_POOL_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .general.pool_name`
 if [ "${VMS_POOL_NAME}" = "null" ] || [ "${VMS_POOL_NAME}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The VM subsystem appears to be uninitialised!\n       Aborting.\n"
-	exit 5
+	exit 1
 fi
 
 test_valid_vm_name "${VM_NAME}"
 if [ "${VALID_VM_NAME}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The given VM name (${VM_NAME}) is invalid!\n       Aborting.\n"
-	exit 6
+	exit 1
 fi
 
 get_vm_state "${VM_NAME}"
 if [ "${VM_STATE}" = "stopped" ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} The VM (${VM_NAME}) is already stopped!\n         Skipping stop routine.\n"
-	exit 7
+	exit 1
 fi
 
 ##### MAIN EXECUTION THREAD ####################################################
@@ -311,7 +311,7 @@ do
 			stop_vm
 			if [ ${?} -ne 0 ]
 			then
-				exit 8
+				exit ${?}
 			fi
 			
 		fi
@@ -335,7 +335,7 @@ do
 			stop_vm
 			if [ ${?} -ne 0 ]
 			then
-				exit 9
+				exit ${?}
 			fi
 		fi
 	else
@@ -348,7 +348,7 @@ done
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 10
+	exit 2
 fi
 
 ################################################################################

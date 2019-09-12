@@ -157,7 +157,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 test_if_host
@@ -165,7 +165,7 @@ test_if_host
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
-	exit 3
+	exit 1
 fi
 
 # Check that the hostname is valid.
@@ -176,7 +176,7 @@ then
 	echo -e "       It must only contain letters, numbers, periods and hyphens."
 	echo -e "       It must not begin or end with a hyphen or a period."
 	echo -e "       Aborting.\n"
-	exit 4
+	exit 1
 fi
 
 
@@ -203,7 +203,7 @@ do
 			then
 				echo -e "\n${LRED}ERROR:${NRML} The record for hostname ${HOST_NAME} does not exist!"
 				echo -e "       Aborting.\n"
-				exit 5
+				exit 1
 			fi
 
 			# Hostname record exists, so now let's remove the zone for the hostname record:
@@ -248,14 +248,14 @@ done
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then  
 	echo -e "\n${LRED}ERROR:${NRML} No caching dns server found!\n       Aborting.\n"
-	exit 6
+	exit 1
 fi
 
 echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 7
+	exit 2
 fi
 
 ################################################################################

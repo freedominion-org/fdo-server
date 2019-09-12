@@ -174,7 +174,7 @@ if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
 	usage
-	exit 2
+	exit 1
 fi
 
 
@@ -195,7 +195,7 @@ then
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Unable to find a '${RECIPE_NAME}' recipe jail!\n       Aborting.\n"
 		usage
-		exit 3
+		exit 1
 	fi
 	if [ ${NUM_FOUND_JAILS} -lt 2 ]
 	then
@@ -224,7 +224,7 @@ if [ ! -e "${CONFIG_ROOT}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The WebDAV config root '${CONFIG_ROOT}' does not exist!\n       Aborting.\n"
 	usage
-	exit 4
+	exit 1
 fi
 
 
@@ -234,7 +234,7 @@ NUM_SITES_AVAILABLE=`echo ${SITES_AVAILABLE} | wc -w`
 if [ ${NUM_SITES_AVAILABLE} -lt 1 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The WebDAV config root '${CONFIG_ROOT}'\ndoes not contain any site configs!\n       Aborting.\n"
-	exit 5
+	exit 1
 fi
 SITE=""
 if [ ${NUM_SITES_AVAILABLE} -lt 2 ]
@@ -269,7 +269,7 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	exit 6
+	exit 2
 fi
 
 ################################################################################
