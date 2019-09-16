@@ -26,7 +26,7 @@
 
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
-SCRIPT_NAME=`basename $0`
+SCRIPT_NAME=`basename ${0}`
 DAV_SERVER_USERID=`cat /usr/local/etc/fdo/webdav_userid.conf`
 DAV_SERVER_GROUPID=`cat /usr/local/etc/fdo/webdav_groupid.conf`
 DATE_CMD=/bin/date
@@ -309,10 +309,10 @@ done
 TIMESTAMP=`${DATE_CMD} +%Y-%m-%d_%H-%M-%S`
 echo "${TIMESTAMP} backup for ${NOW} finished! " >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "${TIMSTAMP} zpool list:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+echo "${TIMESTAMP} zpool list:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 zpool list >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "${TIMSTAMP} zpool status:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+echo "${TIMESTAMP} zpool status:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 zpool status >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
 
