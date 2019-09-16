@@ -127,20 +127,20 @@ thin_snapshots_by_filesystem()
 	i=0
 	for SNAPSHOT in ${SNAPSHOTS}
 	do
-		SNAPSHOT_NAMES[$i]=${SNAPSHOT}
-		SNAPSHOT_TIMESTAMPS[$i]=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
-		SNAPSHOT_ACTION[$i]="keep"
+		SNAPSHOT_NAMES[${i}]=${SNAPSHOT}
+		SNAPSHOT_TIMESTAMPS[${i}]=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
+		SNAPSHOT_ACTION[${i}]="keep"
 
-		if [ ${SNAPSHOT_TIMESTAMPS[$i]} -lt ${EARLIEST_TIMESTAMP} ]
+		if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${EARLIEST_TIMESTAMP} ]
 		then
-			EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMPS[$i]}
+			EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMPS[${i}]}
 		fi
-		i=$(( $i + 1 ))
+		i=$(( ${i} + 1 ))
 	done
 
 	NUM_SNAPSHOTS=${#SNAPSHOT_NAMES[@]}
 
-	FIRST_PROJECTION=$((${NOW} - ${OFFSET}))
+	FIRST_PROJECTION=$(( ${NOW} - ${OFFSET} ))
 
 	PROJECTIONS[0]=${FIRST_PROJECTION}
 
@@ -149,16 +149,16 @@ thin_snapshots_by_filesystem()
 	j=1
 	while [ ${NEXT_PROJECTION} -gt ${EARLIEST_TIMESTAMP} ]
 	do
-		NEXT_PROJECTION=$((${NEXT_PROJECTION} - ${INTERVAL}))
+		NEXT_PROJECTION=$(( ${NEXT_PROJECTION} - ${INTERVAL} ))
 		PROJECTIONS[${j}]=${NEXT_PROJECTION}
-		j=$(( $j + 1 ))
+		j=$(( ${j} + 1 ))
 	done
 
 	# Add one more projection at the end (UNIX epoch +1) so we don't get out of index error
 	PROJECTIONS[${j}]=1
 
-	# Ensure that latest snapshot is always kept
-	i=$(( $i - 1 ))
+	# Ensure that the latest 2 snapshot are always kept
+	i=$(( ${i} - 2 ))
 
 	j=0
 
@@ -174,7 +174,7 @@ thin_snapshots_by_filesystem()
 			then
 				if [ ${NEXT_SNAPSHOT} -gt ${PROJECTIONS[$(( ${j} + 1 ))]} ] && [ ${LAST_KEPT_TO_NEXT_DELTA} -lt $(( ${INTERVAL} + ${DAY_IN_SECS} )) ]
 				then
-					SNAPSHOT_ACTION[$i]="destroy"
+					SNAPSHOT_ACTION[${i}]="destroy"
 				fi
 			else
 				NEXT_PROJECTION=0
@@ -182,7 +182,7 @@ thin_snapshots_by_filesystem()
 				do
 					NEXT_PROJECTION=${PROJECTIONS[$(( ${j} + 1 ))]}
 					NEXT_SNAPSHOT_PLUS_INTERVAL=$(( ${NEXT_SNAPSHOT} + ${INTERVAL} ))
-					j=$(( $j + 1 ))
+					j=$(( ${j} + 1 ))
 				done
 				SNAPSHOT_ACTION[${i}]="keep"
 				LAST_SNAPSHOT_KEPT=${i}
@@ -196,16 +196,16 @@ thin_snapshots_by_filesystem()
 			echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
 		fi
 
-		if [ "${SNAPSHOT_ACTION[$i]}" = "destroy" ]
+		if [ "${SNAPSHOT_ACTION[${i}]}" = "destroy" ]
 		then
 			if [ ${SIMULATION_MODE} = "yes" ]
 			then
-				echo -e "${LBLU}zfs destroy ${SNAPSHOT_NAMES[$i]}${NRML}"
+				echo -e "${LBLU}zfs destroy ${SNAPSHOT_NAMES[${i}]}${NRML}"
 			else
-				zfs destroy ${SNAPSHOT_NAMES[$i]}
+				zfs destroy ${SNAPSHOT_NAMES[${i}]}
 			fi
 		fi
-		i=$(( $i - 1 ))
+		i=$(( ${i} - 1 ))
 	done
 
 }
@@ -285,8 +285,8 @@ fi
 ##### MAIN EXECUTION THREAD ####################################################
 
 # Global dynamic variable declarations
-OFFSET=$((${OFFSET_DAYS} * ${DAY_IN_SECS}))
-INTERVAL=$((${INTERVAL_DAYS} * ${DAY_IN_SECS}))
+OFFSET=$(( ${OFFSET_DAYS} * ${DAY_IN_SECS} ))
+INTERVAL=$(( ${INTERVAL_DAYS} * ${DAY_IN_SECS} ))
 
 # Create log filesystem if log directory doesn't already exist.
 if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
