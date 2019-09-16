@@ -154,6 +154,20 @@ then
 	exit 1
 fi
 
+pgrep -fl "fdo-backupz-repair-state" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be another backup repair operation running!\n       Aborting.\n"
+	exit 1
+fi
+
+pgrep -fl "fdo-backupz-thin-snapshots" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots operation running!\n       Aborting.\n"
+	exit 1
+fi
+
 BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
 
 if [ ! -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ] && [ ! -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
@@ -164,7 +178,7 @@ fi
 
 if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ] && [ ${FORCE_MODE} = "no" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\nConsider using the --force option.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup running for '${POOL}'!\nConsider using the --force option.\n       Aborting.\n"
 	exit 1
 fi
 

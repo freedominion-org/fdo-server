@@ -187,6 +187,20 @@ then
 	exit 1
 fi
 
+pgrep -fl "fdo-backupz-repair-state" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup repair operation running!\n       Aborting.\n"
+	exit 1
+fi
+
+pgrep -fl "fdo-backupz-thin-snapshots" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots operation running!\n       Aborting.\n"
+	exit 1
+fi
+
 
 ##### MAIN EXECUTION THREAD ####################################################
 
