@@ -204,7 +204,7 @@ fi
 
 ##### MAIN EXECUTION THREAD ####################################################
 
-# Create log dataset if log directory doesn't already exist.
+# Create log filesystem if log directory doesn't already exist.
 if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
 then
 	zfs create -o mountpoint=${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log

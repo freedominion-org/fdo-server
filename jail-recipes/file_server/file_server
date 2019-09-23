@@ -6,8 +6,8 @@ RECIPE_PACKAGES="apache22"                                                     #
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
-RECIPE_ZFS_DATASETS=""                                                         # Optional:  name of extra ZFS datasets required for recipe
-RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS datasets required for recipe
+RECIPE_ZFS_FILESYSTEMS=""                                                      # Optional:  name of extra ZFS filesystems required for recipe
+RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS filesystems required for recipe
 LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 ################################################################################
 
@@ -15,8 +15,8 @@ seasoning_suggestions ()
 {
 
 	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n"
-	echo -e   "        ${ORNG}[1]${NRML} The ZFS datasets holding the 'shares' and 'users' files/directories "
-	echo -e   "        should have their mountpoints set to the jailed paths;                  "
+	echo -e   "        ${ORNG}[1]${NRML} The ZFS filesystems holding the 'shares' and 'users' files"
+	echo -e   "        directories should have their mountpoints set to the jailed paths;      "
 	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'      "
 	echo -e   "        respectively.                                                           "
 	echo -e   "        They should also have user and group ownership set to 'www'.            \n"
