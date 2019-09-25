@@ -6,10 +6,15 @@ RECIPE_PACKAGES="ddclient"                                                     #
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="ddclient"                                                 # Optional:  jail services started after cooking (in left to right order)
-RECIPE_ZFS_FILESYSTEMS=""                                                      # Optional:  name of extra ZFS filesystems required for recipe
-RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS filesystems required for recipe
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
 USE_STRING="web, web=checkip.dyndns.org/, web-skip='IP Address'"               #
 ################################################################################
+
+prep_recipe ()
+{
+	PREP_SUCCESS="yes"
+}
 
 cook_recipe ()
 {

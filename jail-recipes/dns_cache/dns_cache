@@ -6,24 +6,27 @@ RECIPE_PACKAGES="bind911"                                                      #
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order)
-RECIPE_ZFS_FILESYSTEMS=""                                                      # Optional:  name of extra ZFS filesystems required for recipe
-RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS filesystems required for recipe
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
 DHCP_SERVER_JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                 #
 ################################################################################
 
+prep_recipe ()
+{
+	PREP_SUCCESS="yes"
+}
+
 seasoning_suggestions ()
 {
-
-	echo -e "\n${ORNG}NOTICE:${NRML} To add a hostname override to the caching DNS service,                  "
-	echo -e "        use the following command:                                             \n"
-	echo -e "        ${LBLU}fdo-dns_cache-add-hostname${NRML}                               \n"
-	echo -e "        To remove a hostname override from the caching DNS service,            "
-	echo -e "        use the following command:                                             \n"
-	echo -e "        ${LBLU}fdo-dns_cache-remove-hostname${NRML}                            \n"
-	echo -e "        To list the hostname override(s) of the caching DNS service,           "
-	echo -e "        use the following command:                                             \n"
-	echo -e "        ${LBLU}fdo-dns_cache-list-hostnames${NRML}                             \n"
-
+	echo -e "\n${ORNG}NOTICE:${NRML} To add a hostname override to the caching DNS service,"
+	echo -e "        use the following command:\n"
+	echo -e "        ${LBLU}fdo-dns_cache-add-hostname${NRML}\n"
+	echo -e "        To remove a hostname override from the caching DNS service,"
+	echo -e "        use the following command:\n"
+	echo -e "        ${LBLU}fdo-dns_cache-remove-hostname${NRML}\n"
+	echo -e "        To list the hostname override(s) of the caching DNS service,"
+	echo -e "        use the following command:\n"
+	echo -e "        ${LBLU}fdo-dns_cache-list-hostnames${NRML}\n"
 }
 
 cook_recipe ()

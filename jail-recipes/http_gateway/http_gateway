@@ -8,18 +8,20 @@ RECIPE_REQUIRES_NAT_RELOAD="yes"                                               #
 RECIPE_TCP_PORTS="80,443"                                                      # Optional:  tcp ports to forward, necessary for port forwarding
 RECIPE_UDP_PORTS="none"                                                        # Optional:  udp ports to forward, necessary for port forwarding
 START_JAIL_SERVICES="nginx"                                                    # Optional:  jail services started after cooking (in left to right order)
-RECIPE_ZFS_FILESYSTEMS=""                                                      # Optional:  name of extra ZFS filesystems required for recipe
-RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS filesystems required for recipe
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
 NOHOST_CERT_FILE="/usr/local/etc/ssl/certs/nohost.pem"                         #
 ################################################################################
 
+prep_recipe ()
+{
+	PREP_SUCCESS="yes"
+}
+
 seasoning_suggestions ()
 {
-
-	echo -e "\n${ORNG}NOTICE:${NRML} The upstream web host config files should be placed in the path:       \n"
-	echo -e   "        /usr/local/etc/nginx/sites                                              \n"
-
-
+	echo -e "\n${ORNG}NOTICE:${NRML} The upstream web host config files should be placed in the path:\n"
+	echo -e   "        ${ORNG}/usr/local/etc/nginx/sites${NRML}\n"
 }
 
 cook_recipe ()

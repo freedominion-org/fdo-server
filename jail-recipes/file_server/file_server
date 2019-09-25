@@ -6,46 +6,13 @@ RECIPE_PACKAGES="apache22"                                                     #
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
-RECIPE_ZFS_FILESYSTEMS=""                                                      # Optional:  name of extra ZFS filesystems required for recipe
-RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS filesystems required for recipe
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
 LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 ################################################################################
 
-seasoning_suggestions ()
+prep_recipe()
 {
-
-	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:         \n"
-	echo -e   "        ${ORNG}[1]${NRML} The ZFS filesystems holding the 'shares' and 'users' files"
-	echo -e   "        directories should have their mountpoints set to the jailed paths;      "
-	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'      "
-	echo -e   "        respectively.                                                           "
-	echo -e   "        They should also have user and group ownership set to 'www'.            \n"
-	echo -e   "        Example 1 (new filesytems):                                             "
-	echo -e   "        ${LBLU}zfs create -o compression=on \                                   "
-	echo -e   "          -o casesensitivity=insensitive \                                      "
-	echo -e   "          -o mountpoint=/jls/${JAIL_NAME}/w3 \                                  "
-	echo -e   "          ${JAIL_POOL_NAME}/files${NRML}                                             "
-	echo -e   "        ${LBLU}zfs create ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}${NRML}          "
-	echo -e   "        ${LBLU}zfs create ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}   "
-	echo -e   "        ${LBLU}zfs create ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}    "
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     "
-	echo -e   "        Example 2 (existing filesystems):                                       "
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \ "
-	echo -e   "          ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}                   "
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \ "
-	echo -e   "          ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}                    "
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}                     \n"
-	echo -e   "        ${ORNG}[2]${NRML} ACL's control which users and groups are allowed to read and write "
-	echo -e   "        to these shares. ACL's must be added to the following file in this jail:"
-	echo -e   "        ${LBLU}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}${NRML}       "
-	echo -e   "        Consult the FDo documentation for ACL management commands.              \n"
-
-
-}
-
-cook_recipe ()
-{
-
 	# Find the http_gateway jail
 	HTTP_GATEWAY_JAIL=""
 	for RECIPE_MARKER in `ls /jls/*/.fdo-jail-recipe.inf`
@@ -60,29 +27,64 @@ cook_recipe ()
 
 	if [ "HTTP_GATEWAY_JAIL" == "" ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} It appears there is no http_gateway recipe jail on this host. Aborting.\n" 
-		RECIPE_SUCCESS="no"
+		echo -e "\n${LRED}ERROR:${NRML} It appears there is no http_gateway recipe jail on this host!\n" 
+		PREP_SUCCESS="no"
 		return
 	fi
 
-	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a            "
-	echo -e   "        'ldap_consumer' recipe is cooked, running and accessible on the LAN     "
-	echo -e   "        (local network). You must know the LDAP servers' host name, base suffix "
-	echo -e   "        and root (Manager) password in order to connect to it.                  "
-	echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'   "
-	echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.     \n"
-	echo -e   "        Useful terminology:                                                     \n"
-	echo -e   "        LDAP Provider: The openldap server that provides the schema to          "
-	echo -e   "            consumers (master).                                                 \n"
-	echo -e   "        LDAP Consumer: The openldap server that syncs from the provider and     "
-	echo -e   "            consumes the schema (slave).                                        \n"
+	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a"
+	echo -e   "        'ldap_consumer' recipe is cooked, running and accessible on the LAN"
+	echo -e   "        (local network). You must know the LDAP servers' host name, base suffix"
+	echo -e   "        and root (Manager) password in order to connect to it."
+	echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'"
+	echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.\n"
+	echo -e   "        Useful terminology:\n"
+	echo -e   "        LDAP Provider: The openldap server that provides the schema to"
+	echo -e   "            consumers (master).\n"
+	echo -e   "        LDAP Consumer: The openldap server that syncs from the provider and"
+	echo -e   "            consumes the schema (slave).\n"
 
 	question_yes_no "Would you like to continue to cook this jail recipe?"
 	if [ "${ANSWER}" = "no" ]
 	then
-		RECIPE_SUCCESS="no"
+		PREP_SUCCESS="no"
 		return
 	fi
+
+	PREP_SUCCESS="yes"
+}
+
+seasoning_suggestions ()
+{
+	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:\n"
+	echo -e   "        ${ORNG}[1]${NRML} The ZFS filesystems holding the 'shares' and 'users' files"
+	echo -e   "        directories should have their mountpoints set to the jailed paths;"
+	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'"
+	echo -e   "        respectively."
+	echo -e   "        They should also have user and group ownership set to 'www'.\n"
+	echo -e   "        Example 1 (new filesytems):"
+	echo -e   "        ${LBLU}zfs create -o compression=on \\${NRML}"
+	echo -e   "        ${LBLU}           -o casesensitivity=insensitive \\${NRML}"
+	echo -e   "        ${LBLU}           -o mountpoint=/jls/${JAIL_NAME}/w3 \\${NRML}"
+	echo -e   "        ${LBLU}           ${JAIL_POOL_NAME}/files${NRML}"
+	echo -e   "        ${LBLU}zfs create ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}${NRML}"
+	echo -e   "        ${LBLU}zfs create ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}"
+	echo -e   "        ${LBLU}zfs create ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}"
+	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}"
+	echo -e   "        Example 2 (existing filesystems):"
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \\${NRML}"
+	echo -e   "        ${LBLU}        ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}"
+	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \\${NRML}"
+	echo -e   "        ${LBLU}        ${JAIL_POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}"
+	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}\n"
+	echo -e   "        ${ORNG}[2]${NRML} ACL's control which users and groups are allowed to read and write"
+	echo -e   "        to these shares. ACL's must be added to the following file in this jail:"
+	echo -e   "        ${ORNG}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}${NRML}"
+	echo -e   "        Consult the FDo documentation for ACL management commands.\n"
+}
+
+cook_recipe ()
+{
 
 	echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
 	echo -e "Please accept when prompted...${NRML}\n"

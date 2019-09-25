@@ -8,36 +8,41 @@ RECIPE_REQUIRES_NAT_RELOAD="yes"                                               #
 RECIPE_TCP_PORTS="389,636"                                                     # Optional:  tcp ports to forward, necessary for port forwarding
 RECIPE_UDP_PORTS="none"                                                        # Optional:  udp ports to forward, necessary for port forwarding
 START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order)
-RECIPE_ZFS_FILESYSTEMS=""                                                      # Optional:  name of extra ZFS filesystems required for recipe
-RECIPE_ZFS_MOUNTPOINTS=""                                                      # Optional:  mountpoint of extra ZFS filesystems required for recipe
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
 LDAP_MGR_DN_LOOKUP_FILE="/usr/local/etc/fdo/ldap-manager-dn.conf"              #
 ################################################################################
 
-cook_recipe ()
+prep_recipe ()
 {
-
-	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that a 'ldap_provider' recipe is cooked,      "
-	echo -e   "        running and accessible. You must know the Provider servers' host        "
-	echo -e   "        address, base suffix and root (Manager) password in order to connect to "
-	echo -e   "        it and sync.                                                            \n"
-	echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'   "
-	echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.     \n"
-	echo -e   "        Useful terminology:                                                     \n"
-	echo -e   "        LDAP Provider: The openldap server that provides the schema to          "
-	echo -e   "            consumers (master).                                                 \n"
-	echo -e   "        LDAP Consumer: The openldap server (this jail) that syncs from the      "
-	echo -e   "            provider and consumes the schema (slave).                           \n"
-	echo -e   "        Replication ID: The unique identification number of each consumer that  "
-	echo -e   "            is used in syncing schemas.                                         \n"
-	echo -e   "        Sync user: The SASL proxy auth user in the Providers' database that has "
-	echo -e   "            access to all attributes (FDo default: proxy.user)                  \n"
+	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that a 'ldap_provider' recipe is cooked,"
+	echo -e   "        running and accessible. You must know the Provider servers' host"
+	echo -e   "        address, base suffix and root (Manager) password in order to connect to"
+	echo -e   "        it and sync.\n"
+	echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'"
+	echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.\n"
+	echo -e   "        Useful terminology:\n"
+	echo -e   "        LDAP Provider: The openldap server that provides the schema to"
+	echo -e   "            consumers (master).\n"
+	echo -e   "        LDAP Consumer: The openldap server (this jail) that syncs from the"
+	echo -e   "            provider and consumes the schema (slave).\n"
+	echo -e   "        Replication ID: The unique identification number of each consumer that"
+	echo -e   "            is used in syncing schemas.\n"
+	echo -e   "        Sync user: The SASL proxy auth user in the Providers' database that has"
+	echo -e   "            access to all attributes (FDo default: proxy.user)\n"
 
 	question_yes_no "Would you like to continue to cook this jail recipe?"
 	if [ "${ANSWER}" = "no" ]
 	then
-		RECIPE_SUCCESS="no"
+		PREP_SUCCESS="no"
 		return
 	fi
+
+	PREP_SUCCESS="yes"
+}
+
+cook_recipe ()
+{
 
 	echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
 	echo -e "Please accept when prompted...${NRML}\n"
