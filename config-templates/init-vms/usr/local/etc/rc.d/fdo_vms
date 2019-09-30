@@ -36,6 +36,15 @@ fdo_vms_start () {
 		exit
 	fi
 
+	if [ ${#} -eq 1 ] && [ "${1}" = "all" ]
+	then
+		for VM_NAME in `${FDO_VMS_LIST_PATH} --concise --type=all | egrep -v " running$" | awk '{print $1}'`
+		do
+			${FDO_VMS_START_PATH} "${VM_NAME}"
+		done
+		exit
+	fi
+
 	for VM_NAME in ${@}
 	do
 		${FDO_VMS_LIST_PATH} --concise --type=all | awk '{print $1}' | egrep "^${VM_NAME}$" > /dev/null 2>&1
@@ -64,7 +73,16 @@ fdo_vms_stop () {
 	then
 		for VM_NAME in `${FDO_VMS_LIST_PATH} --concise | egrep -v " stopped$" | awk '{print $1}'`
 		do
-			${FDO_VMS_STOP_PATH} "${VM_NAME}"
+			${FDO_VMS_STOP_PATH} "${VM_NAME}" ${FDO_VMS_STOP_OPTIONS}
+		done
+		exit
+	fi
+
+	if [ ${#} -eq 1 ] && [ "${1}" = "all" ]
+	then
+		for VM_NAME in `${FDO_VMS_LIST_PATH} --concise --type=all | egrep -v " stopped$" | awk '{print $1}'`
+		do
+			${FDO_VMS_STOP_PATH} "${VM_NAME}" ${FDO_VMS_STOP_OPTIONS}
 		done
 		exit
 	fi
@@ -80,7 +98,7 @@ fdo_vms_stop () {
 		${FDO_VMS_LIST_PATH} --concise --type=all | egrep -v " stopped$" | awk '{print $1}' | egrep "^${VM_NAME}$" > /dev/null 2>&1
 		if [ ${?} -eq 0 ]
 		then
-			${FDO_VMS_STOP_PATH} "${VM_NAME}" "${FDO_VMS_STOP_OPTIONS}"
+			${FDO_VMS_STOP_PATH} "${VM_NAME}" ${FDO_VMS_STOP_OPTIONS}
 		fi
 	done
 }
