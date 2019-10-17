@@ -211,7 +211,9 @@ then
 			if [ "${ANSWER}" = "yes" ]
 			then
 				JAIL_NAME="${JAIL_NAME_TEMP}"
+				break
 			fi
+			sleep 4
 		done
 	fi
 	CONFIG_ROOT="/jls/${JAIL_NAME}${CONFIG_ROOT}"
@@ -251,7 +253,9 @@ do
 	if [ "${ANSWER}" = "yes" ]
 	then
 		SITE="${SITE_TEMP}"
+		break
 	fi
+	sleep 4
 done
 
 CONFIG_FILE="${CONFIG_ROOT}/${SITE}"

@@ -217,7 +217,9 @@ then
 			if [ "${ANSWER}" = "yes" ]
 			then
 				JAIL_NAME="${JAIL_NAME_TEMP}"
+				break
 			fi
+			sleep 4
 		done
 	fi
 	CONFIG_FILE="/jls/${JAIL_NAME}${CONFIG_FILE}"
