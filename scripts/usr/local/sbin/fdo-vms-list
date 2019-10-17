@@ -28,6 +28,7 @@
 
 SCRIPT_NAME=`basename ${0}`
 NUM_MANDATORY_ARGS=0
+HOST_CONF_PATH=${HOST_CONF_PATH:-"/usr/local/etc/fdo/host.conf"}
 VMS_CONF_PATH=${VMS_CONF_PATH:-"/usr/local/etc/fdo/vms.conf"}
 VMM_PATH="/dev/vmm"
 UCL_CMD="/usr/local/bin/uclcmd"
@@ -217,25 +218,53 @@ then
 	exit 1
 fi
 
+# Check that this is run from the host, and not a jail.
 test_if_host
-
 if [ "${IS_HOST}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
 	exit 1
 fi
 
+# Check that VMs config file exists.
 if [ ! -f ${VMS_CONF_PATH} ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The VMs config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The VMs config file '${VMS_CONF_PATH}' does not exist!\n       Aborting.\n"
 	exit 1
 fi
 
-VMS_POOL_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .general.pool_name`
-if [ "${VMS_POOL_NAME}" = "null" ] || [ "${VMS_POOL_NAME}" = "" ]
+# Check that the host.conf file is accessible.
+TEST_CONTENTS=`uclcmd get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_CONTENTS}" = "null" ] || [ "${TEST_CONTENTS}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The VM subsystem appears to be uninitialised!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check that the vms.conf file is accessible.
+TEST_CONTENTS=`uclcmd get -u -f ${VMS_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_CONTENTS}" = "null" ] || [ "${TEST_CONTENTS}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${VMS_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check that the VMs subsystem is initialised.
+VMS_SUBSYS_COMPAT=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .subsystems.vms_compat`
+if [ ${?} -ne 0 ] || [ "${VMS_SUBSYS_COMPAT}" = "null" ] || [ "${VMS_SUBSYS_COMPAT}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} It appears that the VMs subsystem is not initialised!"
+	echo -e "       Consider using the command:"
+	echo -e "       ${LBLU}${SCRIPT_NAME} init-vms${NRML}\n       Aborting.\n"
 	exit 1
+fi
+
+# Get the VMs pool name from the host config file.
+VMS_POOL_NAME=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.vms_pool`
+if [ ${?} -ne 0 ] || [ "${VMS_POOL_NAME}" = "null" ] || [ "${VMS_POOL_NAME}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to get the VMs pool name from the host config file!\n       Aborting.\n"
+	exit 2
 fi
 
 
