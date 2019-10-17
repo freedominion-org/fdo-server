@@ -30,11 +30,12 @@ SCRIPT_NAME=`basename ${0}`
 USERNAME="${1}"
 DISPLAY_NAME="${2}"
 NUM_MANDATORY_ARGS=2
+UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT="/usr/local/etc/fdo"
 HOME_ZFS_NAME=`cat ${FDO_CONFIG_ROOT}/hotdesk-home-zfs-name.conf`
 DEFAULT_LAN_SUBNET_B="10.0"
-CONFIG_LAN_NET_IFACE=`cat ${FDO_CONFIG_ROOT}/net_iface_lan.conf 2> /dev/null`
-if [ ${?} -ne 0 ]
+CONFIG_LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.lan.id`
+if [ ${?} -ne 0 ] || [ "${CONFIG_LAN_NET_IFACE}" = "null" ] || [ "${CONFIG_LAN_NET_IFACE}" = "" ]
 then
     SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
 else

@@ -16,7 +16,12 @@ PXE_SERVER_IP=${PXE_SERVER_IP:-"${JAILS_LAN_SUBNET_C}.46"}                     #
 prep_recipe ()
 {
 	# Get the LAN network interface name
-	LAN_NET_IFACE=`cat /usr/local/etc/fdo/net_iface_lan.conf`
+	LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.lan.id`
+	if [ ${?} -ne 0 ] || [ "${LAN_NET_IFACE}" = "null" ] || [ "${LAN_NET_IFACE}" = "" ]
+	then
+		PREP_SUCCESS="no"
+		return
+	fi
 
 	# DHCP can not run on lo1
 	if [ "${LAN_NET_IFACE}" = "lo1" ]
