@@ -61,7 +61,7 @@ usage ()
 	echo -e "${YELL}Description:${NRML} find all occurences of search text within a directory or file."
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} search_text search_directory [--case-insenstive]${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} needle /usr/local/share/haystack$ --case-insensitive{NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} needle /usr/local/share/haystack$ --case-insensitive${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} \"Needle in a\" /home/haystack${NRML}"
 	echo -e ""
 	echo -e "${ORNG}Note:    ${NRML} It's recommended to use single quotes around the search text."

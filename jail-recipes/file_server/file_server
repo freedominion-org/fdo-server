@@ -14,22 +14,21 @@ LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 prep_recipe()
 {
 	# Find the http_gateway jail
-	HTTP_GATEWAY_JAIL=""
-	for RECIPE_MARKER in `ls /jls/*/.fdo-jail-recipe.inf`
-	do
-		egrep "^http_gateway$" ${RECIPE_MARKER} > /dev/null
-		if [ $? -eq 0 ]
-		then
-			HTTP_GATEWAY_JAIL=`echo ${RECIPE_MARKER} | cut -d/ -f3`
-			break
-		fi
-	done
-
-	if [ "HTTP_GATEWAY_JAIL" == "" ]
+	# ASSUME there is only one http_gateway jail on this host and take the first one in the found list.
+	find_jails_from_recipe_name "http_gateway"
+	NUM_FOUND_JAILS=`echo ${FOUND_RECIPE_JAILS} | wc -w`
+	if [ ${NUM_FOUND_JAILS} -lt 1 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} It appears there is no http_gateway recipe jail on this host!\n" 
 		PREP_SUCCESS="no"
 		return
+	fi
+	if [ ${NUM_FOUND_JAILS} -lt 2 ]
+	then
+		HTTP_GATEWAY_JAIL=${FOUND_RECIPE_JAILS}
+	else
+		echo -e "\n${ORNG}WARNING:${NRML} More than one '${RECIPE_NAME}' recipe jail was found!\         Using the first found recipe jail config.\n"
+		HTTP_GATEWAY_JAIL=`echo ${FOUND_RECIPE_JAILS} | cut -d" " -f1`
 	fi
 
 	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a"
@@ -52,35 +51,6 @@ prep_recipe()
 	fi
 
 	PREP_SUCCESS="yes"
-}
-
-seasoning_suggestions ()
-{
-	echo -e "\n${ORNG}NOTICE:${NRML} There are further steps required to get this jail operational:\n"
-	echo -e   "        ${ORNG}[1]${NRML} The ZFS filesystems holding the 'shares' and 'users' files"
-	echo -e   "        directories should have their mountpoints set to the jailed paths;"
-	echo -e   "        '/w3/${SHORT_SITE_NAME}/shares' and '/w3/${SHORT_SITE_NAME}/users'"
-	echo -e   "        respectively."
-	echo -e   "        They should also have user and group ownership set to 'www'.\n"
-	echo -e   "        Example 1 (new filesytems):"
-	echo -e   "        ${LBLU}zfs create -o compression=on \\${NRML}"
-	echo -e   "        ${LBLU}           -o casesensitivity=insensitive \\${NRML}"
-	echo -e   "        ${LBLU}           -o mountpoint=/jls/${JAIL_NAME}/w3 \\${NRML}"
-	echo -e   "        ${LBLU}           ${JAILS_POOL_NAME}/files${NRML}"
-	echo -e   "        ${LBLU}zfs create ${JAILS_POOL_NAME}/files/${SHORT_SITE_NAME}${NRML}"
-	echo -e   "        ${LBLU}zfs create ${JAILS_POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}"
-	echo -e   "        ${LBLU}zfs create ${JAILS_POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}"
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}"
-	echo -e   "        Example 2 (existing filesystems):"
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/shares \\${NRML}"
-	echo -e   "        ${LBLU}        ${JAILS_POOL_NAME}/files/${SHORT_SITE_NAME}/shares${NRML}"
-	echo -e   "        ${LBLU}zfs set mountpoint=/jls/${JAIL_NAME}/w3/${SHORT_SITE_NAME}/users \\${NRML}"
-	echo -e   "        ${LBLU}        ${JAILS_POOL_NAME}/files/${SHORT_SITE_NAME}/users${NRML}"
-	echo -e   "        ${LBLU}chown -R www:www /jls/${JAIL_NAME}/w3${NRML}\n"
-	echo -e   "        ${ORNG}[2]${NRML} ACL's control which users and groups are allowed to read and write"
-	echo -e   "        to these shares. ACL's must be added to the following file in this jail:"
-	echo -e   "        ${ORNG}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}${NRML}"
-	echo -e   "        Consult the FDo documentation for ACL management commands.\n"
 }
 
 cook_recipe ()
@@ -252,14 +222,23 @@ cook_recipe ()
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}${NRML}\n"
 	else
-		echo "dns_cache" > /jls/${JAIL_NAME}/.fdo-affected-recipe-jails.inf
+		${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .general.affected_recipe_jails "dns_cache"
 	fi
 
 	# Restart the http_gateway recipe jail nginx service
 	start_jail_service ${HTTP_GATEWAY_JAIL} nginx --allow-restart
 
-	seasoning_suggestions
-	seasoning_suggestions > /jls/${JAIL_NAME}/.fdo-post-cooking-steps.inf
+	# Get seasoning suggestion message from recipe.conf.
+	SEASONING_SUGGESTION_MSG=`${UCL_CMD} get -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .seasoning_suggestion.message`
+
+	# Echo the seasoning suggestion message to the terminal, expanding any variables.
+	eval echo -e "\"\n${YELL}Seasoning suggestion:${NRML}\n${SEASONING_SUGGESTION}\n\""
+
+	# Set the seasoning suggestion message in recipe.conf after expanding any variables.
+	EXPANDED_SEASONING_SUGGESTION_MSG=`eval echo -e "\"${SEASONING_SUGGESTION}\""`
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .seasoning_suggestion.message "${EXPANDED_SEASONING_SUGGESTION_MSG}"
+
+	pause_prompt 15
 
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"

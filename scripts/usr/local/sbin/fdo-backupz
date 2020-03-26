@@ -27,23 +27,19 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-DAV_SERVER_USERID=`cat /usr/local/etc/fdo/webdav_userid.conf`
-DAV_SERVER_GROUPID=`cat /usr/local/etc/fdo/webdav_groupid.conf`
 DATE_CMD=/bin/date
 DATE_VERSION="freebsd" #choices of "freebsd" and "gnu"
 NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
-POOL=${1}
-BACKUP_POOL=${2}
+FILESYSTEM="${1}"
+BACKUP_POOL="${2}"
 NUM_MANDATORY_ARGS=2
-DAY_IN_SECS=86400
-CLONE_WINDOW_DAYS=5
-NOW_IN_SECS=`${DATE_CMD} +%s`
-DESTROY_BEFORE=`expr ${NOW_IN_SECS} - \( ${CLONE_WINDOW_DAYS} \* ${DAY_IN_SECS} \)`
-ZFS_SEND_FLAGS=`cat /usr/local/etc/fdo/backupz_send_flags.conf`
-WARNING_CODE=0
-WARNING_SNAPSHOT="NULL"
-ERROR_CODE=0
-ERROR_SNAPSHOT="NULL"
+ERROR_ID="null"
+ERROR_DATASET="null"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
+STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -72,7 +68,7 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool_to_backup backup_pool${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} filesystem_to_backup backup_pool${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} zroot backup${NRML}"
 	echo -e ""
 }
@@ -102,17 +98,31 @@ done
 
 ##### FUNCTIONS ################################################################
 
-warning_occured () {
-	echo "backup timestamp: ${NOW}" >> ${BACKUP_POOL_ROOT_PATH}/backupz-warning-${POOL}@${BACKUP_POOL}.inf
-	echo "snapshot: ${WARNING_SNAPSHOT}" >> ${BACKUP_POOL_ROOT_PATH}/backupz-warning-${POOL}@${BACKUP_POOL}.inf
-	echo "warning code: ${WARNING_CODE}" >> ${BACKUP_POOL_ROOT_PATH}/backupz-warning-${POOL}@${BACKUP_POOL}.inf
-}
+error_occurred () {
 
-error_occured () {
-	echo "backup timestamp: ${NOW}" > ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf
-	echo "snapshot: ${ERROR_SNAPSHOT}" >> ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf
-	echo "error code: ${ERROR_CODE}" >> ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf
-	rm ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
+	# Wait for backupz state to be unlocked.
+	while [ -f ${STATE_PATH}.lock ]
+	do
+		echo -e "\n${YELL}Waiting for backupz state lock file to be unlocked...${NRML}\n"
+		sleep 2
+	done
+
+	# Lock the backupz state with a lock file copy.
+	cp ${STATE_PATH} ${STATE_PATH}.lock
+
+	# Set job state to 'failed'.
+	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "failed"
+	# Set job error identifier.
+	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id "${ERROR_ID}"
+	# Set job error snapshot.
+	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset "${ERROR_DATASET}"
+
+	# Remove backupz state lock and exit.
+	rm ${STATE_PATH}.lock
+	echo -e "\n${LRED}ERROR:${NRML} There was an unexpected error during the backup process!"
+	echo -e "       Error ID: ${ERROR_ID}\n       Dataset: ${ERROR_DATASET}\n       Aborting.\n"
+	echo -e "\nERROR: There was an unexpected error during the backup process!" >> ${LOG_FILE_PATH}
+	echo -e "       Error ID: ${ERROR_ID}\n       Dataset: ${ERROR_DATASET}\n       Aborting.\n" >> ${LOG_FILE_PATH}
 	exit 2
 }
 
@@ -148,53 +158,83 @@ fi
 BACKUP_POOL_ATTRIBUTES=`zpool get -H all ${BACKUP_POOL} 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be imported.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The target backup pool '${BACKUP_POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 1
 fi
 
-BACKUP_POOL_HEALTH=`zpool get -H health ${BACKUP_POOL} | awk '{print $3}' 2> /dev/null`
+BACKUP_POOL_HEALTH=`zpool get -H -o value health ${BACKUP_POOL} 2> /dev/null`
 if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The target backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
+zfs list -H -o name "${FILESYSTEM}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem '${FILESYSTEM}' does not appear to exist.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
-if [ "${POOL_HEALTH}" != "ONLINE" ]
+FILESYSTEM_POOL=`echo ${FILESYSTEM} | cut -d"/" -f1`
+
+FILESYSTEM_POOL_ATTRIBUTES=`zpool get -H all ${FILESYSTEM_POOL} 2> /dev/null`
+if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem pool '${FILESYSTEM_POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 1
 fi
 
-BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
+FILESYSTEM_POOL_HEALTH=`zpool get -H -o value health ${FILESYSTEM_POOL} 2> /dev/null`
+if [ "${FILESYSTEM_POOL_HEALTH}" != "ONLINE" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The last backup from '${POOL}' to '${BACKUP_POOL}' failed!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem pool '${FILESYSTEM_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 1
 fi
 
-if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
+if [ ! -e "${HOST_CONF_PATH}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} There apppers to be a backup running for '${POOL}'!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'\n       appears to be missing.\n       Aborting.\n"
 	exit 1
 fi
 
-pgrep -fl "fdo-backupz-repair-state" > /dev/null 2>&1
+BACKUP_POOL_ROOT_PATH=`zfs list -H -o mountpoint ${BACKUP_POOL}`
+TEST_BACKUP_POOL=`df -t zfs ${BACKUP_POOL_ROOT_PATH} | tail -1 | awk '{print $1}'`
+if [ "${TEST_BACKUP_POOL}" != "${BACKUP_POOL}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be mounted!\n       Aborting.\n"
+	exit 1
+fi
+
+JOB_STATE=`${UCL_CMD} get -f ${STATE_PATH} -q .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state 2> /dev/null`
+if [ "${JOB_STATE}" = "failed" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The previous backup from '${FILESYSTEM}' to '${BACKUP_POOL}' failed!\n       Aborting.\n"
+	exit 1
+elif [ "${JOB_STATE}" = "running" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${JOB_STATE}" = "repairing" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a repair job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${JOB_STATE}" = "thinning" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin snapshots job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that we are not currently running a repair backupz state operation.
+pgrep -fl "fdo-backupz-repair-state " > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup repair operation running!\n       Aborting.\n"
 	exit 1
 fi
 
-pgrep -fl "fdo-backupz-thin-snapshots" > /dev/null 2>&1
+# Check that we are not currently running a backupz thin-snapshots operation.
+pgrep -fl "fdo-backupz-thin-snapshots " > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots operation running!\n       Aborting.\n"
@@ -204,138 +244,252 @@ fi
 
 ##### MAIN EXECUTION THREAD ####################################################
 
+ERROR_COUNT=0
+
+# Create temp files and log file path variables.
+FILESYSTEM_FLAT=`echo "${FILESYSTEM}" | sed "s|/|__|g"`
+SNAPSHOTS_LIST_PATH="/tmp/fdo-backupz-${FILESYSTEM_FLAT}@${BACKUP_POOL}-snapshots.list"
+DATASETS_LIST_PATH="/tmp/fdo-backupz-${FILESYSTEM_FLAT}@${BACKUP_POOL}-datasets.list"
+LOG_FILE_PATH="${BACKUP_POOL_ROOT_PATH}/log/backupz.${NOW}.${FILESYSTEM_FLAT}@${BACKUP_POOL}.log"
+
+# Get ZFS send flags from this hosts' config file.
+ZFS_SEND_FLAGS=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.backupz.zfs_send_flags 2> /dev/null`
+if [ ${?} -ne 0 ] || [ "${ZFS_SEND_FLAGS}" = "null" ] || [ "${ZFS_SEND_FLAGS}" = "" ]
+then
+	ZFS_SEND_FLAGS=""
+fi
+
 # Create log filesystem if log directory doesn't already exist.
 if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
 then
 	zfs create -o mountpoint=${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
-if [ -f ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf ]
+# Get previously completed backup job name from backupz state file.
+if [ "${JOB_STATE}" = "completed" ]
 then
-	PREVIOUS=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf`
+	COMPLETED_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name 2> /dev/null`
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	echo -e "\n${YELL}Previous completed backup job:${NRML} ${COMPLETED_JOB}"
 else
-	PREVIOUS="last-successful-backupz-missing"
+	COMPLETED_JOB="no-previous-job-completed"
+	echo -e "\n${YELL}No previously completed job for this backup!${NRML}"
 fi
 
-echo "Previous backup: ${PREVIOUS}"
+# Check the current backupz job name is not the same as the previous completed job name.
+# This can happen if the same backup is run consecutively within the same minute.
+if [ "${NOW}" = "${COMPLETED_JOB}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The previous completed job for this filesystem has the same name!;\n       '${NOW}'\n       Aborting.\n"
+	exit 1
+fi
 
-
-echo ${NOW} > ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
-
-# Recursively snapshot pool_to_backup.
-zfs snapshot -r ${POOL}@${NOW}
-
-zfs list -H -t all -r ${POOL} | awk '{print $1}' > /tmp/backupz-${POOL}@${BACKUP_POOL}-datasets.list
-zfs list -H -t snapshot -r ${BACKUP_POOL} | awk '{print $1}' > /tmp/backupz-${POOL}@${BACKUP_POOL}-snapshots.list
-
-SNAPSHOT_NAMES=`cat /tmp/backupz-${POOL}@${BACKUP_POOL}-datasets.list | grep ${NOW}`
-
-# Recusively unmount backup pool filesystems
-for FILESYSTEM_TO_UNMOUNT in `zfs list -r ${BACKUP_POOL}/${POOL} | awk '{print $1}' | tail +2 | sort -r`
+# Wait for backupz state to be unlocked.
+while [ -f ${STATE_PATH}.lock ]
 do
-	echo "Unmounting ${FILESYSTEM_TO_UNMOUNT} ..." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-	echo -e "${YELL}Unmounting ${FILESYSTEM_TO_UNMOUNT} ...${NRML}"
+	echo -e "\n${YELL}Waiting for backupz state lock file to be unlocked...${NRML}\n"
+	sleep 2
+done
+
+# Make a lock file recovery copy of the existing backupz state file.
+touch ${STATE_PATH}
+cp ${STATE_PATH} ${STATE_PATH}.lock
+
+echo -e "Beginning backupz job for filesystem '${FILESYSTEM}'.\n" >> ${LOG_FILE_PATH}
+echo -e "Current job state: ${JOB_STATE}" >> ${LOG_FILE_PATH}
+echo -e "Previous completed job: ${COMPLETED_JOB}\n" >> ${LOG_FILE_PATH}
+
+if [ "${COMPLETED_JOB}" = "no-previous-job-completed" ]
+then
+	# Create the UCL structure for a new backupz job.
+	:> ${STATE_PATH}.updates
+	${UCL_CMD} set -f ${STATE_PATH}.updates -t object pools \
+		"{ ${BACKUP_POOL} { filesystems { ${FILESYSTEM} { job_state = "running"; current_job_name = "${NOW}"; } } } }" 2> /dev/null
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	${UCL_CMD} merge -f ${STATE_PATH} -i ${STATE_PATH}.updates -o ${STATE_PATH} . 2> /dev/null
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	rm ${STATE_PATH}.updates
+else
+
+	# Set the job state to 'running' for this job.
+	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "running"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Set the current job name to NOW (timestamp) for this job.
+	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name "${NOW}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+fi
+
+# If we hit any errors so far, let's not proceed and revert backupz state file.
+# We'll ASSUME that the backupz state file may not be created, so we can't set a failed state.
+# Any errors or warnings after this can set a failed state, error and warning markers.
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There was an unexpected error preparing the backupz job!\n       Aborting.\n"
+	mv ${STATE_PATH}.lock ${STATE_PATH}
+	echo -e "\nERROR: There was an unexpected error preparing the backupz job!\n       Aborting." >> ${LOG_FILE_PATH}
+	exit 2
+fi
+
+# ASSUME that preparation was successful, so let's remove the state lock and proceed.
+rm ${STATE_PATH}.lock
+
+# Recursively snapshot filesystem_to_backup.
+echo -e "\n${YELL}Creating snapshots of source filesystem and it's decendants...${NRML}\n"
+echo -e "\nCreating snapshots of source filesystem and it's decendants...\n" >> ${LOG_FILE_PATH}
+zfs snapshot -r ${FILESYSTEM}@${NOW}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+zfs list -H -o name -t all -r ${FILESYSTEM} > ${DATASETS_LIST_PATH}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+zfs list -H -o name -t snapshot -r ${BACKUP_POOL} > ${SNAPSHOTS_LIST_PATH}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+SNAPSHOT_NAMES=`cat ${DATASETS_LIST_PATH} | grep ${NOW}`
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# If any errors, display error message, set job state to "failed" and exit.
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	ERROR_ID="Snapshot process"
+	ERROR_DATASET="null"
+	error_occurred
+fi
+
+# Recursively unmount backup pool filesystems.
+# We'll ASSUME that it's OK to proceed without warning if the 'zfs umount' command returns with an error.
+for FILESYSTEM_TO_UNMOUNT in `zfs list -H -o name -r ${BACKUP_POOL}/${FILESYSTEM_FLAT} 2> /dev/null | sort -r`
+do
+	echo -e "${YELL}Unmounting '${NRML}${FILESYSTEM_TO_UNMOUNT}${YELL}' ...${NRML}"
+	echo -e "Unmounting ${FILESYSTEM_TO_UNMOUNT} ..." >> ${LOG_FILE_PATH}
 	zfs umount -f ${FILESYSTEM_TO_UNMOUNT}
 done
+
+echo -e "\n\nRecursively sending snapshots from source pool to backup pool..." >> ${LOG_FILE_PATH}
 
 for SNAPSHOT_NAME in ${SNAPSHOT_NAMES}
 do
 	SNAPSHOT_PARENT=`echo ${SNAPSHOT_NAME} | sed "s/@.*//"`
-	cat /tmp/backupz-${POOL}@${BACKUP_POOL}-snapshots.list | grep "^${BACKUP_POOL}/${SNAPSHOT_PARENT}@"
-	if [ ${?} = 0 ]
+	SNAPSHOT_PARENT_FLAT=`echo "${SNAPSHOT_PARENT}" | sed "s|${FILESYSTEM}|${FILESYSTEM_FLAT}|"`
+	cat ${SNAPSHOTS_LIST_PATH} | grep "^${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}@" > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
 	then
-		# ZFS dataset DOES exist on backup pool.
-		echo "zfs dataset DOES exist on backup pool:"
-		echo "${SNAPSHOT_NAME}"
+		# ZFS filesystem DOES exist on backup pool.
+		echo -e "\n${YELL}ZFS filesystem DOES exist on backup pool:${NRML}\n${SNAPSHOT_PARENT}"
+		echo -e "\nZFS filesystem DOES exist on backup pool:\n${SNAPSHOT_PARENT}" >> ${LOG_FILE_PATH}
+
 		# Send incremental snapshot to backup pool.
-		echo "zfs send ${ZFS_SEND_FLAGS} -i ${PREVIOUS} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT}"
-		zfs send ${ZFS_SEND_FLAGS} -i ${PREVIOUS} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT}
-		if [ ${?} != 0 ]
+		echo -e "${LBLU}zfs send ${ZFS_SEND_FLAGS} -i ${COMPLETED_JOB} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}${NRML}"
+		zfs send ${ZFS_SEND_FLAGS} -i ${COMPLETED_JOB} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
+		if [ ${?} -ne 0 ]
 		then
-			ERROR_CODE=1
-			ERROR_SNAPSHOT=${SNAPSHOT_NAME}
-			error_occured
+			ERROR_ID="Sending incremental snapshot of existing filesystem."
+			ERROR_DATASET="${SNAPSHOT_NAME}"
+			error_occurred
 		fi
 	else
 		# ZFS dataset DOES NOT exist on backup pool.
-		echo "zfs dataset DOES NOT exist on backup pool:"
-		echo "${SNAPSHOT_NAME}"
-		# Send new dataset to backup pool.
-		echo "zfs send ${ZFS_SEND_FLAGS} -p ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}"
-		zfs send ${ZFS_SEND_FLAGS} -p ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT}
-		if [ ${?} != 0 ]
+		echo -e "\n${YELL}ZFS filesystem DOES NOT exist on backup pool:${NRML}\n${SNAPSHOT_PARENT}"
+		echo -e "\nZFS filesystem DOES NOT exist on backup pool:\n${SNAPSHOT_PARENT}" >> ${LOG_FILE_PATH}
+
+		# Send new filesystem to backup pool.
+		echo -e "${LBLU}zfs send ${ZFS_SEND_FLAGS} -p ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}${NRML}"
+		zfs send ${ZFS_SEND_FLAGS} -p ${SNAPSHOT_NAME} | zfs receive -u ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
+		if [ ${?} -ne 0 ]
 		then
-			ERROR_CODE=2
-			ERROR_SNAPSHOT=${SNAPSHOT_NAME}
-			zfs destroy -Rf ${BACKUP_POOL}/${SNAPSHOT_PARENT}
-			error_occured
+			ERROR_ID="Sending new filesystem."
+			ERROR_DATASET="${SNAPSHOT_NAME}"
+			error_occurred
 		fi
 
-		SNAPSHOT_PARENT_MOUNT_POINT=`zfs get -H mountpoint ${SNAPSHOT_PARENT} | awk '{print $3}'`
+		SNAPSHOT_PARENT_MOUNT_POINT=`zfs get -H -o value mountpoint ${SNAPSHOT_PARENT}`
 		if [ "${SNAPSHOT_PARENT_MOUNT_POINT}" != "none" ]
 		then
-			zfs set mountpoint=${BACKUP_POOL_ROOT_PATH}/${POOL}${SNAPSHOT_PARENT_MOUNT_POINT} ${BACKUP_POOL}/${SNAPSHOT_PARENT}
-			zfs set quota=none ${BACKUP_POOL}/${SNAPSHOT_PARENT}
+			zfs set mountpoint=${BACKUP_POOL_ROOT_PATH}/${FILESYSTEM}${SNAPSHOT_PARENT_MOUNT_POINT} ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
+			if [ ${?} -ne 0 ]
+			then
+				ERROR_ID="Setting mountpoint of backup pool filesystem."
+				ERROR_DATASET="${BACKUP_POOL}/${SNAPSHOT_PARENT}"
+				error_occurred
+			fi
+			zfs set quota=none ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
+			if [ ${?} -ne 0 ]
+			then
+				ERROR_ID="Setting quota to 'none' for backup pool filesystem."
+				ERROR_DATASET="${BACKUP_POOL}/${SNAPSHOT_PARENT}"
+				error_occurred
+			fi
 		fi
-
 	fi
-
 done
 
+# Wait for backupz state to be unlocked.
+while [ -f ${STATE_PATH}.lock ]
+do
+	echo -e "\n${YELL}Waiting for backupz state lock file to be unlocked...${NRML}\n"
+	sleep 2
+done
 
-if [ "${PREVIOUS}" != "last-successful-backupz-missing" ]
+# Lock the backupz state with a lock file copy.
+cp ${STATE_PATH} ${STATE_PATH}.lock
+
+# Assuming backup was successful, set job state to 'completed' and completed_job_name and current_job_name accordingly.
+${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "completed"
+${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name "${NOW}"
+${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name "null"
+
+# Remove backupz state lock.
+rm ${STATE_PATH}.lock
+
+# If this is not the first backupz job run, destroy any unwanted, previous snapshots.
+if [ "${COMPLETED_JOB}" != "no-previous-job-completed" ]
 then
+	echo -e "\n\nRecursively destroy previous and unwanted snapshots from source pool..." >> ${LOG_FILE_PATH}
 
 	for SNAPSHOT_NAME in ${SNAPSHOT_NAMES}
 	do
-
 		SNAPSHOT_PARENT=`echo ${SNAPSHOT_NAME} | sed "s/@.*//"`
 
-		# Destroy previous snapshots on pool, we only want them on backup pool. Must always keep last snapshot for sending increment.
-		cat /tmp/backupz-${POOL}@${BACKUP_POOL}-datasets.list | grep ${SNAPSHOT_PARENT}@${PREVIOUS}
-		if [ ${?} = 0 ]
+		# Destroy previously completed snapshots on pool, we only want them on the backup pool.
+		# We must always keep the previous snapshot for sending incrementally.
+		cat ${DATASETS_LIST_PATH} | grep ${SNAPSHOT_PARENT}@${COMPLETED_JOB} > /dev/null 2>&1
+		if [ ${?} -eq 0 ]
 		then
-			echo "Destroy previous snapshot: ${SNAPSHOT_PARENT}@${PREVIOUS}"
-			zfs destroy ${SNAPSHOT_PARENT}@${PREVIOUS}
-			if [ ${?} != 0 ]
+			echo -e "\n${YELL}Destroy previously completed snapshot:${NRML}\n${SNAPSHOT_PARENT}@${COMPLETED_JOB}"
+			echo -e "\nDestroy previously completed snapshot:\n${SNAPSHOT_PARENT}@${COMPLETED_JOB}" >> ${LOG_FILE_PATH}
+			zfs destroy ${SNAPSHOT_PARENT}@${COMPLETED_JOB}
+			if [ ${?} -ne 0 ]
 			then
-				ERROR_CODE=5
-				ERROR_SNAPSHOT=${SNAPSHOT_PARENT}@${PREVIOUS}
-				error_occured
+				echo -e "\n${LRED}ERROR:${NRML} Failed to destroy snapshot '${SNAPSHOT_PARENT}@${COMPLETED_JOB}'\n"
+				echo -e "\nERROR: Failed to destroy snapshot '${SNAPSHOT_PARENT}@${COMPLETED_JOB}'\n" >> ${LOG_FILE_PATH}
 			fi
 		fi
-
-		echo ""
-
 	done
-
 fi
 
-# Recusively remount backup pool filesystems
-for FILESYSTEM_TO_MOUNT in `zfs list -r ${BACKUP_POOL}/${POOL} | awk '{print $1}' | tail +2`
+echo -e ""
+echo -e "\n\nRecursively re-mounting filesystems on backup pool...\n" >> ${LOG_FILE_PATH}
+
+# Recursively remount backup pool filesystems
+# We'll ASSUME that it's OK to proceed without warning if the 'zfs mount' command returns with an error.
+for FILESYSTEM_TO_MOUNT in `zfs list -H -o name -r ${BACKUP_POOL}/${FILESYSTEM_FLAT}`
 do
-	echo "Mounting ${FILESYSTEM_TO_MOUNT} ..." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+	echo -e "Mounting ${FILESYSTEM_TO_MOUNT} ..." >> ${LOG_FILE_PATH}
 	echo -e "${YELL}Mounting ${FILESYSTEM_TO_MOUNT} ...${NRML}"
 	zfs mount ${FILESYSTEM_TO_MOUNT}
 done
 
-# Write to log file.
+# Write post-job stats to log file.
 TIMESTAMP=`${DATE_CMD} +%Y-%m-%d_%H-%M-%S`
-echo "${TIMESTAMP} backup for ${NOW} finished! " >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "${TIMESTAMP} zpool list:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-zpool list >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "${TIMESTAMP} zpool status:" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-zpool status >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-echo "" >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
+echo -e "\n${TIMESTAMP} Backup operations for job '${NOW}' finished." >> ${LOG_FILE_PATH}
+echo -e "\n${TIMESTAMP} zpool list:" >> ${LOG_FILE_PATH}
+zpool list >> ${LOG_FILE_PATH}
+echo -e "\n${TIMESTAMP} zpool status:" >> ${LOG_FILE_PATH}
+zpool status >> ${LOG_FILE_PATH}
 
-# Assuming backup successful, report last snapshot timestamp and remove 'is-running' marker.
-echo ${NOW} > ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf
-
-echo "Backupz finished." >> ${BACKUP_POOL_ROOT_PATH}/log/backupz-${POOL}@${BACKUP_POOL}.${NOW}.log
-
-# Remove backup 'is-running' marker file.
-rm ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
+echo -e "\nBackupz job '${NOW}' complete!" >> ${LOG_FILE_PATH}
+echo -e "\n${LGRN}Backupz job '${NRML}${NOW}${LGRN}' complete!${NRML}\n"
 
 ################################################################################

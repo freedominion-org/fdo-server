@@ -27,16 +27,21 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-POOL=${1}
-BACKUP_POOL=${2}
-OFFSET_DAYS=${3}
-INTERVAL_DAYS=${4}
+FILESYSTEM="${1}"
+BACKUP_POOL="${2}"
+OFFSET_DAYS="${3}"
+INTERVAL_DAYS="${4}"
 NUM_MANDATORY_ARGS=4
-FILESYSTEM_FILTER=""
+FILTER=""
 SIMULATION_MODE="no"
 NOW=`date +%s`
 NOW_DATE_TIME=`date +%Y-%m-%d_%H-%M`
 DAY_IN_SECS=86400
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
+STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -65,13 +70,13 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool backup_pool offset interval [--simulate]${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} filesystem backup_pool offset interval [--simulate]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7 --simulate${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data/somedb backup 28 7 --simulate${NRML}"
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool backup_pool offset interval [--filter=\"filesystem_filter\"] [--simulate]${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} filesystem backup_pool offset interval [--filter=\"filesystem_filter\"] [--simulate]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7 --filter=\"/users\"${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup 28 7 --filter=\"/users\" --simulate${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data/somedb backup 28 7 --filter=\"/users\" --simulate${NRML}"
 	echo -e ""
 	echo -e "${GREY}Note   :  offset and interval are in number of days.${NRML}"
 	echo -e ""
@@ -96,7 +101,7 @@ do
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
 			--filter)
-				FILESYSTEM_FILTER="${OPTIONAL_ARG_VALUE}"
+				FILTER="${OPTIONAL_ARG_VALUE}"
 				;;
 			--simulate)
 				SIMULATION_MODE="yes"
@@ -119,95 +124,121 @@ done
 thin_snapshots_by_filesystem()
 {
 
-	FILESYSTEM=${1}
+	FS_TO_THIN="${1}"
 
-	SNAPSHOTS=`zfs list -r -d 1 -H -t snapshot -o name ${FILESYSTEM}`
+	# Prepare a UCL temp file to use it's arrays feature, since posix shell doesn't have one.
+	:> "${TEMPDATA_PATH}"
+	uclcmd set -f "${TEMPDATA_PATH}" -t object . "snapshot_names=[]; snapshot_timestamps=[]; snapshot_actions=[]; projections=[];"
 
+	# Get a list of snapshots for this specific filesystem.
+	SNAPSHOTS=`zfs list -r -d 1 -H -t snapshot -o name ${FS_TO_THIN}`
 	EARLIEST_TIMESTAMP=${NOW}
 	i=0
+
+	# Populate a set of arrays with snapshot details to manage which snapshots to keep or destroy.
 	for SNAPSHOT in ${SNAPSHOTS}
 	do
-		SNAPSHOT_NAMES[${i}]=${SNAPSHOT}
-		SNAPSHOT_TIMESTAMPS[${i}]=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
-		SNAPSHOT_ACTION[${i}]="keep"
+		SNAPSHOT_TIMESTAMP=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
+		uclcmd set -f "${TEMPDATA_PATH}" .snapshot_names.${i} "${SNAPSHOT}"
+		uclcmd set -f "${TEMPDATA_PATH}" .snapshot_timestamps.${i} "${SNAPSHOT_TIMESTAMP}"
+		uclcmd set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "keep"
 
-		if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${EARLIEST_TIMESTAMP} ]
+		if [ ${SNAPSHOT_TIMESTAMP} -lt ${EARLIEST_TIMESTAMP} ]
 		then
-			EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMPS[${i}]}
+			EARLIEST_TIMESTAMP=${SNAPSHOT_TIMESTAMP}
 		fi
 		i=$(( ${i} + 1 ))
 	done
 
-	NUM_SNAPSHOTS=${#SNAPSHOT_NAMES[@]}
-
 	FIRST_PROJECTION=$(( ${NOW} - ${OFFSET} ))
 
-	PROJECTIONS[0]=${FIRST_PROJECTION}
+	uclcmd set -f "${TEMPDATA_PATH}" .projections.0 ${FIRST_PROJECTION}
 
 	NEXT_PROJECTION=${FIRST_PROJECTION}
 
+	# Populate an array (list) of projected timestamps that we want to keep.
 	j=1
 	while [ ${NEXT_PROJECTION} -gt ${EARLIEST_TIMESTAMP} ]
 	do
 		NEXT_PROJECTION=$(( ${NEXT_PROJECTION} - ${INTERVAL} ))
-		PROJECTIONS[${j}]=${NEXT_PROJECTION}
+		uclcmd set -f "${TEMPDATA_PATH}" .projections.${j} ${NEXT_PROJECTION}
 		j=$(( ${j} + 1 ))
 	done
 
-	# Add one more projection at the end (UNIX epoch +1) so we don't get out of index error
-	PROJECTIONS[${j}]=1
+	# Add one more projection at the end (UNIX epoch +1) so we don't get out of index error.
+	uclcmd set -f "${TEMPDATA_PATH}" .projections.${j} 1
 
-	# Ensure that the latest 2 snapshot are always kept
+	# For completeness of log output to reflect what snapshots were kept.
+	SNAPSHOT_NAME=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_names.$(( ${i} - 1 ))`
+	echo "${SNAPSHOT_NAME} -> keep" >> ${LOG_FILE_PATH}
+
+	# Ensure that the latest 2 snapshots are always kept.
 	i=$(( ${i} - 2 ))
 
+	LAST_SNAPSHOT_KEPT=${i}
 	j=0
 
-	while [ ${i} -ge 0 ]
+	# Main algorithm for determining which snapshots to keep and which are safe to destroy.
+	# The interval and offset determines the projections and we try to keep snapshots as 
+	# close to the projections as possible. We stay conservative with regards to destroying
+	# snapshots. It's better to have an extra few snapshots than lose one we didn't expect to.
+	while [ ${i} -gt 0 ]
 	do
-		if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -lt ${FIRST_PROJECTION} ]
+
+		SNAPSHOT_TIMESTAMP=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_timestamps.${i}`
+		SNAPSHOT_NAME=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_names.${i}`
+		if [ ${SNAPSHOT_TIMESTAMP} -lt ${FIRST_PROJECTION} ]
 		then
 
-			NEXT_SNAPSHOT=${SNAPSHOT_TIMESTAMPS[$(( ${i} - 1 ))]}
-			LAST_KEPT_TO_NEXT_DELTA=$(( ${SNAPSHOT_TIMESTAMPS[${LAST_SNAPSHOT_KEPT}]} - ${NEXT_SNAPSHOT} ))
+			NEXT_SNAPSHOT=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_timestamps.$(( ${i} - 1 ))`
+			LAST_SNAPSHOT_KEPT_TIMESTAMP=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_timestamps.${LAST_SNAPSHOT_KEPT}`
+			LAST_KEPT_TO_NEXT_DELTA=$(( ${LAST_SNAPSHOT_KEPT_TIMESTAMP} - ${NEXT_SNAPSHOT} ))
+			PROJECTION=`uclcmd get -f "${TEMPDATA_PATH}" -q .projections.${j}`
 
-			if [ ${SNAPSHOT_TIMESTAMPS[${i}]} -gt ${PROJECTIONS[${j}]} ] && [ ${i} -gt 0 ] && [ "${SNAPSHOT_NAMES[${i}]}" != "${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}" ]
+			if [ ${SNAPSHOT_TIMESTAMP} -gt ${PROJECTION} ] && [ ${i} -gt 0 ] && [ "${SNAPSHOT_NAME}" != "${CURRENT_JOB}" ]
 			then
-				if [ ${NEXT_SNAPSHOT} -gt ${PROJECTIONS[$(( ${j} + 1 ))]} ] && [ ${LAST_KEPT_TO_NEXT_DELTA} -lt $(( ${INTERVAL} + ${DAY_IN_SECS} )) ]
+				NEXT_PROJECTION=`uclcmd get -f "${TEMPDATA_PATH}" -q .projections.$(( ${j} + 1 ))`
+				if [ ${NEXT_SNAPSHOT} -gt ${NEXT_PROJECTION} ] && [ ${LAST_KEPT_TO_NEXT_DELTA} -lt $(( ${INTERVAL} + ${DAY_IN_SECS} )) ]
 				then
-					SNAPSHOT_ACTION[${i}]="destroy"
+					uclcmd set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "destroy"
 				fi
 			else
 				NEXT_PROJECTION=0
 				while [ ${NEXT_PROJECTION} -eq 0 ] || [ ${NEXT_PROJECTION} -gt ${NEXT_SNAPSHOT_PLUS_INTERVAL} ]
 				do
-					NEXT_PROJECTION=${PROJECTIONS[$(( ${j} + 1 ))]}
+					NEXT_PROJECTION=`uclcmd get -f "${TEMPDATA_PATH}" -q .projections.$(( ${j} + 1 ))`
 					NEXT_SNAPSHOT_PLUS_INTERVAL=$(( ${NEXT_SNAPSHOT} + ${INTERVAL} ))
 					j=$(( ${j} + 1 ))
 				done
-				SNAPSHOT_ACTION[${i}]="keep"
+				uclcmd set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "keep"
 				LAST_SNAPSHOT_KEPT=${i}
 			fi
 		fi
 
-		if [ ${SIMULATION_MODE} = "yes" ]
-		then
-			echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/simulate.thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
-		else
-			echo "${SNAPSHOT_NAMES[${i}]} -> ${SNAPSHOT_ACTION[${i}]}" >> ${BACKUP_POOL_ROOT_PATH}/log/thin-snapshots.${POOL}@${BACKUP_POOL}.${NOW_DATE_TIME}.log
-		fi
+		SNAPSHOT_ACTION=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_actions.${i}`
+		echo "${SNAPSHOT_NAME} -> ${SNAPSHOT_ACTION}" >> ${LOG_FILE_PATH}
 
-		if [ "${SNAPSHOT_ACTION[${i}]}" = "destroy" ]
+		if [ "${SNAPSHOT_ACTION}" = "destroy" ]
 		then
 			if [ ${SIMULATION_MODE} = "yes" ]
 			then
-				echo -e "${LBLU}zfs destroy ${SNAPSHOT_NAMES[${i}]}${NRML}"
+				echo -e "${LBLU}zfs destroy ${SNAPSHOT_NAME}${NRML}"
 			else
-				zfs destroy ${SNAPSHOT_NAMES[${i}]}
+				LAST_ERROR_COUNT=${ERROR_COUNT}
+				zfs destroy ${SNAPSHOT_NAME}
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+				if [ ${ERROR_COUNT} -gt ${LAST_ERROR_COUNT} ]
+				then
+					echo -e "\nERROR: Failed to destroy snapshot '${SNAPSHOT_NAME}'!\n" >> ${LOG_FILE_PATH}
+				fi
 			fi
 		fi
 		i=$(( ${i} - 1 ))
 	done
 
+	# For completeness of log output to reflect what snapshots were kept.
+	SNAPSHOT_NAME=`uclcmd get -f "${TEMPDATA_PATH}" -q .snapshot_names.${i}`
+	echo "${SNAPSHOT_NAME} -> keep" >> ${LOG_FILE_PATH}
 }
 
 test_if_host ()
@@ -246,57 +277,85 @@ then
 	exit 1
 fi
 
-BACKUP_POOL_HEALTH=`zpool get -H health ${BACKUP_POOL} | awk '{print $3}' 2> /dev/null`
+BACKUP_POOL_HEALTH=`zpool get -H -o value health ${BACKUP_POOL} 2> /dev/null`
 if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
+zfs list -H -o name "${FILESYSTEM}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem '${FILESYSTEM}' does not appear to exist.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
-if [ "${POOL_HEALTH}" != "ONLINE" ]
+FILESYSTEM_POOL=`echo "${FILESYSTEM}" | cut -d"/" -f1`
+
+FILESYSTEM_POOL_ATTRIBUTES=`zpool get -H all ${FILESYSTEM_POOL} 2> /dev/null`
+if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem pool '${FILESYSTEM_POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 1
 fi
 
-BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
+FILESYSTEM_POOL_HEALTH=`zpool get -H -o value health ${FILESYSTEM_POOL} 2> /dev/null`
+if [ "${FILESYSTEM_POOL_HEALTH}" != "ONLINE" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The last backup from '${POOL}' to '${BACKUP_POOL}' failed!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem pool '${FILESYSTEM_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 1
 fi
 
-if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
+if [ ! -e "${HOST_CONF_PATH}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup running for '${POOL}'!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'\n       appears to be missing.\n       Aborting.\n"
 	exit 1
 fi
 
-pgrep -fl "fdo-backupz-repair-state" > /dev/null 2>&1
+BACKUP_POOL_ROOT_PATH=`zfs list -H -o mountpoint ${BACKUP_POOL}`
+TEST_BACKUP_POOL=`df -t zfs ${BACKUP_POOL_ROOT_PATH} | tail -1 | awk '{print $1}'`
+if [ "${TEST_BACKUP_POOL}" != "${BACKUP_POOL}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be mounted!\n       Aborting.\n"
+	exit 1
+fi
+
+CURRENT_JOB_STATE=`${UCL_CMD} get -f ${STATE_PATH} -q .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state 2> /dev/null`
+if [ "${CURRENT_JOB_STATE}" = "failed" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a failed job for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" = "running" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" = "repairing" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a repair job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" = "thinning" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" != "completed" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The backupz job for '${FILESYSTEM}' is not in 'completed' state!\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that we are not currently running a repair backupz state operation.
+pgrep -fl "fdo-backupz-repair-state " > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup repair operation running!\n       Aborting.\n"
-	exit 1
-fi
-
-pgrep -fl "fdo-backupz-thin-snapshots" > /dev/null 2>&1
-if [ ${?} -eq 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be another thin-snapshots operation running!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backupz repair operation running!\n       Aborting.\n"
 	exit 1
 fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
 
 # Global dynamic variable declarations
 OFFSET=$(( ${OFFSET_DAYS} * ${DAY_IN_SECS} ))
@@ -306,28 +365,106 @@ INTERVAL=$(( ${INTERVAL_DAYS} * ${DAY_IN_SECS} ))
 if [ ! -d ${BACKUP_POOL_ROOT_PATH}/log ]
 then
 	zfs create -o mountpoint=/${BACKUP_POOL_ROOT_PATH}/log -o compression=on ${BACKUP_POOL}/log
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
-# Get the last successful backup snaphot name
-LAST_SUCCESSFUL_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf`
+# Create temp files and log file path variables.
+FILESYSTEM_FLAT=`echo "${FILESYSTEM}" | sed "s|/|__|g"`
+LOG_FILE_PATH="${BACKUP_POOL_ROOT_PATH}/log/thin-snapshots.${NOW_DATE_TIME}.${FILESYSTEM_FLAT}@${BACKUP_POOL}.log"
+TEMPDATA_PATH="/tmp/fdo-backupz-thin-snapshots.${NOW_DATE_TIME}.${FILESYSTEM_FLAT}@${BACKUP_POOL}.tempdata"
 
+# Get previously completed backupz job name from backupz state file.
+COMPLETED_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name" 2> /dev/null`
+if [ ${?} -ne 0 ] || [ "${COMPLETED_JOB}" = "null" ] || [ "${COMPLETED_JOB}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be no completed backupz job for this filesystem!\n       Aborting.\n"
+	exit 1
+fi
+
+echo -e "Beginning thin-snapshots for filesystem '${FILESYSTEM}'.\n" >> ${LOG_FILE_PATH}
+echo -e "Previous completed job: ${COMPLETED_JOB}" >> ${LOG_FILE_PATH}
+echo -e "Filesystem filter: ${FILTER}" >> ${LOG_FILE_PATH}
+echo -e "Simulation mode: ${SIMULATION_MODE}" >> ${LOG_FILE_PATH}
+echo -e "Offset (days): ${OFFSET_DAYS}" >> ${LOG_FILE_PATH}
+echo -e "Interval (days): ${INTERVAL_DAYS}\n" >> ${LOG_FILE_PATH}
+
+# Wait for backupz state to be unlocked.
+while [ -f ${STATE_PATH}.lock ]
+do
+	echo -e "\n${YELL}Waiting for backupz state lock file to be unlocked...${NRML}\n"
+	sleep 2
+done
+
+# Make a lock file recovery copy of the existing backupz state file.
+# We won't release this lock until the repair job is complete or exited, due to it's dangerous nature.
+touch ${STATE_PATH}
+cp ${STATE_PATH} ${STATE_PATH}.lock
+
+# Set the job state to 'thinning' for this job.
+${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "thinning"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# If we hit any errors so far, let's not proceed and revert backupz state file.
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There was an unexpected error preparing the thin-snapshots job!\n       Aborting.\n"
+	mv ${STATE_PATH}.lock ${STATE_PATH}
+	echo -e "\nERROR: There was an unexpected error preparing the thin-snapshots job!\n       Aborting." >> ${LOG_FILE_PATH}
+	exit 2
+fi
+
+# ASSUME that preparation was successful, so let's remove the state lock and proceed.
+rm ${STATE_PATH}.lock
+
+# Display simulation mode in use if it is.
 if [ "${SIMULATION_MODE}" = "yes" ]
 then
 	echo -e "\n${YELL}   --- SIMULATION MODE ---   ${NRML}\n"
+	echo -e "\n   --- SIMULATION MODE ---   \n" >> ${LOG_FILE_PATH}
 fi
 
-
-if [ "${FILESYSTEM_FILTER}" != "" ]
+# Recursively run the thinning function on the target filesystem and all it decendants.
+if [ "${FILTER}" != "" ]
 then
-	for FILESYSTEM in `zfs list -H -t filesystem -o name -r ${BACKUP_POOL}/${POOL} | egrep "${FILESYSTEM_FILTER}"`
+	for FS_NAME in `zfs list -H -t filesystem -o name -r ${BACKUP_POOL}/${FILESYSTEM_FLAT} | egrep "${FILTER}"`
 	do
-		thin_snapshots_by_filesystem ${FILESYSTEM}
+		echo -e "\n${YELL}Thinning snapshots for filesystem '${NRML}${FS_NAME}${YELL}'...${NRML}"
+		echo -e "\nThinning snapshots for filesystem '${FS_NAME}'..." >> ${LOG_FILE_PATH}
+		thin_snapshots_by_filesystem ${FS_NAME}
 	done
 else
-	for FILESYSTEM in `zfs list -H -t filesystem -o name -r ${BACKUP_POOL}/${POOL}`
+	for FS_NAME in `zfs list -H -t filesystem -o name -r ${BACKUP_POOL}/${FILESYSTEM_FLAT}`
 	do
-		thin_snapshots_by_filesystem ${FILESYSTEM}
+		echo -e "\n${YELL}Thinning snapshots for filesystem '${NRML}${FS_NAME}${YELL}'...${NRML}"
+		echo -e "\nThinning snapshots for filesystem '${FS_NAME}'..." >> ${LOG_FILE_PATH}
+		thin_snapshots_by_filesystem ${FS_NAME}
 	done
 fi
+
+# Remove the temporary, arrays data file.
+rm ${TEMPDATA_PATH}
+
+# If we get here, we can ASSUME the thin-snapshots job has completed successfully, and set state variables accordingly.
+echo -e "\n${YELL}Setting backupz state variables to previous completed backup state...${NRML}\n"
+echo -e "\nSetting backupz state variables to previous completed backup state..." >> ${LOG_FILE_PATH}
+
+# Wait for backupz state to be unlocked.
+while [ -f ${STATE_PATH}.lock ]
+do
+	echo -e "\n${YELL}Waiting for backupz state lock file to be unlocked...${NRML}\n"
+	sleep 2
+done
+
+# Lock the backupz state with a lock file copy.
+cp ${STATE_PATH} ${STATE_PATH}.lock
+
+# Set the job state to 'completed' for this filesystem.
+${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "completed"
+
+# ASSUME that thin-snapshots was successful, so let's remove the state lock and proceed.
+rm ${STATE_PATH}.lock
+
+echo -e "\nBackupz thin-snapshots for filesystem '${FILESYSTEM}' finished." >> ${LOG_FILE_PATH}
+echo -e "\n${LGRN}Backupz thin-snapshots state for filesystem '${NRML}${FILESYSTEM}${LGRN}' finished!${NRML}\n"
 
 ################################################################################

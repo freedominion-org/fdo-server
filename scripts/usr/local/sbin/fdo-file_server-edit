@@ -32,6 +32,9 @@ CONFIG_ROOT="/usr/local/etc/webdav-sites"
 WEBDAV_SERVICE=apache22
 RECIPE_NAME="file_server"
 DIALOG_OUT_FILE="/tmp/${SCRIPT_NAME}.dialog.answer"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+RECIPE_CONF_PATH=${RECIPE_CONF_PATH:-"${FDO_CONFIG_ROOT}/recipe.conf"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -135,9 +138,9 @@ find_jails_from_recipe_name ()
 	FOUND_RECIPE_JAILS=""
 	for TEST_JAIL_NAME in `ls -1 /jls | cut -d/ -f1`
 	do
-		if [ -f "/jls/${TEST_JAIL_NAME}/.fdo-jail-recipe.inf" ]
+		if [ -f "/jls/${TEST_JAIL_NAME}${RECIPE_CONF_PATH}" ]
 		then
-			TEST_RECIPE_NAME=`cat /jls/${TEST_JAIL_NAME}/.fdo-jail-recipe.inf`
+			TEST_RECIPE_NAME=`${UCL_CMD} get -f /jls/${TEST_JAIL_NAME}${RECIPE_CONF_PATH} -q .general.jail_recipe`
 			if [ "${TEST_RECIPE_NAME}" = "${FIND_RECIPE_NAME}" ]
 			then
 				if [ "${FOUND_RECIPE_JAILS}" = "" ]
@@ -149,7 +152,6 @@ find_jails_from_recipe_name ()
 			fi
 		fi
 	done
-
 }
 
 get_jail_id_from_name ()
@@ -201,13 +203,13 @@ then
 	then
 		JAIL_NAME=${FOUND_RECIPE_JAILS}
 	else
-		SELECT_JAIL_PROMPT="Select the DHCP server jail to edit:"
+		SELECT_JAIL_PROMPT="Select the file server jail to edit:"
 		while [ "${JAIL_NAME}" = "" ]
 		do
 			dialog --no-items --no-cancel --menu "${SELECT_JAIL_PROMPT}" 12 40 10 ${FOUND_RECIPE_JAILS} 2> ${DIALOG_OUT_FILE}
 			JAIL_NAME_TEMP=`cat ${DIALOG_OUT_FILE}`
 			echo -e "\n"
-			question_yes_no "\nYou have selected '${JAIL_NAME_TEMP}' as the DHCP jail to edit.\nIs this correct?"
+			question_yes_no "\nYou have selected '${JAIL_NAME_TEMP}' as the file server jail to edit.\nIs this correct?"
 			if [ "${ANSWER}" = "yes" ]
 			then
 				JAIL_NAME="${JAIL_NAME_TEMP}"

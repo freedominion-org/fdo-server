@@ -30,7 +30,10 @@ SCRIPT_NAME=`basename ${0}`
 SITE_NAME="${1}"
 USERNAME="${2}"
 NUM_MANDATORY_ARGS=2
-WEBDAV_ROOT_FS=`cat /usr/local/etc/fdo/webdav_root_fs.conf`
+RECIPE_NAME="file_server"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+RECIPE_CONF_PATH=${RECIPE_CONF_PATH:-"${FDO_CONFIG_ROOT}/recipe.conf"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -103,6 +106,28 @@ test_if_host ()
 	fi
 }
 
+find_jails_from_recipe_name ()
+{
+	FIND_RECIPE_NAME="${1}"
+	FOUND_RECIPE_JAILS=""
+	for TEST_JAIL_NAME in `ls -1 /jls | cut -d/ -f1`
+	do
+		if [ -f "/jls/${TEST_JAIL_NAME}${RECIPE_CONF_PATH}" ]
+		then
+			TEST_RECIPE_NAME=`${UCL_CMD} get -f /jls/${TEST_JAIL_NAME}${RECIPE_CONF_PATH} -q .general.jail_recipe`
+			if [ "${TEST_RECIPE_NAME}" = "${FIND_RECIPE_NAME}" ]
+			then
+				if [ "${FOUND_RECIPE_JAILS}" = "" ]
+				then
+					FOUND_RECIPE_JAILS="${TEST_JAIL_NAME}"
+				else
+					FOUND_RECIPE_JAILS="${FOUND_RECIPE_JAILS} ${TEST_JAIL_NAME}"
+				fi
+			fi
+		fi
+	done
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -133,9 +158,39 @@ fi
 
 ERROR_COUNT=0
 
+# Let's try to find the jail
+find_jails_from_recipe_name ${RECIPE_NAME}
+NUM_FOUND_JAILS=`echo ${FOUND_RECIPE_JAILS} | wc -w`
+if [ ${NUM_FOUND_JAILS} -lt 1 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Unable to find a '${RECIPE_NAME}' recipe jail!\n       Aborting.\n"
+	usage
+	exit 1
+fi
+if [ ${NUM_FOUND_JAILS} -lt 2 ]
+then
+	JAIL_NAME=${FOUND_RECIPE_JAILS}
+else
+	echo -e "\n${ORNG}WARNING:${NRML} More than one '${RECIPE_NAME}' recipe jail was found!\         Using the first found recipe jail config.\n"
+	JAIL_NAME=`echo ${FOUND_RECIPE_JAILS} | cut -d" " -f1`
+fi
+
+# Prefix the recipe.conf path with the jail path.
+RECIPE_CONF_PATH="/jls/${JAIL_NAME}${RECIPE_CONF_PATH}"
+
+# Get the webdav root filesystem name from the file_server recipe config file.
+WEBDAV_ROOT_FS=`${UCL_CMD} get -f ${RECIPE_CONF_PATH} -q .webdav.root_filesystem`
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+if [ "${WEBDAV_ROOT_FS}" = "" ] || [ "${WEBDAV_ROOT_FS}" = "null" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The WebDAV root filesystem specified in the config file\n       '${RECIPE_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
 # Display the quota of the ZFS filesystem of the file_server user folder.
 zfs get quota ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
-
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then

@@ -31,25 +31,9 @@ USERNAME="${1}"
 DISPLAY_NAME="${2}"
 NUM_MANDATORY_ARGS=2
 UCL_CMD="/usr/local/bin/uclcmd"
-FDO_CONFIG_ROOT="/usr/local/etc/fdo"
-HOME_ZFS_NAME=`cat ${FDO_CONFIG_ROOT}/hotdesk-home-zfs-name.conf`
-DEFAULT_LAN_SUBNET_B="10.0"
-CONFIG_LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.lan.id`
-if [ ${?} -ne 0 ] || [ "${CONFIG_LAN_NET_IFACE}" = "null" ] || [ "${CONFIG_LAN_NET_IFACE}" = "" ]
-then
-    SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
-else
-    DETECTED_LAN_SUBNET_B=`ifconfig ${CONFIG_LAN_NET_IFACE} | grep "inet.*netmask 0xffff0000" | awk '{print $2}' | sort | head -1 | cut -d. -f1,2`
-    if [ "${DETECTED_LAN_SUBNET_B}" = "" ]
-    then
-        SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
-    else
-        SET_LAN_SUBNET_B="${DETECTED_LAN_SUBNET_B}"
-    fi
-fi
-FDO_LAN_SUBNET_B=${FDO_LAN_SUBNET_B:-"${SET_LAN_SUBNET_B}"}
-NFS_SUBNET_C=${NFS_SUBNET_C:-"${FDO_LAN_SUBNET_B}.40"}
-NFS_SUBNET_MASK=${NFS_SUBNET_MASK:-"255.255.255.0"}
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -194,9 +178,18 @@ then
 fi
 
 # Check that we are not currently running a backupz operation.
-ps aux | grep "backupz"  | grep -v "grep backupz"
-if [ ${?} -eq 0 ]; then
-	echo -e "\n${LRED}ERROR:${NRML} A backupz operation is running, try again later!\n       Aborting.\n"
+pgrep -fl "fdo-backupz " > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backupz operation running!\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that we are not currently running a repair backupz state operation.
+pgrep -fl "fdo-backupz-repair-state " > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backupz repair operation running!\n       Aborting.\n"
 	exit 1
 fi
 
@@ -204,6 +197,43 @@ fi
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
+
+# Get hotdesk users' home folder  root filesystem from config files.
+HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
+if [ ${?} -ne 0 ] || [ "${HOST_POOL}" = "null" ] || [ "${HOST_POOL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file\n       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
+if [ ${?} -ne 0 ] || [ "${HOTDESK_POOL}" = "null" ] || [ "${HOTDESK_POOL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file\n       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+HOME_ZFS_NAME="${HOME_POOL}/${HOME_FS}"
+
+# Determine the NFS subnet and subnet mask.
+DEFAULT_LAN_SUBNET_B="10.0"
+CONFIG_LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.lan.id`
+if [ ${?} -ne 0 ] || [ "${CONFIG_LAN_NET_IFACE}" = "null" ] || [ "${CONFIG_LAN_NET_IFACE}" = "" ]
+then
+	echo -e "\n${ORNG}WARNING:${NRML} Unable to retrieve the LAN network interface identifier in the config file '${HOST_CONF_PATH}'!\n"
+    SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
+else
+    DETECTED_LAN_SUBNET_B=`ifconfig ${CONFIG_LAN_NET_IFACE} | grep "inet.*netmask 0xffff0000" | awk '{print $2}' | sort | head -1 | cut -d. -f1,2`
+    if [ "${DETECTED_LAN_SUBNET_B}" = "" ]
+    then
+        SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
+    else
+        SET_LAN_SUBNET_B="${DETECTED_LAN_SUBNET_B}"
+    fi
+fi
+FDO_LAN_SUBNET_B=${FDO_LAN_SUBNET_B:-"${SET_LAN_SUBNET_B}"}
+NFS_SUBNET_C=${NFS_SUBNET_C:-"${FDO_LAN_SUBNET_B}.40"}
+NFS_SUBNET_MASK=${NFS_SUBNET_MASK:-"255.255.255.0"}
 
 # Add new NIS user locally
 question_yes_no "\nWould you like to specify the UID of the new user?"

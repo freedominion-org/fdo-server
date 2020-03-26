@@ -27,10 +27,17 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-POOL=${1}
-BACKUP_POOL=${2}
+FILESYSTEM="${1}"
+BACKUP_POOL="${2}"
 NUM_MANDATORY_ARGS=2
 FORCE_MODE="no"
+ERROR_ID="null"
+ERROR_DATASET="null"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
+STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -59,13 +66,13 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} pool backup_pool [--force]${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} filesystem backup_pool [--force]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} data backup --force${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e ""
-	echo -e "${YELL}--force  Ignore warnings / is_running marker and force operation.${NRML}"
+	echo -e "${YELL}--force  Ignore warnings / running state marker and force the operation.${NRML}"
 }
 
 
@@ -96,6 +103,27 @@ done
 
 
 ##### FUNCTIONS ################################################################
+
+# source readee function
+. /usr/local/bin/fdo-readee
+
+question_yes_no ()
+{
+
+	LOOP=1
+
+	while [ ${LOOP} = 1 ]
+		do
+		echo -e "${LCYN}${1}${NRML}"
+		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
+		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			LOOP=0
+		fi
+		echo ""
+	done
+
+}
 
 test_if_host ()
 {
@@ -133,74 +161,208 @@ then
 	exit 1
 fi
 
-BACKUP_POOL_HEALTH=`zpool get -H health ${BACKUP_POOL} | awk '{print $3}' 2> /dev/null`
+BACKUP_POOL_HEALTH=`zpool get -H -o value health ${BACKUP_POOL} 2> /dev/null`
 if [ "${BACKUP_POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' appears to be unhealthy.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
+zfs list -H -o name "${FILESYSTEM}" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem '${FILESYSTEM}' does not appear to exist.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
-if [ "${POOL_HEALTH}" != "ONLINE" ]
+FILESYSTEM_POOL=`echo "${FILESYSTEM}" | cut -d"/" -f1`
+
+FILESYSTEM_POOL_ATTRIBUTES=`zpool get -H all ${FILESYSTEM_POOL} 2> /dev/null`
+if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem pool '${FILESYSTEM_POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 1
 fi
 
-pgrep -fl "fdo-backupz-repair-state" > /dev/null 2>&1
+FILESYSTEM_POOL_HEALTH=`zpool get -H -o value health ${FILESYSTEM_POOL} 2> /dev/null`
+if [ "${FILESYSTEM_POOL_HEALTH}" != "ONLINE" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The source filesystem pool '${FILESYSTEM_POOL}' appears to be unhealthy.\n       Aborting.\n"
+	exit 1
+fi
+
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'\n       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+BACKUP_POOL_ROOT_PATH=`zfs list -H -o mountpoint ${BACKUP_POOL}`
+TEST_BACKUP_POOL=`df -t zfs ${BACKUP_POOL_ROOT_PATH} | tail -1 | awk '{print $1}'`
+if [ "${TEST_BACKUP_POOL}" != "${BACKUP_POOL}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The backup pool '${BACKUP_POOL}' does not appear to be mounted!\n       Aborting.\n"
+	exit 1
+fi
+
+CURRENT_JOB_STATE=`${UCL_CMD} get -f ${STATE_PATH} -q .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state 2> /dev/null`
+if [ "${CURRENT_JOB_STATE}" = "completed" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The current backup from '${FILESYSTEM}' to '${BACKUP_POOL}' completed!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" = "running" ] && [ "${FORCE_MODE}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup job running for '${FILESYSTEM}'!\n       Consider using --force option.\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" = "repairing" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a repair job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" = "thinning" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots job running for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+elif [ "${CURRENT_JOB_STATE}" != "failed" ] && [ "${CURRENT_JOB_STATE}" != "running" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There does not appear to be a failed or running job for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that we are not currently running a backupz operation.
+pgrep -fl "fdo-backupz " > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be another backup repair operation running!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backupz operation running!\n       Aborting.\n"
 	exit 1
 fi
 
-pgrep -fl "fdo-backupz-thin-snapshots" > /dev/null 2>&1
+# Check that we are not currently running a backupz thin-snapshots operation.
+pgrep -fl "fdo-backupz-thin-snapshots " > /dev/null 2>&1
 if [ ${?} -eq 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots operation running!\n       Aborting.\n"
 	exit 1
 fi
 
-BACKUP_POOL_ROOT_PATH=`zfs list -H ${BACKUP_POOL} | awk '{print $5}'`
-
-if [ ! -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ] && [ ! -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Unable to find failed backup from '${POOL}' to '${BACKUP_POOL}'!\n       Aborting.\n"
-	exit 1
-fi
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ] && [ ${FORCE_MODE} = "no" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup running for '${POOL}'!\nConsider using the --force option.\n       Aborting.\n"
-	exit 1
-fi
-
 
 ##### MAIN EXECUTION THREAD ####################################################
 
-# Get the last successful backup snapshot suffix.
-LAST_SUCCESSFUL_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/last-successful-backupz-${POOL}@${BACKUP_POOL}.inf`
+ERROR_COUNT=0
 
-# Get the last failed backup snapshot suffix.
-if [ -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf ]
+# Create log filesystem if log directory doesn't already exist.
+if [ ! -d "${BACKUP_POOL_ROOT_PATH}/log" ]
 then
-	LAST_FAILED_BACKUP_SNAPSHOT=`head -1 ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf | awk '{print $3}'`
+	zfs create -o mountpoint="${BACKUP_POOL_ROOT_PATH}/log" -o compression=on "${BACKUP_POOL}/log"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
+
+# Get current (failed / running) backup job name from backupz state file.
+CURRENT_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name" 2> /dev/null`
+if [ ${?} -ne 0 ] || [ "${CURRENT_JOB}" = "null" ] || [ "${CURRENT_JOB}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There appears to be no failed or running job for '${FILESYSTEM}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Create temp files and log file path variables.
+FILESYSTEM_FLAT=`echo "${FILESYSTEM}" | sed "s|/|__|g"`
+LOG_FILE_PATH="${BACKUP_POOL_ROOT_PATH}/log/repair-backupz-state.${CURRENT_JOB}.${FILESYSTEM_FLAT}@${BACKUP_POOL}.log"
+
+# Get previously completed backupz job name from backupz state file.
+COMPLETED_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name" 2> /dev/null`
+if [ ${?} -ne 0 ] || [ "${COMPLETED_JOB}" = "null" ] || [ "${COMPLETED_JOB}" = "" ]
+then
+	COMPLETED_JOB="no-previous-job-completed"
+	echo -e "\n${YELL}No previously completed job for this backup!${NRML}"
 else
-	LAST_FAILED_BACKUP_SNAPSHOT=`cat ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf`
+	echo -e "\n${YELL}Previous completed backup job:${NRML} ${COMPLETED_JOB}"
+fi
+
+# If current backupz job state is 'failed', get and display error details.
+if [ "${CURRENT_JOB_STATE}" = "failed" ]
+then
+	CURRENT_JOB_ERROR_ID=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id" 2> /dev/null`
+	CURRENT_JOB_ERROR_DATASET=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset" 2> /dev/null`
+
+	echo -e "\n${YELL}The current backupz job was marked as '${NRML}failed${YELL}' with the following details:${NRML}\n"
+	echo -e "        Error ID: ${CURRENT_JOB_ERROR_ID}\n        Dataset: ${CURRENT_JOB_ERROR_DATASET}\n"
+else
+	echo -e "\n${ORNG}WARNING:${NRML} The previous backupz job never completed or failed. It MAY STILL be running!\n" 
+fi
+
+# Just in case the failed backupz job is actually the last completed backup job (should not happen).
+if [ "${COMPLETED_JOB}" = "${CURRENT_JOB}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The 'current' backupz job appears to be the same as the previously"
+	echo -e "       'completed' backupz job! This should never happen!\n       Aborting.\n"
+	exit 2
+fi
+
+# Allow the user to see a simulation of what destructive steps the repair will do.
+question_yes_no "\nWould you like to see a simulation of the destructive steps to be taken?"
+if [ "${ANSWER}" = "yes" ]
+then
+	echo -e "\n${YELL}   --- BACKUPZ STATE REPAIR SIMULATION ---   ${NRML}\n"
+
+	fdo-backupz-destroy-snapshot "${BACKUP_POOL}" "${FILESYSTEM_FLAT}.*@${CURRENT_JOB}" --simulate
+
+	fdo-backupz-destroy-snapshot "${FILESYSTEM_POOL}" "${FILESYSTEM}.*@${CURRENT_JOB}" --simulate
+
+	if [ "${COMPLETED_JOB}" = "no-previous-job-completed" ]
+	then
+		fdo-backupz-destroy-filesystem "${BACKUP_POOL}" "${BACKUP_POOL}/${FILESYSTEM_FLAT}$" --recursive --simulate
+	fi
+
+	echo -e "\n${YELL}   --- END OF SIMULATION ---   ${NRML}\n"
+fi
+
+# Confirm whether to proceed with repair job.
+question_yes_no "\nAre you sure you want to proceed to repair the backup for the following?\n\
+        filesystem='${FILESYSTEM}'\n        backup pool='${BACKUP_POOL}'\n        job name='${CURRENT_JOB}'"
+if [ "${ANSWER}" = "no" ]
+then
+	echo -e "\n${YELL}Repair job cancelled by user!${NRML}\n"
+	exit 0
+fi
+
+echo -e "Beginning repair of backupz state for filesystem '${FILESYSTEM}'.\n" >> ${LOG_FILE_PATH}
+echo -e "Current job state: ${CURRENT_JOB_STATE}" >> ${LOG_FILE_PATH}
+echo -e "Previous completed job: ${COMPLETED_JOB}" >> ${LOG_FILE_PATH}
+echo -e "Current running / failed job: ${CURRENT_JOB}" >> ${LOG_FILE_PATH}
+echo -e "Failed job error id: ${CURRENT_JOB_ERROR_ID}" >> ${LOG_FILE_PATH}
+echo -e "Failed job error dataset: ${CURRENT_JOB_ERROR_DATASET}" >> ${LOG_FILE_PATH}
+echo -e "Force mode used: ${FORCE_MODE}\n" >> ${LOG_FILE_PATH}
+
+# Wait for backupz state to be unlocked.
+while [ -f ${STATE_PATH}.lock ]
+do
+	echo -e "\n${YELL}Waiting for backupz state lock file to be unlocked...${NRML}\n"
+	sleep 2
+done
+
+# Make a lock file recovery copy of the existing backupz state file.
+# We won't release this lock until the repair job is complete or exited, due to it's dangerous nature.
+touch ${STATE_PATH}
+cp ${STATE_PATH} ${STATE_PATH}.lock
+
+# Set the job state to 'repairing' for this job.
+${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "repairing"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# If we hit any errors so far, let's not proceed and revert backupz state file.
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} There was an unexpected error preparing the repair job!\n       Aborting.\n"
+	mv ${STATE_PATH}.lock ${STATE_PATH}
+	echo -e "\nERROR: There was an unexpected error preparing the repair job!\n       Aborting." >> ${LOG_FILE_PATH}
+	exit 2
 fi
 
 # If in force mode, kill any running backupz processes.
 if [ "${FORCE_MODE}" = "yes" ]
 then
 	echo -e "\n${YELL}   --- FORCE MODE ---   ${NRML}\n"
-	BACKUPZ_PID=`ps ax | egrep "backupz " | egrep "${POOL} ${BACKUP_POOL}" | awk '{print $1}'`
+	BACKUPZ_PID=`pgrep -fl "fdo-backupz ${FILESYSTEM} ${BACKUP_POOL}" | awk '{print $1}'`
 	if [ "${BACKUPZ_PID}" != "" ]
 	then
 		echo -e "\n${YELL}Killing running backupz processes...${NRML}\n"
@@ -209,34 +371,71 @@ then
 	fi
 fi
 
-# Just in case last failed backup is actually the last successful backup (should not happen).
-if [ "${LAST_FAILED_BACKUP_SNAPSHOT}" = "${LAST_SUCCESSFUL_BACKUP_SNAPSHOT}" ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The last failed backup appears to be the same as the last"
-	echo -e "       successful backup! This should never happen!\n       Aborting.\n"
-	exit 2
-fi
-
-# Now we remove the failed backup snapshots from both the production pool and the backup pool.
-echo -e "\n${YELL}Destroying failed backupz snapshots from the backup pool...${NRML}\n"
-fdo-backupz-destroy-snapshot ${BACKUP_POOL} "@${LAST_FAILED_BACKUP_SNAPSHOT}"
+# Now we remove the failed backupz snapshots from the backup pool.
+echo -e "\n${YELL}Destroying failed backupz job snapshots from the backup pool...${NRML}"
+fdo-backupz-destroy-snapshot "${BACKUP_POOL}" "${FILESYSTEM_FLAT}.*@${CURRENT_JOB}" --simulate | sed "/--- SIMULATION MODE ---/d" >> ${LOG_FILE_PATH}
+fdo-backupz-destroy-snapshot "${BACKUP_POOL}" "${FILESYSTEM_FLAT}.*@${CURRENT_JOB}"
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${BACKUP_POOL}'!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed job snaphots from '${BACKUP_POOL}'!\n       Aborting.\n"
+	mv ${STATE_PATH}.lock ${STATE_PATH}
+	echo -e "\nERROR: Failed to destroy failed job snaphots from '${BACKUP_POOL}'!\n       Aborting." >> ${LOG_FILE_PATH}
 	exit 2
 fi
 
-echo -e "\n${YELL}Destroying failed backupz snapshots from the production pool...${NRML}\n"
-fdo-backupz-destroy-snapshot ${POOL} "@${LAST_FAILED_BACKUP_SNAPSHOT}"
+# Now we remove the failed backupz snapshots from the source (filesystem) pool.
+echo -e "\n${YELL}Destroying failed backupz job snapshots from the source (filesystem) pool...${NRML}"
+fdo-backupz-destroy-snapshot "${FILESYSTEM_POOL}" "${FILESYSTEM}.*@${CURRENT_JOB}" --simulate | sed "/--- SIMULATION MODE ---/d" >> ${LOG_FILE_PATH}
+fdo-backupz-destroy-snapshot "${FILESYSTEM_POOL}" "${FILESYSTEM}.*@${CURRENT_JOB}"
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed backupz snaphots from '${POOL}'!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} Failed to destroy failed job snaphots from '${FILESYSTEM_POOL}'!\n       Aborting.\n"
+	mv ${STATE_PATH}.lock ${STATE_PATH}
+	echo -e "\nERROR: Failed to destroy failed job snaphots from '${FILESYSTEM_POOL}'!\n       Aborting." >> ${LOG_FILE_PATH}
 	exit 2
 fi
 
-# After successfully destroying failed backup snapshots, let's remove the failed backup markers.
-rm -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-error-${POOL}@${BACKUP_POOL}.inf 2> /dev/null
-rm -f ${BACKUP_POOL_ROOT_PATH}/last-backupz-${POOL}-running.inf 2> /dev/null
-rm -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf
+# If there was no previous completed job, we need to clean up the empty filesystems.
+if [ "${COMPLETED_JOB}" = "no-previous-job-completed" ]
+then
+	echo -e "\n${YELL}Cleaning up stale filesystems on backup pool...${NRML}"
+	fdo-backupz-destroy-filesystem "${BACKUP_POOL}" "${BACKUP_POOL}/${FILESYSTEM_FLAT}$" --recursive --simulate >> ${LOG_FILE_PATH}
+	fdo-backupz-destroy-filesystem "${BACKUP_POOL}" "${BACKUP_POOL}/${FILESYSTEM_FLAT}$" --recursive
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed to destroy stale filesystems from '${BACKUP_POOL}'!\n       Aborting.\n"
+		mv ${STATE_PATH}.lock ${STATE_PATH}
+		echo -e "\nERROR: Failed to destroy stale filesystems from '${BACKUP_POOL}'!\n       Aborting." >> ${LOG_FILE_PATH}
+		exit 2
+	fi
+fi
+
+# If we get here, we can ASSUME the backupz repair job has completed successfully, and set state variables accordingly.
+echo -e "\n${YELL}Setting backupz state variables to previous completed backup state...${NRML}\n"
+echo -e "\nSetting backupz state variables to previous completed backup state..." >> ${LOG_FILE_PATH}
+
+if [ "${COMPLETED_JOB}" = "no-previous-job-completed" ]
+then
+	# Set the job state to 'null' for this filesystem.
+	${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "null"
+else
+	# Set the job state to 'completed' for this filesystem.
+	${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "completed"
+fi
+
+# Set the current job name to 'null' for this filesystem.
+${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name" "null"
+
+# Set the current job error id to 'null' for this filesystem.
+${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id" "null"
+
+# Set the current job error dataset to 'null' for this filesystem.
+${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset" "null"
+
+# ASSUME that repair was successful, so let's remove the state lock and proceed.
+rm ${STATE_PATH}.lock
+
+echo -e "\nBackupz repair state for filesystem '${FILESYSTEM}' finished." >> ${LOG_FILE_PATH}
+echo -e "\n${LGRN}Backupz repair state for filesystem '${NRML}${FILESYSTEM}${LGRN}' finished!${NRML}\n"
 
 ################################################################################

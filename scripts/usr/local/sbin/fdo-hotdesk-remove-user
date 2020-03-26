@@ -28,7 +28,9 @@
 
 SCRIPT_NAME=`basename ${0}`
 USERNAME="${1}"
-HOME_ZFS_NAME=`cat /usr/local/etc/fdo/hotdesk-home-zfs-name.conf`
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
 NUM_MANDATORY_ARGS=1
 FORCE_MODE="no"
 DEFAULT_BACKUP_POOL="backup"
@@ -154,6 +156,23 @@ fi
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
+
+# Get hotdesk users' home folder  root filesystem from config files.
+HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
+if [ ${?} -ne 0 ] || [ "${HOST_POOL}" = "null" ] || [ "${HOST_POOL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file\n       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
+if [ ${?} -ne 0 ] || [ "${HOTDESK_POOL}" = "null" ] || [ "${HOTDESK_POOL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file\n       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+HOME_ZFS_NAME="${HOME_POOL}/${HOME_FS}"
 
 # Destroy the hotdesk users' home directory filesystem.
 echo -e "\n${YELL}Destroying the users' home filesystem...${NRML}\n"

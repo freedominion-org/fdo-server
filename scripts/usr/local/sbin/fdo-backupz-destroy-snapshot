@@ -27,10 +27,14 @@
 ##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
 
 SCRIPT_NAME=`basename ${0}`
-POOL=${1}
-SNAPSHOT_PATTERN=${2}
+POOL="${1}"
+SNAPSHOT_PATTERN="${2}"
 NUM_MANDATORY_ARGS=2
 SIMULATION_MODE="no"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
+STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -130,37 +134,17 @@ then
 	exit 1
 fi
 
-POOL_ATTRIBUTES=`zpool get -H all ${POOL} 2> /dev/null`
+POOL_ATTRIBUTES=`zpool get -H all "${POOL}" 2> /dev/null`
 if [ ${?} -ne 0 ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' does not appear to be imported.\n       Aborting.\n"
 	exit 1
 fi
 
-POOL_HEALTH=`zpool get -H health ${POOL} | awk '{print $3}' 2> /dev/null`
+POOL_HEALTH=`zpool get -H health "${POOL}" | awk '{print $3}' 2> /dev/null`
 if [ "${POOL_HEALTH}" != "ONLINE" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pool '${POOL}' appears to be unhealthy.\n       Aborting.\n"
-	exit 1
-fi
-
-if [ -f ${BACKUP_POOL_ROOT_PATH}/backupz-${POOL}-running.inf ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup running for '${POOL}'!\n       Aborting.\n"
-	exit 1
-fi
-
-pgrep -fl "fdo-backupz-repair-state" > /dev/null 2>&1
-if [ ${?} -eq 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be a backup repair operation running!\n       Aborting.\n"
-	exit 1
-fi
-
-pgrep -fl "fdo-backupz-thin-snapshots" > /dev/null 2>&1
-if [ ${?} -eq 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} There appears to be a thin-snapshots operation running!\n       Aborting.\n"
 	exit 1
 fi
 
@@ -170,7 +154,7 @@ fi
 ERROR_COUNT=0
 
 # Find and destroy all matching snapshots.
-TO_DESTROY=`zfs list -H -t snapshot -r ${POOL}  | awk '{print $1}' | grep "${SNAPSHOT_PATTERN}"`
+TO_DESTROY=`zfs list -H -t snapshot -r "${POOL}"  | awk '{print $1}' | grep "${SNAPSHOT_PATTERN}"`
 
 if [ "${SIMULATION_MODE}" = "yes" ]
 then

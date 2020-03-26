@@ -1,0 +1,233 @@
+#!/bin/sh
+
+# Copyright (c) 2016 Carlito Balotro <carl.balotro@gmail.com>.
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+DATE_CMD=/bin/date
+DATE_VERSION="freebsd" #choices of "freebsd" and "gnu"
+MAIL_CMD=/usr/bin/mail
+MAIL_CMD_FLAGS=""
+FILESYSTEM="${1}"
+BACKUP_POOL="${2}"
+NUM_MANDATORY_ARGS=2
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
+STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
+THIS_HOST=`hostname -f`
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} filesystem_to_backup backup_pool [--verbose]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} zroot backup${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} zroot backup --verbose${NRML}"
+	echo -e ""
+}
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--verbose)
+				MAIL_CMD_FLAGS="-v"
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### FUNCTIONS ################################################################
+
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 1
+fi
+
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 1
+fi
+
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'\n       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+# Determine whether this host is smtp outbound enabled. If not, then abort and exit.
+SMTP_OUTBOUND_ENABLED=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .general.email.smtp_outbound_enabled 2> /dev/null`
+if [ ${?} -ne 0 ] || [ "${SMTP_OUTBOUND_ENABLED}" != "yes" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This host does not appear to be configured and enabled for outbound SMTP!\n       Aborting.\n"
+	exit 1
+fi
+
+# Get current (failed / running) backup job name from backupz state file.
+CURRENT_JOB_STATE=`${UCL_CMD} get -f ${STATE_PATH} -q .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state 2> /dev/null`
+if [ ${?} -ne 0 ] || [ "${CURRENT_JOB_STATE}" = "null" ] || [ "${CURRENT_JOB_STATE}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The job state for this filesystem is not accessible or invalid!\n       Aborting.\n"
+	exit 2
+
+elif [ "${CURRENT_JOB_STATE}" = "completed" ]
+then
+	# Get previously completed backupz job name from backupz state file.
+	COMPLETED_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name" 2> /dev/null`
+	if [ ${?} -ne 0 ] || [ "${COMPLETED_JOB}" = "null" ] || [ "${COMPLETED_JOB}" = "" ]
+	then
+		COMPLETED_JOB="no-previous-job-completed"
+		echo -e "\n${YELL}No previously completed job for this backup!${NRML}\n"
+
+		# Set message composition variables.
+		MESSAGE_SUBJECT="WARNING: No completed backupz jobs for '${FILESYSTEM}'!"
+		MESSAGE_BODY="This is an automated status reporting email generated by '${SCRIPT_NAME}' on the host '${THIS_HOST}'. Do not reply.\n\n"
+		MESSAGE_BODY="${MESSAGE_BODY}There appears to be no completed backupz jobs for source filesystem '${FILESYSTEM}' and backup pool '${BACKUP_POOL}'."
+	else
+		echo -e "\n${YELL}Previous completed backup job:${NRML} ${COMPLETED_JOB}\n"
+
+		# Set message composition variables.
+		MESSAGE_SUBJECT="COMPLETED latest backupz job for '${FILESYSTEM}'."
+		MESSAGE_BODY="This is an automated status reporting email generated by '${SCRIPT_NAME}' on the host '${THIS_HOST}'. Do not reply.\n\n"
+		MESSAGE_BODY="${MESSAGE_BODY}The latest backupz job completed for source filesystem '${FILESYSTEM}' and backup pool '${BACKUP_POOL}'."
+	fi
+
+
+elif [ "${CURRENT_JOB_STATE}" = "running" ]
+then
+	# Get current running backup job name from backupz state file.
+	CURRENT_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name" 2> /dev/null`
+	if [ ${?} -ne 0 ] || [ "${CURRENT_JOB}" = "null" ] || [ "${CURRENT_JOB}" = "" ]
+	then
+		CURRENT_JOB="Unable to retreive."
+		echo -e "\n${LRED}ERROR:${NRML} Unable to retrieve a valid current_job_name from the backupz state file.\n"
+	fi
+
+	# Set message composition variables.
+	MESSAGE_SUBJECT='WARNING: latest backupz job still running for '${FILESYSTEM}'!'
+	MESSAGE_BODY="This is an automated status reporting email generated by '${SCRIPT_NAME}' on the host '${THIS_HOST}'. Do not reply.\n\n"
+	MESSAGE_BODY="${MESSAGE_BODY}The latest backupz job '${CURRENT_JOB}' is still running for source filesystem '${FILESYSTEM}' and backup pool '${BACKUP_POOL}'!"
+
+elif [ "${CURRENT_JOB_STATE}" = "failed" ]
+then
+	# Get current failed backup job name from backupz state file.
+	CURRENT_JOB=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name" 2> /dev/null`
+	if [ ${?} -ne 0 ] || [ "${CURRENT_JOB}" = "null" ] || [ "${CURRENT_JOB}" = "" ]
+	then
+		CURRENT_JOB="Unable to retreive."
+		echo -e "\n${LRED}ERROR:${NRML} Unable to retrieve a valid current_job_name from the backupz state file.\n"
+	fi
+
+	# If current backupz job state is 'failed', get and display error details.
+	CURRENT_JOB_ERROR_ID=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id" 2> /dev/null`
+	CURRENT_JOB_ERROR_DATASET=`${UCL_CMD} get -f ${STATE_PATH} -q ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset" 2> /dev/null`
+
+	echo -e "\n${YELL}The latest backupz job '${NRML}${CURRENT_JOB}${YELL}'${NRML}"
+	echo -e "${YELL}was marked as '${NRML}failed${YELL}' with the following details:${NRML}\n"
+	echo -e "Error ID: ${CURRENT_JOB_ERROR_ID}\nDataset: ${CURRENT_JOB_ERROR_DATASET}\n"
+
+	# Set message composition variables.
+	MESSAGE_SUBJECT='ERROR: latest backupz job failed for '${FILESYSTEM}'!'
+	MESSAGE_BODY="This is an automated status reporting email generated by '${SCRIPT_NAME}' on the host '${THIS_HOST}'. Do not reply.\n\n"
+	MESSAGE_BODY="${MESSAGE_BODY}The latest backupz job '${CURRENT_JOB}' failed for source filesystem '${FILESYSTEM}' and backup pool '${BACKUP_POOL}'!\n"
+	MESSAGE_BODY="${MESSAGE_BODY}Job Error ID: ${CURRENT_JOB_ERROR_ID}\nJob Error Dataset: ${CURRENT_JOB_ERROR_DATASET}\n"
+fi
+
+# Set message recipients variables after getting them from the host config file.
+RECIPIENTS_TO=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.backupz.email_alerts.recipients_to`
+RECIPIENTS_CC=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.backupz.email_alerts.recipients_cc`
+RECIPIENTS_BCC=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.backupz.email_alerts.recipients_bcc`
+
+# Now let's send the email report.
+echo -e "\n${YELL}Sending status report email...${NRML}\n"
+echo -e "${MESSAGE_BODY}" | ${MAIL_CMD} ${MAIL_CMD_FLAGS} -s "${MESSAGE_SUBJECT}" -c "${RECIPIENTS_CC}" -b "${RECIPIENTS_BCC}" "${RECIPIENTS_TO}"
+
+echo -e "\n${YELL}Backupz status email report was sent!${NRML}\n"
+
+################################################################################

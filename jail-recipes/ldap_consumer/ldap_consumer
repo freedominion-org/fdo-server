@@ -10,7 +10,7 @@ RECIPE_UDP_PORTS="none"                                                        #
 START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order)
 SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
 SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
-LDAP_MGR_DN_LOOKUP_FILE="/usr/local/etc/fdo/ldap-manager-dn.conf"              #
+LDAP_MANAGER_DN_PREFIX="cn=Manager"                                            #
 ################################################################################
 
 prep_recipe ()
@@ -219,8 +219,8 @@ cook_recipe ()
 	sed -i "" "s|LDAP_PROVIDER_SYNC_PASSWORD|${LDAP_PROVIDER_SYNC_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
 	sed -i "" "s|LDAP_CONSUMER_MANAGER_PASSWORD|${LDAP_CONSUMER_MANAGER_HASHED_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
 
-	# Replace variables in LDAP Manager DN lookup file
-	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}${LDAP_MGR_DN_LOOKUP_FILE}
+	# Set LDAP Manager DN in recipe config file.
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .ldap.manager_dn "${LDAP_MANAGER_DN_PREFIX},${LDAP_BASE_SUFFIX}"
 
 	# Replace variables in hosts file
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
@@ -242,7 +242,7 @@ cook_recipe ()
 		echo -e   "         on this LAN:                                                           "
 		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}${NRML}\n"
 	else
-		echo "dns_cache" > /jls/${JAIL_NAME}/.fdo-affected-recipe-jails.inf
+		${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .general.affected_recipe_jails "dns_cache"
 	fi
 
 
