@@ -228,18 +228,6 @@ cook_recipe ()
 	# Restart the http_gateway recipe jail nginx service
 	start_jail_service ${HTTP_GATEWAY_JAIL} nginx --allow-restart
 
-	# Get seasoning suggestion message from recipe.conf.
-	SEASONING_SUGGESTION_MSG=`${UCL_CMD} get -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .seasoning_suggestion.message`
-
-	# Echo the seasoning suggestion message to the terminal, expanding any variables.
-	eval echo -e "\"\n${YELL}Seasoning suggestion:${NRML}\n${SEASONING_SUGGESTION}\n\""
-
-	# Set the seasoning suggestion message in recipe.conf after expanding any variables.
-	EXPANDED_SEASONING_SUGGESTION_MSG=`eval echo -e "\"${SEASONING_SUGGESTION}\""`
-	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} .seasoning_suggestion.message "${EXPANDED_SEASONING_SUGGESTION_MSG}"
-
-	pause_prompt 15
-
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"
 
