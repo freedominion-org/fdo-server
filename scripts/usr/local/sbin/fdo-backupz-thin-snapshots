@@ -138,7 +138,13 @@ thin_snapshots_by_filesystem()
 	# Populate a set of arrays with snapshot details to manage which snapshots to keep or destroy.
 	for SNAPSHOT in ${SNAPSHOTS}
 	do
-		SNAPSHOT_TIMESTAMP=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s`
+		SNAPSHOT_TIMESTAMP=`echo ${SNAPSHOT} | sed 's|^.*@||' | xargs date -j -f "%Y-%m-%d_%H-%M" -- +%s 2> /dev/null`
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${YELL}INFO:${NRML} Ignoring the snapshot '${SNAPSHOT}'.\n      It does not appear to be a backupz (timestamp) snapshot.\n"
+			echo -e "\nINFO: Ignoring the snapshot '${SNAPSHOT}'.\n      It does not appear to be a backupz (timestamp) snapshot.\n" >> ${LOG_FILE_PATH}
+			continue
+		fi
 		uclcmd set -f "${TEMPDATA_PATH}" .snapshot_names.${i} "${SNAPSHOT}"
 		uclcmd set -f "${TEMPDATA_PATH}" .snapshot_timestamps.${i} "${SNAPSHOT_TIMESTAMP}"
 		uclcmd set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "keep"
@@ -465,6 +471,6 @@ ${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}
 rm ${STATE_PATH}.lock
 
 echo -e "\nBackupz thin-snapshots for filesystem '${FILESYSTEM}' finished." >> ${LOG_FILE_PATH}
-echo -e "\n${LGRN}Backupz thin-snapshots state for filesystem '${NRML}${FILESYSTEM}${LGRN}' finished!${NRML}\n"
+echo -e "\n${LGRN}Backupz thin-snapshots for filesystem '${NRML}${FILESYSTEM}${LGRN}' finished!${NRML}\n"
 
 ################################################################################

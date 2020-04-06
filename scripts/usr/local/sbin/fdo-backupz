@@ -446,6 +446,7 @@ rm ${STATE_PATH}.lock
 # If this is not the first backupz job run, destroy any unwanted, previous snapshots.
 if [ "${COMPLETED_JOB}" != "no-previous-job-completed" ]
 then
+	echo -e "\n\n${YELL}Recursively destroy previous and unwanted snapshots from source pool...${NRML}"
 	echo -e "\n\nRecursively destroy previous and unwanted snapshots from source pool..." >> ${LOG_FILE_PATH}
 
 	for SNAPSHOT_NAME in ${SNAPSHOT_NAMES}
