@@ -407,7 +407,7 @@ do
 		SNAPSHOT_PARENT_MOUNT_POINT=`zfs get -H -o value mountpoint ${SNAPSHOT_PARENT}`
 		if [ "${SNAPSHOT_PARENT_MOUNT_POINT}" != "none" ]
 		then
-			zfs set mountpoint=${BACKUP_POOL_ROOT_PATH}/${FILESYSTEM}${SNAPSHOT_PARENT_MOUNT_POINT} ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
+			zfs set mountpoint=${BACKUP_POOL_ROOT_PATH}/${FILESYSTEM_POOL}${SNAPSHOT_PARENT_MOUNT_POINT} ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
 			if [ ${?} -ne 0 ]
 			then
 				ERROR_ID="Setting mountpoint of backup pool filesystem."
