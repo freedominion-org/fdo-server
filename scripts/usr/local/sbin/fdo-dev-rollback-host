@@ -180,7 +180,7 @@ fi
 zfs list ${POOL}@${SNAPSHOT_NAME} > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The snapshot '${POOL}@${SNAPSHOT_NAME}' does not appear to exist!\n       Aborting."
+	echo -e "\n${LRED}ERROR:${NRML} The snapshot '${POOL}@${SNAPSHOT_NAME}' does not appear to exist!\n       Aborting.\n"
 	exit 1
 fi
 
