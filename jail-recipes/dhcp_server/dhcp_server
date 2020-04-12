@@ -87,6 +87,22 @@ cook_recipe ()
 	# Add extra jail control directives to /etc/jail.conf
 	sed -i "" "s/${JAIL_NAME}.*{.*$/${JAIL_NAME} {\\${CARRIAGE_RETURN}        allow.raw_sockets = 1;\\${CARRIAGE_RETURN}        devfs_ruleset = 48;/" configs/${HOST_NAME}/etc/jail.conf
 
+	# Add extra jail control directives to jails config file.
+	${UCL_CMD} set -f configs/${HOST_NAME}${JAILS_CONF_PATH} -t object .jails.${JAILS_ARRAY_INDEX}.allow "{ raw_sockets = 1 }"
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set jail directive 'allow.raw_sockets'.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+	${UCL_CMD} set -f configs/${HOST_NAME}${JAILS_CONF_PATH} .jails.${JAILS_ARRAY_INDEX}.devfs_ruleset 48
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set jail directive 'devfs_ruleset'.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
 	# Replace the LAN_NET_IFACE variable in the jails' rc.conf config file
 	sed -i "" "s/LAN_NET_IFACE/${LAN_NET_IFACE}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/rc.conf
 
