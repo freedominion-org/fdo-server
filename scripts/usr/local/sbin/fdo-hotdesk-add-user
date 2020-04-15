@@ -198,18 +198,30 @@ fi
 
 ERROR_COUNT=0
 
-# Get hotdesk users' home folder  root filesystem from config files.
+# Get hotdesk users' home folder pool from config files.
 HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
 if [ ${?} -ne 0 ] || [ "${HOST_POOL}" = "null" ] || [ "${HOST_POOL}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file\n       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file"
+	echo -e "       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
 	exit 1
 fi
 
+# Get hotdesk users' home folder root filesystem from config files.
 HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
 if [ ${?} -ne 0 ] || [ "${HOTDESK_POOL}" = "null" ] || [ "${HOTDESK_POOL}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file\n       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file"
+	echo -e "       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+# Get hotdesk users' default home folder quota from config files.
+DEFAULT_HOME_FOLDER_QUOTA=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.default_home_folder_quota`
+if [ ${?} -ne 0 ] || [ "${}" = "null" ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk default home folder quota specified in the config file"
+	echo -e "       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
 	exit 1
 fi
 
@@ -269,7 +281,7 @@ passwd ${USERNAME}
 echo -e ""
 
 # Create ZFS filesystem for home folder
-zfs create -o quota=50G ${HOME_ZFS_NAME}/${USERNAME}
+zfs create -o quota=${DEFAULT_HOME_FOLDER_QUOTA} ${HOME_ZFS_NAME}/${USERNAME}
 
 # Change ownership of home folder
 chown -R ${USERNAME}:users /fdo-hotdesk-home/${USERNAME}
