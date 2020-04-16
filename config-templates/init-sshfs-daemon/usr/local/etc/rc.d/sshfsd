@@ -2,7 +2,7 @@
 #
 #
 # PROVIDE: sshfsd
-# REQUIRE: DAEMON jail
+# REQUIRE: DAEMON FILESYSTEMS NETWORK netif
 # KEYWORD: shutdown
 # Add the following lines to /etc/rc.conf to enable sshfsd:
 #
@@ -42,6 +42,7 @@ CARRIAGE_RETURN="
 FDO_CONF_DIR="/usr/local/etc/fdo"
 SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
 SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
+NUM_MOUNT_ATTEMPTS=5
 
 
 is_mounted () {
@@ -70,7 +71,7 @@ sshfsd_start () {
 		is_mounted "${SHARE_MOUNTPOINT}"
 		if [ ${?} -eq 0 ]
 		then
-			echo -e "  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}\n"
+			echo -e "  ${ORNG}The mount point '${NRML}${SHARE_MOUNTPOINT}${ORNG}' is already mounted!${NRML}"
 		else
 			MOUNTPOINT_FLAT=`echo ${SHARE_MOUNTPOINT} | sed "s/\//_/g"`
 			MOUNTPOINT_MD5=`echo "${SHARE_MOUNTPOINT}" | md5 -q`
@@ -80,14 +81,22 @@ sshfsd_start () {
 				sshfsd_opts="${sshfsd_opts},IdentityFile=\"${SHARE_SSH_KEY}\""
 			fi
 			echo -e "  ${YELL}Mounting '${NRML}${SHARE_MOUNTPOINT}${YELL}' ...${NRML}"
-			timeout --foreground 30 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
-			if [ ${?} -eq 0 ]
-			then
-				echo -e "  ${LGRN}Successfully mounted the remote share.${NRML}\n"
-			else
-				echo -e "  ${LRED}Failed to mount the remote share!${NRML}\n"
-			fi
+			MOUNT_ATTEMPT=0
+			while [ ${MOUNT_ATTEMPT} -lt ${NUM_MOUNT_ATTEMPTS} ]
+			do
+				MOUNT_ATTEMPT=$(( ${MOUNT_ATTEMPT} + 1 ))
+				timeout --foreground 20 /usr/local/bin/sshfs -p ${SHARE_PORT} ${SHARE_URI} ${SHARE_MOUNTPOINT} -o ${sshfsd_opts}
+				if [ ${?} -eq 0 ]
+				then
+					echo -e "  ${LGRN}ATTEMPT ${MOUNT_ATTEMPT}: Successfully mounted the remote share.${NRML}"
+					break
+				else
+					echo -e "  ${LRED}ATTEMPT ${MOUNT_ATTEMPT}: Failed to mount the remote share!${NRML}"
+				fi
+				sleep 10
+			done
 		fi
+		echo -e ""
 	done
 
 }
