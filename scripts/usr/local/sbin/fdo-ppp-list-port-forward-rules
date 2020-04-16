@@ -132,7 +132,7 @@ test_valid_rule_name ()
 		return 1
 	fi
 
-	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-z0-9]+(_[a-z0-9]+[a-z0-9]*)*//" | wc -L`
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-zA-Z0-9]+(_[a-zA-Z0-9]+[a-zA-Z0-9]*)*//" | wc -L`
 	if [ ${IS_SYNTAX_OK}  -ne 0 ]
 	then
 		VALID_RULE_NAME="no"
@@ -188,7 +188,7 @@ echo -e "[ Rule name ] ${LBLU}[Destination IP] ${CYAN}[ TCP ports ] ${YELL}[ UDP
 echo -e "${GREY}==============================================================================${NRML}"
 
 # Extract and display list of port forward rule names
-FOUND_RULE_NAMES=$( cat ${PPP_CONF_PATH} | egrep "^ nat port .*rule_name=" | sed "s|\(^ nat port .*rule_name=\)\([a-z0-9_]*\)\(.*\)|\2|" | sort | uniq )
+FOUND_RULE_NAMES=$( cat ${PPP_CONF_PATH} | egrep "^ nat port .*rule_name=" | sed "s|\(^ nat port .*rule_name=\)\([a-zA-Z0-9_]*\)\(.*\)|\2|" | sort | uniq )
 for RULE_NAME in ${FOUND_RULE_NAMES}
 do
 	test_valid_rule_name "${RULE_NAME}"
