@@ -1,3 +1,4 @@
+#
 # .profile - Bourne Shell startup script for login shells
 #
 # see also sh(1), environ(7).
@@ -13,15 +14,20 @@
 # serial line.
 # TERM=xterm; 	export TERM
 
-BLOCKSIZE=K;    export BLOCKSIZE
 EDITOR=vim;   	export EDITOR
 PAGER=less;  	export PAGER
-tabs -4
 
 # set ENV to a file invoked each time sh is started for interactive use.
 ENV=$HOME/.shrc; export ENV
 
-if [ -x /usr/games/fortune ] ; then /usr/games/fortune freebsd-tips ; fi
+# Query terminal size; useful for serial lines.
+if [ -x /usr/bin/resizewin ] ; then /usr/bin/resizewin -z ; fi
+
+# Display a random cookie on each login.
+if [ -x /usr/bin/fortune ] ; then /usr/bin/fortune freebsd-tips ; fi
+
+
+tabs -4
 
 # if running bash
 if [ -n "$BASH_VERSION" ]; then  

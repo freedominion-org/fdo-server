@@ -10,9 +10,6 @@ alias j		jobs -l
 alias la	ls -aF
 alias lf	ls -FA
 alias ll	ls -lAF
-alias vi	vim
-alias less	less --tabs=4
-alias more	more --tabs=4
 
 # A righteous umask
 umask 22
@@ -22,7 +19,6 @@ set path = (/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin $HOME/b
 setenv	EDITOR	vim
 setenv	PAGER	less
 setenv	BLOCKSIZE	K
-tabs -4
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up
@@ -44,3 +40,9 @@ if ($?prompt) then
 	endif
 
 endif
+
+
+alias vi	vim
+alias less	less --tabs=4
+alias more	more --tabs=4
+tabs -4

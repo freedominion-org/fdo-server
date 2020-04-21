@@ -12,25 +12,18 @@
 #
 # umask	022
 
-# Enable the builtin emacs(1) command line editor in sh(1),
-# e.g. C-a -> beginning-of-line.
-set -o emacs
-
-# Uncomment this and comment the above to enable the builtin vi(1) command
-# line editor in sh(1), e.g. ESC to go into visual mode.
+# Uncomment this to enable the builtin vi(1) command line editor in sh(1),
+# e.g. ESC to go into visual mode.
 # set -o vi
 
 
 # some useful aliases
 alias h='fc -l'
 alias j=jobs
-alias m=$PAGER
+alias m="$PAGER"
 alias ll='ls -laFo'
 alias l='ls -l'
 alias g='egrep -i'
-alias vi='vim'
-alias less='less --tabs=4'
-alias more='more --tabs=4'
  
 # # be paranoid
 # alias cp='cp -ip'
@@ -47,3 +40,8 @@ alias more='more --tabs=4'
 
 # search path for cd(1)
 # CDPATH=:$HOME
+
+
+alias vi='vim'
+alias less='less --tabs=4'
+alias more='more --tabs=4'

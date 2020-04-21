@@ -1,5 +1,6 @@
 #Port 22
 #ListenAddress 0.0.0.0
+AuthorizedKeysFile  .ssh/authorized_keys
 ClientAliveInterval 30
 ClientAliveCountMax 5
 UseDNS no
