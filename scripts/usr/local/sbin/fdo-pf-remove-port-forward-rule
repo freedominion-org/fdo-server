@@ -101,7 +101,7 @@ done
 
 ##### FUNCTIONS ################################################################
 
-# source readee function
+# source readee function.
 . /usr/local/bin/fdo-readee
 
 question_yes_no ()
@@ -180,7 +180,7 @@ fi
 
 ERROR_COUNT=0
 
-# Test if rule_name is valid
+# Test if rule_name is valid.
 test_valid_rule_name "${RULE_NAME}"
 if [ "${VALID_RULE_NAME}" = "no" ]
 then
@@ -188,7 +188,7 @@ then
 	exit 1
 fi
 
-# Test if rule_name exists
+# Test if rule_name exists.
 cat ${PF_CONF_PATH} | egrep "${RULE_NAME}_ip =" > /dev/null 2>&1
 if [ ${?} -ne 0 ]
 then
@@ -196,25 +196,47 @@ then
 	exit 1
 fi
 
-# Remove all lines mentioning the specified rule_name
-sed -i "" "/${RULE_NAME}_ip/d" ${PF_CONF_PATH}
-sed -i "" "/${RULE_NAME}_tcp_ports/d" ${PF_CONF_PATH}
-sed -i "" "/${RULE_NAME}_udp_ports/d" ${PF_CONF_PATH}
+# Make a temporary backup of pf.conf in case problem occur whilst making changes.
+cp "${PF_CONF_PATH}" "/tmp/${SCRIPT_NAME}.conf-backup.tmp"
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Unable to make a backup copy of:\n       ${ORNG}${PF_CONF_PATH}${NRML}\n       Aborting.\n"
+	exit 2
+fi
 
+# Remove all lines mentioning the specified rule_name.
+sed -i "" "/${RULE_NAME}_ip/d" ${PF_CONF_PATH}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+sed -i "" "/${RULE_NAME}_tcp_ports/d" ${PF_CONF_PATH}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+sed -i "" "/${RULE_NAME}_udp_ports/d" ${PF_CONF_PATH}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# If any error during string replacements changes, restore healthy config and exit with error.
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} An unxepected error occured whilst making changes to:\n       ${ORNG}${PF_CONF_PATH}${NRML}\n       Aborting.\n"
+	mv "/tmp/${SCRIPT_NAME}.conf-backup.tmp" "${PF_CONF_PATH}"
+	exit 2
+else
+	rm "/tmp/${SCRIPT_NAME}.conf-backup.tmp"
+fi
 
 if [ "${IS_REPO_CONF}" = "no" ]
 then
-	# Update configuration in the local repo and if interactive mode then push to remote repo
+	# Update configuration in the local repo and if interactive mode then push to remote repo.
 	if [ "${IS_INTERACTIVE}" = "no" ]
 	then
 		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
 		CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	else
 		question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 		if [ "${ANSWER}" = "yes" ]
 		then
 			echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
 			CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 		fi
 	fi
 fi
@@ -224,6 +246,22 @@ echo -e ""
 if [ ${ERROR_COUNT} -gt 0 ]
 then
 	exit 2
+fi
+
+if [ "${IS_INTERACTIVE}" = "yes" ]
+then
+	question_yes_no "\nWould you like to reload the pf service for changes to take effect?"
+	if [ "${ANSWER}" = "yes" ]
+	then
+		service pf reload > /dev/null
+		if [ ${?} -eq 0 ]
+		then
+			echo -e "\n${LGRN}Successfully reloaded pf service!${NRML}\n"
+		else
+			echo -e "\n${LRED}Reload of pf service returned an error!${NRML}\n"
+			exit 2
+		fi
+	fi
 fi
 
 ################################################################################
