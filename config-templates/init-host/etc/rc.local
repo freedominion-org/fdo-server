@@ -1,5 +1,0 @@
-#FDO_VNC_DESKTOP#if [ -e /tmp/.X10-lock ]
-#FDO_VNC_DESKTOP#then
-#FDO_VNC_DESKTOP#	rm /tmp/.X10-lock
-#FDO_VNC_DESKTOP#fi
-#FDO_VNC_DESKTOP#/usr/bin/su - FDO_USERNAME -c "/usr/local/bin/vncserver :10 -geometry 1200x700 -alwaysshared -localhost -dpi 96"
