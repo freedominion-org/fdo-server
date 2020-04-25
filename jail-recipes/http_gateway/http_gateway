@@ -27,7 +27,7 @@ cook_recipe ()
 	sleep 5
 
 	# Install essential jail recipe packages from the recipe repo
-	pkg -j ${JAIL_NAME} install ${RECIPE_PACKAGES}
+	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
