@@ -61,7 +61,7 @@ usage ()
 	echo -e "${YELL}Description:${NRML} Snapshot the host for later rollback (for development testing)."
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} snapshot_name${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} pre-init-host${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} post-init-host${NRML}"
 	echo -e ""
 }
 
@@ -192,7 +192,7 @@ fi
 # Recursively snapshot all relevant filesystems in POOL with name SNAPSHOT_NAME.
 for FILESYSTEM in `zfs list -H -o name -r ${POOL}`
 do
-	echo ${FILESYSTEM} | egrep '/testing/|/testing$'
+	echo ${FILESYSTEM} | egrep '/testing/|/testing$' > /dev/null
 	if [ ${?} -ne 0 ]
 	then
 		zfs snapshot ${FILESYSTEM}@${SNAPSHOT_NAME}
