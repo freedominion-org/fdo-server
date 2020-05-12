@@ -201,6 +201,7 @@ else
 	fi
 fi
 
+## TODO: remove export (share) and user from hotdesk subsystem UCL config.
 echo -e "\n${YELL}Removing the user from the exports file...${NRML}\n"
 sed -i "" "/${USERNAME} /d" /etc/exports
 

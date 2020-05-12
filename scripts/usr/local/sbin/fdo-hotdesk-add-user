@@ -286,6 +286,7 @@ zfs create -o quota=${DEFAULT_HOME_FOLDER_QUOTA} ${HOME_ZFS_NAME}/${USERNAME}
 # Change ownership of home folder
 chown -R ${USERNAME}:users /fdo-hotdesk-home/${USERNAME}
 
+## TODO: add export (share) and user from hotdesk subsystem UCL config.
 # Add home folder to NFS exports
 echo "/fdo-hotdesk-home/${USERNAME} -maproot=root -network ${NFS_SUBNET_C} -mask ${NFS_SUBNET_MASK}" >> /etc/exports
 echo -e ""
