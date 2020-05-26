@@ -196,6 +196,14 @@ else
 	ROLLBACK_FLAGS="-r"
 fi
 
+echo -e "\n${ORNG}WARNING:${NRML} This is a developer feature!"
+question_yes_no "\nAre you sure you want to rollback ${POOL} filesystems? Data could be lost. [CAUTION]"
+if [ "${ANSWER}" = "no" ]
+then
+	echo -e "\n${YELL}INFO:${NRML} operation aborted by user.\n"
+	exit 0
+fi
+
 # Store bash history as variable.
 BASH_HISTORY=`cat ~/.bash_history`
 

@@ -182,6 +182,14 @@ fi
 
 ERROR_COUNT=0
 
+echo -e "\n${ORNG}WARNING:${NRML} This is a developer feature!"
+question_yes_no "\nAre you sure you want to snapshot ${POOL} filesystems?"
+if [ "${ANSWER}" = "no" ]
+then
+	echo -e "\n${YELL}INFO:${NRML} operation aborted by user.\n"
+	exit 0
+fi
+
 if [ "${FORCE_MODE}" = "yes" ]
 then
 	ROLLBACK_FLAGS="-Rf"
