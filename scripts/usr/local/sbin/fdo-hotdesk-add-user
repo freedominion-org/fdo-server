@@ -200,7 +200,7 @@ ERROR_COUNT=0
 
 # Get hotdesk users' home folder pool from config files.
 HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
-if [ ${?} -ne 0 ] || [ "${HOST_POOL}" = "null" ] || [ "${HOST_POOL}" = "" ]
+if [ ${?} -ne 0 ] || [ "${HOME_POOL}" = "null" ] || [ "${HOME_POOL}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file"
 	echo -e "       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
@@ -209,7 +209,7 @@ fi
 
 # Get hotdesk users' home folder root filesystem from config files.
 HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
-if [ ${?} -ne 0 ] || [ "${HOTDESK_POOL}" = "null" ] || [ "${HOTDESK_POOL}" = "" ]
+if [ ${?} -ne 0 ] || [ "${HOME_FS}" = "null" ] || [ "${HOME_FS}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file"
 	echo -e "       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
@@ -218,7 +218,7 @@ fi
 
 # Get hotdesk users' default home folder quota from config files.
 DEFAULT_HOME_FOLDER_QUOTA=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.default_home_folder_quota`
-if [ ${?} -ne 0 ] || [ "${}" = "null" ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "" ]
+if [ ${?} -ne 0 ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "null" ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk default home folder quota specified in the config file"
 	echo -e "       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
@@ -233,15 +233,15 @@ CONFIG_LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.
 if [ ${?} -ne 0 ] || [ "${CONFIG_LAN_NET_IFACE}" = "null" ] || [ "${CONFIG_LAN_NET_IFACE}" = "" ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} Unable to retrieve the LAN network interface identifier in the config file '${HOST_CONF_PATH}'!\n"
-    SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
+	SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
 else
-    DETECTED_LAN_SUBNET_B=`ifconfig ${CONFIG_LAN_NET_IFACE} | grep "inet.*netmask 0xffff0000" | awk '{print $2}' | sort | head -1 | cut -d. -f1,2`
-    if [ "${DETECTED_LAN_SUBNET_B}" = "" ]
-    then
-        SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
-    else
-        SET_LAN_SUBNET_B="${DETECTED_LAN_SUBNET_B}"
-    fi
+	DETECTED_LAN_SUBNET_B=`ifconfig ${CONFIG_LAN_NET_IFACE} | grep "inet.*netmask 0xffff0000" | awk '{print $2}' | sort | head -1 | cut -d. -f1,2`
+	if [ "${DETECTED_LAN_SUBNET_B}" = "" ]
+	then
+		SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
+	else
+		SET_LAN_SUBNET_B="${DETECTED_LAN_SUBNET_B}"
+	fi
 fi
 FDO_LAN_SUBNET_B=${FDO_LAN_SUBNET_B:-"${SET_LAN_SUBNET_B}"}
 NFS_SUBNET_C=${NFS_SUBNET_C:-"${FDO_LAN_SUBNET_B}.40"}
