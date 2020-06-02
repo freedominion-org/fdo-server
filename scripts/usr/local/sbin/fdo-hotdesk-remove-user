@@ -159,14 +159,14 @@ ERROR_COUNT=0
 
 # Get hotdesk users' home folder  root filesystem from config files.
 HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
-if [ ${?} -ne 0 ] || [ "${HOST_POOL}" = "null" ] || [ "${HOST_POOL}" = "" ]
+if [ ${?} -ne 0 ] || [ "${HOME_POOL}" = "null" ] || [ "${HOME_POOL}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file\n       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
 	exit 1
 fi
 
 HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
-if [ ${?} -ne 0 ] || [ "${HOTDESK_POOL}" = "null" ] || [ "${HOTDESK_POOL}" = "" ]
+if [ ${?} -ne 0 ] || [ "${HOME_FS}" = "null" ] || [ "${HOME_FS}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file\n       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
 	exit 1
