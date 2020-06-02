@@ -28,11 +28,13 @@
 
 SCRIPT_NAME=`basename ${0}`
 USERNAME="${1}"
+NUM_MANDATORY_ARGS=1
+UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
 HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
-NUM_MANDATORY_ARGS=1
 FORCE_MODE="no"
+## TODO: load BACKUP_POOL from UCL host.conf file. 
 DEFAULT_BACKUP_POOL="backup"
 DATE_CMD=/bin/date
 NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
