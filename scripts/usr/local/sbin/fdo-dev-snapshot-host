@@ -163,7 +163,7 @@ fi
 test_valid_snapshot  "${SNAPSHOT_NAME}"
 if [ "${VALID_SNAPSHOT_NAME}" = "no" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The snapshot name '${HOST_NAME}' is invalid!"
+	echo -e "\n${LRED}ERROR:${NRML} The snapshot name '${SNAPSHOT_NAME}' is invalid!"
 	echo -e "       It must only contain letters, numbers, underscores and hyphens."
 	echo -e "       Aborting.\n"
 	exit 1
