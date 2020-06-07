@@ -35,9 +35,12 @@ REMOTE_PORT="22"
 NUM_MANDATORY_ARGS=4
 IS_INTERACTIVE="yes"
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
-FDO_CONF_DIR="/usr/local/etc/fdo"
-SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
-SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SSHFS_DAEMON_CONF_PATH=${SSHFS_DAEMON_CONF_PATH:-"${FDO_CONFIG_ROOT}/sshfs-daemon.conf"}
+SSHFS_DAEMON_KEY_PREFIX="${FDO_CONFIG_ROOT}/sshfs_daemon_keys"
+DO_GEN_KEY=${DO_GEN_KEY:-"no"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -238,6 +241,37 @@ test_if_host ()
 	fi
 }
 
+ucl_array_length ()
+{
+	UCL_ARRAY_LENGTH_FILE_PATH="${1}"
+	UCL_ARRAY_LENGTH_VARIABLE="${2}"
+	UCL_ARRAY_LENGTH=0
+
+	UCL_ARRAY_LENGTH_OBJECT=`${UCL_CMD} get -f "${UCL_ARRAY_LENGTH_FILE_PATH}" "${UCL_ARRAY_LENGTH_VARIABLE}" 2> /dev/null`
+	if [ ${?} -ne 0 ]
+	then
+		# Unexpected error accessing the UCL file.
+		return 2
+	fi
+
+	if [ "${UCL_ARRAY_LENGTH_OBJECT}" != "[array]" ]
+	then
+		# The variable was not a valid array, return expected error.
+		return 1
+	fi
+
+	while [ "${UCL_ARRAY_LENGTH_OBJECT}" != "null" ]
+	do
+		UCL_ARRAY_LENGTH_OBJECT=`${UCL_CMD} get -f "${UCL_ARRAY_LENGTH_FILE_PATH}" "${UCL_ARRAY_LENGTH_VARIABLE}.${UCL_ARRAY_LENGTH}"`
+		if [ "${UCL_ARRAY_LENGTH_OBJECT}" != "null" ]
+		then
+			UCL_ARRAY_LENGTH=$(( ${UCL_ARRAY_LENGTH} + 1 ))
+		fi
+	done
+
+	return 0
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -256,14 +290,60 @@ then
 	exit 1
 fi
 
-if [ ! -f ${SSHFSD_CONF_PATH} ]
+# Check for unsaved registered host config files.
+echo -e "\n${YELL}Now we need to check if there are any unsaved changes to this hosts registered\nconfig files...${NRML}\n"
+${FDO_SERVER_SCRIPT} check-configs --script > /dev/null 2>&1
+if [ ${?} -gt 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file '${SSHFSD_CONF_PATH}' does not exist!\n       Aborting.\n"
-	usage
+	echo -e "\n${LRED}ERROR:${NRML} One or more host config files are not updated in the repo."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} check-configs${NRML}' subcommand to see what's out-of-date."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} update-config${NRML}' subcommannd to keep the repo up-to-date.\n       Aborting.\n"
 	exit 1
 fi
 
-# Test that the remote user is valid
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check that the sshfs-daemon subsystem is initialised.
+SSHFS_DAEMON_SUBSYS_COMPAT=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .subsystems.sshfs-daemon_compat`
+if [ "${SSHFS_DAEMON_SUBSYS_COMPAT}" = "null" ] || [ "${SSHFS_DAEMON_SUBSYS_COMPAT}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} It appears that the SSHFS-daemon subsystem is not initialised."
+	echo -e "       Consider using the command:"
+	echo -e "       ${LBLU}${SCRIPT_NAME} init-sshfs-daemon${NRML}\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the sshfs-daemon.conf file exists.
+if [ ! -e "${SSHFS_DAEMON_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the sshfs-daemon.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${SSHFS_DAEMON_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${SSHFS_DAEMON_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Test that the remote user is valid.
 TEST=`echo "${REMOTE_USER}" | sed "s/^[a-zA-Z0-9._-]\{3,\}$//" | wc -L`
 if [ ${TEST} -ne 0 ]
 then
@@ -287,7 +367,7 @@ then
 	exit 1
 fi
 
-# Check if the remote_path does not end in a forward slash or a space
+# Check if the remote_path does not end in a forward slash or a space.
 TEST=`echo "${REMOTE_PATH}" | sed -r "s/.+.*[/ ]+$//" | wc -L`
 if [ ${TEST} -eq 0 ]
 then
@@ -297,18 +377,22 @@ then
 	exit 1
 fi
 
+# Check if the local_path already exists in sshfs-daemon.conf.
+CONNECTION_INDEX=0
+while [ `${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}` != "null" ]
+do
+	TEST_LOCAL_PATH=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.local_path`
+	if [ "${LOCAL_PATH}" = "${TEST_LOCAL_PATH}" ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} A connection already exists with the local path;"
+		echo -e "       '${LOCAL_PATH}'"
+		echo -e "       Aborting.\n"
+		exit 1
+	fi
+	CONNECTION_INDEX=$(( ${CONNECTION_INDEX} + 1 ))
+done
 
-# Check if the local_path already exists in sshfsd_shares.conf
-cat "${SSHFSD_CONF_PATH}" | grep -v "^#" | awk -F "///" '{print $2}' | grep "^${LOCAL_PATH}$" > /dev/null 2>&1
-if [ ${?} -eq 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} A connection already exists with the local path;"
-	echo -e "       '${LOCAL_PATH}'"
-	echo -e "       Aborting.\n"
-	exit 1
-fi
-
-# Check if the local_path is a valid directory
+# Check if the local_path is a valid directory.
 if [ ! -d "${LOCAL_PATH}" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Cannot find the local path (mountpoint);"
@@ -317,7 +401,7 @@ then
 	exit 1
 fi
 
-# Check if the local_path is a valid absolute path
+# Check if the local_path is a valid absolute path.
 LOCAL_PATH_CHAR1=`echo "${LOCAL_PATH}" | cut -c1`
 if [ "${LOCAL_PATH_CHAR1}" != "/" ]
 then
@@ -330,7 +414,7 @@ LOCAL_PATH_DIRNAME=`dirname "${LOCAL_PATH}"`
 LOCAL_PATH_BASENAME=`basename "${LOCAL_PATH}"`
 if [ "${LOCAL_PATH_DIRNAME}" = "/" ]
 then
-	# The local path is one level above root, so we need to compensate the dirname 
+	# The local path is one level above root, so we need to compensate the dirname.
 	LOCAL_PATH_DIRNAME=""
 fi
 if [ "${LOCAL_PATH_DIRNAME}/${LOCAL_PATH_BASENAME}" != "${LOCAL_PATH}" ]
@@ -343,7 +427,7 @@ then
 	exit 1
 fi
 
-# Check if the port number is valid
+# Check if the port number is valid.
 test_valid_integer "${REMOTE_PORT}" 1 65535
 if [ "${VALID_INTEGER}" = "no" ]
 then
@@ -358,7 +442,7 @@ fi
 
 ERROR_COUNT=0
 
-# Warn if the local_path is not empty
+# Warn if the local_path is not empty.
 TEST=`ls -A1 "${LOCAL_PATH}" | wc -l`
 if [ ${TEST} -gt 0 ]
 then
@@ -374,73 +458,94 @@ fi
 
 # Ask if we should create an ssh key and copy it to the remote users' authorized keys
 # for an unattended login.
-SSHFSD_KEY="none"
-question_yes_no "\nUNATTENDED LOGIN: Would you like to use an SSH key to authenticate as the remote user?"
-if [ "${ANSWER}" = "yes" ]
+SSHFS_DAEMON_KEY="none"
+if [ "${IS_INTERACTIVE}" = "yes" ]
 then
-	# Flatten the local_path so we can use it in a file name
-	LOCAL_PATH_FLAT=`echo ${LOCAL_PATH} | sed "s/\//_/g"`
+	question_yes_no "\nUNATTENDED LOGIN: Would you like to use an SSH key to authenticate as the remote user?"
+	DO_GEN_KEY="${ANSWER}"
+fi
+if [ "${DO_GEN_KEY}" = "yes" ]
+then
+	# Create SSH keys directory, if it doesn't exist.
+	if [ ! -d "${SSHFS_DAEMON_KEY_PREFIX}" ]
+	then
+		mkdir "${SSHFS_DAEMON_KEY_PREFIX}" 2> /dev/null
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Flatten the local_path so we can use it in a file name.
+	LOCAL_PATH_FLAT=`echo "${LOCAL_PATH}" | sed "s/\//__/g"`
 	LOCAL_PATH_MD5=`echo "${LOCAL_PATH}" | md5 -q`
-	SSHFSD_KEY="${SSHFSD_KEY_PREFIX}_${LOCAL_PATH_MD5}${LOCAL_PATH_FLAT}"
+	SSHFS_DAEMON_KEY="${SSHFS_DAEMON_KEY_PREFIX}/${LOCAL_PATH_FLAT}.${LOCAL_PATH_MD5}"
 	echo -e ""
-	# Generate an SSH key and store it in a programatically accessible place
-	ssh-keygen -q -f "${SSHFSD_KEY}" -N ""
+	# Generate an SSH key and store it in a programatically accessible place.
+	ssh-keygen -q -f "${SSHFS_DAEMON_KEY}" -N ""
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} A problem occured generating the SSH key file;"
-		echo -e "       '${SSHFSD_KEY}'"
+		echo -e "       '${SSHFS_DAEMON_KEY}'"
 		echo -e "       Aborting.\n"
-		rm ${SSHFSD_KEY}
-		rm ${SSHFSD_KEY}.pub
+		rm ${SSHFS_DAEMON_KEY}
+		rm ${SSHFS_DAEMON_KEY}.pub
 		exit 2
 	fi
 
 	echo -e "\n${YELL}SSH key generated!${NRML}"
-	echo -e "\n${YELL}Next we need to copy it to the remote users' authorized_keys file.\nEnter the remote users password when prompted.${NRML}\n"
 
-	# Copy the SSH key to the remote users' authorized keys file (~/.ssh/authorized_keys)
-	ssh-copy-id -p "${REMOTE_PORT}" -i "${SSHFSD_KEY}" "${REMOTE_USER}@${REMOTE_HOST}"
-	if [ ${?} -ne 0 ]
+	if [ "${IS_INTERACTIVE}" = "yes" ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} A problem occured copying the SSH key file to the remote user/host;"
-		echo -e "       '${REMOTE_USER}@${REMOTE_HOST}'"
-		echo -e "       Aborting.\n"
-		rm ${SSHFSD_KEY}
-		rm ${SSHFSD_KEY}.pub
-		exit 2
+		echo -e "\n${YELL}Next we need to copy it to the remote users' authorized_keys file.\nEnter the remote users password when prompted.${NRML}\n"
+
+		# Copy the SSH key to the remote users' authorized keys file (~/.ssh/authorized_keys).
+		ssh-copy-id -p "${REMOTE_PORT}" -i "${SSHFS_DAEMON_KEY}" "${REMOTE_USER}@${REMOTE_HOST}"
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} A problem occured copying the SSH key file to the remote user/host;"
+			echo -e "       '${REMOTE_USER}@${REMOTE_HOST}'"
+			echo -e "       Aborting.\n"
+			rm ${SSHFS_DAEMON_KEY}
+			rm ${SSHFS_DAEMON_KEY}.pub
+			exit 2
+		fi
 	fi
 
 fi
 
-# Now let's add the entry to the sshfs daemon config file
-echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}///${LOCAL_PATH}///${REMOTE_PORT}" >> "${SSHFSD_CONF_PATH}"
+# Get the connections array index from the sshfs-daemon config file.
+ucl_array_length ${SSHFS_DAEMON_CONF_PATH} .connections
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+CONNECTIONS_ARRAY_INDEX=${UCL_ARRAY_LENGTH}
 
-# Update configuration in the local repo and if interactive mode then push to remote repo
+# Now let's add the entry to the sshfs daemon config file.
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t object .connections.${CONNECTIONS_ARRAY_INDEX} "{ }"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.local_path "${LOCAL_PATH}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_host "${REMOTE_HOST}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_path "${REMOTE_PATH}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_user "${REMOTE_USER}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_port "${REMOTE_PORT}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+#echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}///${LOCAL_PATH}///${REMOTE_PORT}" >> "${SSHFS_DAEMON_CONF_PATH}"
+
+# Update configuration in the local repo and if interactive mode then push to remote repo.
+if [ "${SSHFS_DAEMON_KEY}" != "none" ]
+then
+	echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFS_DAEMON_KEY} ...\n"
+	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFS_DAEMON_KEY}"
+	echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFS_DAEMON_KEY}.pub ...\n"
+	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFS_DAEMON_KEY}.pub"
+fi
+
+echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFS_DAEMON_CONF_PATH} ...\n"
 if [ "${IS_INTERACTIVE}" = "no" ]
 then
-	if [ "${SSHFSD_KEY}" != "none" ]
-	then
-		echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY} ...\n"
-		GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}"
-		echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY}.pub ...\n"
-		GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}.pub"
-	fi
-	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
-	CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
+	CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
 else
-	question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
-	if [ "${ANSWER}" = "yes" ]
-	then
-		if [ "${SSHFSD_KEY}" != "none" ]
-		then
-			echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY} ...\n"
-			GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}"
-			echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFSD_KEY}.pub ...\n"
-			GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFSD_KEY}.pub"
-		fi
-		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
-		CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
-	fi
+	CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
 fi
 
 echo -e ""
@@ -448,6 +553,8 @@ echo -e ""
 if [ ${ERROR_COUNT} -gt 0 ]
 then
 	exit 2
+else
+	echo -e "\n${LGRN}Successfully added SSHFS connection for:\n'${NRML}${LOCAL_PATH}${LGRN}'${NRML}\n"
 fi
 
 ################################################################################

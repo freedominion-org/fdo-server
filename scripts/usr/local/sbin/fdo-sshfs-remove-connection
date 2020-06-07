@@ -30,9 +30,11 @@ SCRIPT_NAME=`basename ${0}`
 LOCAL_PATH="${1}"
 NUM_MANDATORY_ARGS=1
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
-FDO_CONF_DIR="/usr/local/etc/fdo"
-SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
-SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SSHFS_DAEMON_CONF_PATH=${SSHFS_DAEMON_CONF_PATH:-"${FDO_CONFIG_ROOT}/sshfs-daemon.conf"}
+SSHFS_DAEMON_KEY_PREFIX="${FDO_CONFIG_ROOT}/sshfs_daemon_keys"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -162,21 +164,57 @@ then
 	exit 1
 fi
 
-if [ ! -f ${SSHFSD_CONF_PATH} ]
+# Check for unsaved registered host config files.
+echo -e "\n${YELL}Now we need to check if there are any unsaved changes to this hosts registered\nconfig files...${NRML}\n"
+${FDO_SERVER_SCRIPT} check-configs --script > /dev/null 2>&1
+if [ ${?} -gt 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file '${SSHFSD_CONF_PATH}' does not exist!\n       Aborting.\n"
-	usage
+	echo -e "\n${LRED}ERROR:${NRML} One or more host config files are not updated in the repo."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} check-configs${NRML}' subcommand to see what's out-of-date."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} update-config${NRML}' subcommannd to keep the repo up-to-date.\n       Aborting.\n"
 	exit 1
 fi
 
-# Check if the local_path exists in sshfsd_shares.conf
-cat "${SSHFSD_CONF_PATH}" | grep -v "^#" | awk -F "///" '{print $2}' | grep "^${LOCAL_PATH}$" > /dev/null 2>&1
-if [ ${?} -ne 0 ]
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} No connection exists with the local path;"
-	echo -e "       '${LOCAL_PATH}'"
-	echo -e "       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
 	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check that the sshfs-daemon subsystem is initialised.
+SSHFS_DAEMON_SUBSYS_COMPAT=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .subsystems.sshfs-daemon_compat`
+if [ "${SSHFS_DAEMON_SUBSYS_COMPAT}" = "null" ] || [ "${SSHFS_DAEMON_SUBSYS_COMPAT}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} It appears that the SSHFS-daemon subsystem is not initialised."
+	echo -e "       Consider using the command:"
+	echo -e "       ${LBLU}${SCRIPT_NAME} init-sshfs-daemon${NRML}\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the sshfs-daemon.conf file exists.
+if [ ! -e "${SSHFS_DAEMON_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the sshfs-daemon.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${SSHFS_DAEMON_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${SSHFS_DAEMON_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
 fi
 
 
@@ -184,7 +222,7 @@ fi
 
 ERROR_COUNT=0
 
-# Warn if the local_path is mounted
+# Warn if the local_path is mounted.
 is_mounted "${LOCAL_PATH}"
 if [ ${?} -eq 0 ]
 then
@@ -196,63 +234,75 @@ then
 		echo -e ""
 		exit 1
 	else
-		# Unmount the connection
+		# Unmount the connection.
 		echo -e "\n${YELL}Unmounting the connection...${NRML}\n"
 		umount "${LOCAL_PATH}"
 	fi
 fi
 
-# Flatten the local_path so we can use it in a file name
-LOCAL_PATH_FLAT=`echo ${LOCAL_PATH} | sed "s/\//_/g"`
+# Flatten the local_path so we can use it in a file name.
+LOCAL_PATH_FLAT=`echo "${LOCAL_PATH}" | sed "s/\//_/g"`
 LOCAL_PATH_MD5=`echo "${LOCAL_PATH}" | md5 -q`
-SSHFSD_KEY="${SSHFSD_KEY_PREFIX}_${LOCAL_PATH_MD5}${LOCAL_PATH_FLAT}"
+SSHFS_DAEMON_KEY="${SSHFS_DAEMON_KEY_PREFIX}/${LOCAL_PATH_FLAT}.${LOCAL_PATH_MD5}"
 
-# Remove the connection from the sshfsd shares config file
-echo -e "\n${YELL}Removing sshfs connection...${NRML}\n"
-LOCAL_PATH_ESCAPED=`echo "${LOCAL_PATH}" | sed "s|\/|\\\\\/|g"`
-sed -i "" "/\/\/\/${LOCAL_PATH_ESCAPED}\/\/\//d" "${SSHFSD_CONF_PATH}"
+# Get the index of the local_path in sshfs-daemon.conf.
+LOCAL_PATH_EXISTS=false
+CONNECTION_INDEX=0
+while [ `${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}` != "null" ]
+do
+	TEST_LOCAL_PATH=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.local_path`
+	if [ "${LOCAL_PATH}" = "${TEST_LOCAL_PATH}" ]
+	then
+		LOCAL_PATH_EXISTS=true
+		LOCAL_PATH_INDEX=${CONNECTION_INDEX}
+		break
+	fi
+	CONNECTION_INDEX=$(( ${CONNECTION_INDEX} + 1 ))
+done
 
-# Remove any ssh keys
-echo -e "\n${YELL}Removing any SSH keys...${NRML}\n"
-if [ -f "${SSHFSD_KEY}" ]
+# If local_path was not found, abort with error.
+if [ ${LOCAL_PATH_EXISTS} = false ]
 then
-	rm "${SSHFSD_KEY}"
+	echo -e "\n${LRED}ERROR:${NRML} No connection exists with the local path;"
+	echo -e "       '${LOCAL_PATH}'"
+	echo -e "       Aborting.\n"
+	exit 1
 fi
-if [ -f "${SSHFSD_KEY}.pub" ]
+
+# Remove the connection from the sshfsd shares config file.
+echo -e "\n${YELL}Removing sshfs connection...${NRML}\n"
+${UCL_CMD} remove -f ${SSHFS_DAEMON_CONF_PATH} -o ${SSHFS_DAEMON_CONF_PATH} .connections.${LOCAL_PATH_INDEX}
+
+# Remove any ssh keys.
+echo -e "\n${YELL}Removing any associated SSH keys...${NRML}\n"
+if [ -f "${SSHFS_DAEMON_KEY}" ]
 then
-	rm "${SSHFSD_KEY}.pub"
+	rm "${SSHFS_DAEMON_KEY}"
+fi
+if [ -f "${SSHFS_DAEMON_KEY}.pub" ]
+then
+	rm "${SSHFS_DAEMON_KEY}.pub"
 	echo -e "\n${ORNG}You may need to manually remove any public ssh keys from the remote users' ${NRML}"
 	echo -e "${ORNG}authorized_keys file on the remote system.${NRML}\n"
 else
-	SSHFSD_KEY="none"
+	SSHFS_DAEMON_KEY="none"
 fi
 
-# Update configuration in the local repo and if interactive mode then push to remote repo
+# Update configuration in the local repo and if interactive mode then push to remote repo.
+if [ "${SSHFS_DAEMON_KEY}" != "none" ]
+then
+	echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFS_DAEMON_KEY} ...\n"
+	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFS_DAEMON_KEY}"
+	echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFS_DAEMON_KEY}.pub ...\n"
+	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFS_DAEMON_KEY}.pub"
+fi
+
+echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFS_DAEMON_CONF_PATH} ...\n"
 if [ "${IS_INTERACTIVE}" = "no" ]
 then
-	if [ "${SSHFSD_KEY}" != "none" ]
-	then
-		echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY} ...\n"
-		GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
-		echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY}.pub ...\n"
-		GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
-	fi
-	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
-	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
+	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
 else
-	question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
-	if [ "${ANSWER}" = "yes" ]
-	then
-		if [ "${SSHFSD_KEY}" != "none" ]
-		then
-			echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY} ...\n"
-			GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}"
-			echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFSD_KEY}.pub ...\n"
-			GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFSD_KEY}.pub"
-		fi
-		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFSD_CONF_PATH} ...\n"
-		CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFSD_CONF_PATH}"
-	fi
+	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
 fi
 
 echo -e ""
@@ -260,6 +310,8 @@ echo -e ""
 if [ ${ERROR_COUNT} -gt 0 ]
 then
 	exit 2
+else
+	echo -e "\n${LGRN}Successfully removed SSHFS connection for:\n'${NRML}${LOCAL_PATH}${LGRN}'${NRML}\n"
 fi
 
 ################################################################################

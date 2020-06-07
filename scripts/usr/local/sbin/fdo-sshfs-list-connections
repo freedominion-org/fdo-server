@@ -30,9 +30,11 @@ SCRIPT_NAME=`basename ${0}`
 REMOTE_PORT="22"
 NUM_MANDATORY_ARGS=0
 IS_INTERACTIVE="yes"
-FDO_CONF_DIR="/usr/local/etc/fdo"
-SSHFSD_CONF_PATH="${FDO_CONF_DIR}/sshfsd_shares.conf"
-SSHFSD_KEY_PREFIX="${FDO_CONF_DIR}/sshfsd_key"
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+SSHFS_DAEMON_CONF_PATH=${SSHFS_DAEMON_CONF_PATH:-"${FDO_CONFIG_ROOT}/sshfs-daemon.conf"}
+SSHFS_DAEMON_KEY_PREFIX="${FDO_CONFIG_ROOT}/sshfs_daemon_keys"
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -131,30 +133,74 @@ then
 	exit 1
 fi
 
-if [ ! -f ${SSHFSD_CONF_PATH} ]
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file '${SSHFSD_CONF_PATH}' does not exist!\n       Aborting.\n"
-	usage
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
 	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check that the sshfs-daemon subsystem is initialised.
+SSHFS_DAEMON_SUBSYS_COMPAT=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .subsystems.sshfs-daemon_compat`
+if [ "${SSHFS_DAEMON_SUBSYS_COMPAT}" = "null" ] || [ "${SSHFS_DAEMON_SUBSYS_COMPAT}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} It appears that the SSHFS-daemon subsystem is not initialised."
+	echo -e "       Consider using the command:"
+	echo -e "       ${LBLU}${SCRIPT_NAME} init-sshfs-daemon${NRML}\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the sshfs-daemon.conf file exists.
+if [ ! -e "${SSHFS_DAEMON_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The sshfs daemon config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the sshfs-daemon.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${SSHFS_DAEMON_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${SSHFS_DAEMON_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
 fi
 
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
 
-IFS=${CARRIAGE_RETURN}
-
+# Display connections table header.
 echo -e ""
 echo -e "${GREY}==============================================================================${NRML}"
 echo -e "[ SSHFS URI ] ${LBLU}[ Local path ] ${GREY}[ Port ]${NRML}"
 echo -e "${GREY}==============================================================================${NRML}"
-for CONNECTION in `cat ${SSHFSD_CONF_PATH} | grep -v "^#"`
+
+# Display connections table data.
+CONNECTION_INDEX=0
+while [ `${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}` != "null" ]
 do
-	CONNECTION_URI=`echo "${CONNECTION}" | awk -F "///" '{print $1}'`
-	CONNECTION_PATH=`echo "${CONNECTION}" | awk -F "///" '{print $2}'`
-	CONNECTION_PORT=`echo "${CONNECTION}" | awk -F "///" '{print $3}'`
-	echo -e "${CONNECTION_URI}\n${LBLU}${CONNECTION_PATH}\n${GREY}${CONNECTION_PORT}${NRML}"
+	LOCAL_PATH=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.local_path`
+	REMOTE_HOST=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.remote_host`
+	REMOTE_PATH=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.remote_path`
+	REMOTE_USER=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.remote_user`
+	REMOTE_PORT=`${UCL_CMD} get -f ${SSHFS_DAEMON_CONF_PATH} -q .connections.${CONNECTION_INDEX}.remote_port`
+
+	echo -e "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+	echo -e "${LBLU}${LOCAL_PATH}${NRML}"
+	echo -e "${GREY}${REMOTE_PORT}${NRML}"
 	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+
+	CONNECTION_INDEX=$(( ${CONNECTION_INDEX} + 1 ))
 done
 
 echo -e ""
