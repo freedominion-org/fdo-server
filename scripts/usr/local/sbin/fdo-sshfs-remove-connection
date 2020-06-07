@@ -63,7 +63,7 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Remove an sshfs connection to a remote host from this host."
+	echo -e "${YELL}Description:${NRML} Remove an sshfs-daemon connection to a remote host from this host."
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} local_path [--non-interactive]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} /home/joe/host1${NRML}"
@@ -269,7 +269,7 @@ then
 	exit 1
 fi
 
-# Remove the connection from the sshfsd shares config file.
+# Remove the connection from the sshfs-daemon config file.
 echo -e "\n${YELL}Removing sshfs connection...${NRML}\n"
 ${UCL_CMD} remove -f ${SSHFS_DAEMON_CONF_PATH} -o ${SSHFS_DAEMON_CONF_PATH} .connections.${LOCAL_PATH_INDEX}
 

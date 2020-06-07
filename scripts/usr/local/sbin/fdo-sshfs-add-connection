@@ -69,7 +69,7 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} Add an sshfs connection to a remote host from this host."
+	echo -e "${YELL}Description:${NRML} Add an sshfs-daemon connection to a remote host from this host."
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} remote_user remote_host remote_path local_path [--port=port_number] [--non-interactive]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} joe host1.example.net /home/joe /home/joe/host1${NRML}"
@@ -516,7 +516,7 @@ ucl_array_length ${SSHFS_DAEMON_CONF_PATH} .connections
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 CONNECTIONS_ARRAY_INDEX=${UCL_ARRAY_LENGTH}
 
-# Now let's add the entry to the sshfs daemon config file.
+# Now let's add the entry to the sshfs-daemon config file.
 ${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t object .connections.${CONNECTIONS_ARRAY_INDEX} "{ }"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 ${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.local_path "${LOCAL_PATH}"

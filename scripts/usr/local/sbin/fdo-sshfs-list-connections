@@ -63,7 +63,7 @@ usage ()
 	echo -e ""
 	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
 	echo -e ""
-	echo -e "${YELL}Description:${NRML} List sshfs connections on this host."
+	echo -e "${YELL}Description:${NRML} List sshfs-daemon connections on this host."
 	echo -e ""
 	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML}"

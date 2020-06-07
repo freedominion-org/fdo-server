@@ -1,24 +1,24 @@
 #!/bin/sh
 #
 #
-# PROVIDE: sshfsd
+# PROVIDE: fdo_sshfsd
 # REQUIRE: DAEMON FILESYSTEMS NETWORK netif
 # KEYWORD: shutdown
-# Add the following lines to /etc/rc.conf to enable sshfsd:
+# Add the following lines to /etc/rc.conf to enable fdo_sshfsd:
 #
-# sshfsd_enable (bool): Set it to "YES" to enable sshfsd.
+# fdo_sshfsd_enable (bool): Set it to "YES" to enable fdo_sshfsd.
 # Default is "NO"
 #
 #
 
 . /etc/rc.subr
 
-name="sshfsd"
+name="fdo_sshfsd"
 rcvar=${name}_enable
 
 load_rc_config ${name}
-: ${sshfsd_enable="NO"}
-sshfsd_opts=${sshfsd_opts:-"rw,allow_other,reconnect,ServerAliveInterval=10"}
+: ${fdo_sshfsd_enable="NO"}
+fdo_sshfsd_opts=${fdo_sshfsd_opts:-"rw,allow_other,reconnect,ServerAliveInterval=10"}
 
 status_cmd="${name}_status"
 start_cmd="${name}_start"
@@ -106,7 +106,7 @@ is_mounted () {
 	return 1
 }
 
-sshfsd_start () {
+fdo_sshfsd_start () {
 
 	test_configs
 
@@ -134,7 +134,7 @@ sshfsd_start () {
 			if [ -f "${SSHFS_DAEMON_KEY}" ]
 			then
 				echo "SSHFS_DAEMON_KEY=${SSHFS_DAEMON_KEY}"
-				SSHFS_DAEMON_MOUNT_OPTIONS="${sshfsd_opts},IdentityFile=\"${SSHFS_DAEMON_KEY}\""
+				SSHFS_DAEMON_MOUNT_OPTIONS="${fdo_sshfsd_opts},IdentityFile=\"${SSHFS_DAEMON_KEY}\""
 			fi
 			echo -e "  ${YELL}Mounting '${NRML}${LOCAL_PATH}${YELL}' ...${NRML}"
 			MOUNT_ATTEMPT=0
@@ -159,7 +159,7 @@ sshfsd_start () {
 
 }
 
-sshfsd_stop () {
+fdo_sshfsd_stop () {
 
 	test_configs
 
@@ -197,7 +197,7 @@ sshfsd_stop () {
 
 }
 
-sshfsd_status () {
+fdo_sshfsd_status () {
 
 	test_configs
 
