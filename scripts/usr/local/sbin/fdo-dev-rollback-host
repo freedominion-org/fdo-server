@@ -205,14 +205,24 @@ then
 fi
 
 # Store bash history as variable.
-BASH_HISTORY=`cat ~/.bash_history`
+if [ -f "~/.bash_history" ]
+then
+	BASH_HISTORY=`cat ~/.bash_history`
+fi
 
-# Recursively rollback all filesystems in POOL to SNAPSHOT_NAME.
+# Compile disposable rollback worker script.
+:> /tmp/fdo-dev-rollback-host.worker.sh
+ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
 for FILESYSTEM in `zfs list -H -o name -r ${POOL}`
 do
-	su - root -c "zfs rollback ${ROLLBACK_FLAGS} ${FILESYSTEM}@${SNAPSHOT_NAME}"
+	echo "zfs rollback \"${ROLLBACK_FLAGS}\" \"${FILESYSTEM}@${SNAPSHOT_NAME}\"" >> /tmp/fdo-dev-rollback-host.worker.sh
 	ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
 done
+
+# Recursively rollback all filesystems in POOL to SNAPSHOT_NAME using disposable worker script.
+sh /tmp/fdo-dev-rollback-host.worker.sh &
+ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+sleep 8
 
 # Set hostname back to what it was at time of snapshot.
 HOSTNAME=`sysrc -n hostname`
@@ -220,7 +230,10 @@ hostname ${HOSTNAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
 
 # Restore current bash history.
-echo "${BASH_HISTORY}" > ~/.bash_history
+if [ -n "${BASH_HISTORY}" ]
+then
+	echo "${BASH_HISTORY}" > ~/.bash_history
+fi
 
 echo -e ""
 
