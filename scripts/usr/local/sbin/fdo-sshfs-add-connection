@@ -272,6 +272,78 @@ ucl_array_length ()
 	return 0
 }
 
+backup_file ()
+{
+	FILE_PATH="${1}"
+	CHANGE_AGENT="${2}"
+	if [ -f "${FILE_PATH}" ]
+	then
+		BACKUP_FILE_PATH="${FILE_PATH}.backup.${CHANGE_AGENT}"
+		cp "${FILE_PATH}" "${BACKUP_FILE_PATH}" 2> /dev/null
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Failed to backup file '${ORNG}${FILE_PATH}${NRML}'!\n"
+			BACKUP_FILE_PATH=""
+			return 2
+		fi
+	else
+		echo -e "\n${LRED}ERROR:${NRML} File '${ORNG}${FILE_PATH}${NRML}' does not exist!\n       Unable to backup.\n"
+		BACKUP_FILE_PATH=""
+		return 1
+	fi
+
+	return 0
+}
+
+restore_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}" ] && [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		diff -q "${FILE_PATH}" "${FILE_PATH}.backup.${CHANGE_AGENT}" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			# File and backup differ, replace the file with it's backup copy.
+			mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		else
+			# File is same as backup, remove the backup.
+			rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_backup_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		# Remove the backup.
+		rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
+		fi
+	fi
+
+	return 0
+
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -451,7 +523,7 @@ ERROR_COUNT=0
 
 # Warn if the local_path is not empty.
 TEST=`ls -A1 "${LOCAL_PATH}" | wc -l`
-if [ ${TEST} -gt 0 ]
+if [ ${TEST} -ne 0 ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} The following local path is not empty;"
 	echo -e "         '${LOCAL_PATH}'\n"
@@ -477,7 +549,11 @@ then
 	if [ ! -d "${SSHFS_DAEMON_KEY_PREFIX}" ]
 	then
 		mkdir "${SSHFS_DAEMON_KEY_PREFIX}" 2> /dev/null
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} A problem occured creating the SSH keys directory!\n       Aborting.\n"
+			exit 2
+		fi
 	fi
 
 	# Flatten the local_path so we can use it in a file name.
@@ -485,6 +561,7 @@ then
 	LOCAL_PATH_MD5=`echo "${LOCAL_PATH}" | md5 -q`
 	SSHFS_DAEMON_KEY="${SSHFS_DAEMON_KEY_PREFIX}/${LOCAL_PATH_FLAT}.${LOCAL_PATH_MD5}"
 	echo -e ""
+
 	# Generate an SSH key and store it in a programatically accessible place.
 	ssh-keygen -q -f "${SSHFS_DAEMON_KEY}" -N ""
 	if [ ${?} -ne 0 ]
@@ -492,8 +569,8 @@ then
 		echo -e "\n${LRED}ERROR:${NRML} A problem occured generating the SSH key file;"
 		echo -e "       '${SSHFS_DAEMON_KEY}'"
 		echo -e "       Aborting.\n"
-		rm ${SSHFS_DAEMON_KEY}
-		rm ${SSHFS_DAEMON_KEY}.pub
+		rm ${SSHFS_DAEMON_KEY} 2> /dev/null
+		rm ${SSHFS_DAEMON_KEY}.pub 2> /dev/null
 		exit 2
 	fi
 
@@ -510,13 +587,16 @@ then
 			echo -e "\n${LRED}ERROR:${NRML} A problem occured copying the SSH key file to the remote user/host;"
 			echo -e "       '${REMOTE_USER}@${REMOTE_HOST}'"
 			echo -e "       Aborting.\n"
-			rm ${SSHFS_DAEMON_KEY}
-			rm ${SSHFS_DAEMON_KEY}.pub
+			rm ${SSHFS_DAEMON_KEY} 2> /dev/null
+			rm ${SSHFS_DAEMON_KEY}.pub 2> /dev/null
 			exit 2
 		fi
 	fi
-
 fi
+
+# Backup sshfs-deamon config file in case something goes wrong.
+backup_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Get the connections array index from the sshfs-daemon config file.
 ucl_array_length ${SSHFS_DAEMON_CONF_PATH} .connections
@@ -536,32 +616,48 @@ ${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_IND
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 ${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_port "${REMOTE_PORT}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-#echo "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}///${LOCAL_PATH}///${REMOTE_PORT}" >> "${SSHFS_DAEMON_CONF_PATH}"
+
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	# Restore sshfs-deamon config file.
+	restore_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+
+	rm ${SSHFS_DAEMON_KEY} 2> /dev/null
+	rm ${SSHFS_DAEMON_KEY}.pub 2> /dev/null
+
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting."
+	exit 2
+fi
 
 # Update configuration in the local repo and if interactive mode then push to remote repo.
+echo -e "\n${YELL}Adding/updating configuration to the repo...${NRML}\n"
 if [ "${SSHFS_DAEMON_KEY}" != "none" ]
 then
 	echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFS_DAEMON_KEY} ...\n"
 	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFS_DAEMON_KEY}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFS_DAEMON_KEY}.pub ...\n"
 	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFS_DAEMON_KEY}.pub"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
-echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFS_DAEMON_CONF_PATH} ...\n"
 if [ "${IS_INTERACTIVE}" = "no" ]
 then
 	CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 else
 	CHANGE_MESSAGE="add sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
-echo -e ""
-
-if [ ${ERROR_COUNT} -gt 0 ]
+if [ ${ERROR_COUNT} -ne 0 ]
 then
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong saving the configuration to the repo!\n"
 	exit 2
-else
-	echo -e "\n${LGRN}Successfully added SSHFS connection for:\n'${NRML}${LOCAL_PATH}${LGRN}'${NRML}\n"
 fi
+
+undo_backup_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+
+echo -e "\n${LGRN}Successfully added SSHFS connection for:\n'${NRML}${LOCAL_PATH}${LGRN}'${NRML}\n"
 
 ################################################################################

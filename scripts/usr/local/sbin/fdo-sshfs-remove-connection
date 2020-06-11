@@ -146,6 +146,78 @@ is_mounted () {
 	return 1
 }
 
+backup_file ()
+{
+	FILE_PATH="${1}"
+	CHANGE_AGENT="${2}"
+	if [ -f "${FILE_PATH}" ]
+	then
+		BACKUP_FILE_PATH="${FILE_PATH}.backup.${CHANGE_AGENT}"
+		cp "${FILE_PATH}" "${BACKUP_FILE_PATH}" 2> /dev/null
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Failed to backup file '${ORNG}${FILE_PATH}${NRML}'!\n"
+			BACKUP_FILE_PATH=""
+			return 2
+		fi
+	else
+		echo -e "\n${LRED}ERROR:${NRML} File '${ORNG}${FILE_PATH}${NRML}' does not exist!\n       Unable to backup.\n"
+		BACKUP_FILE_PATH=""
+		return 1
+	fi
+
+	return 0
+}
+
+restore_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}" ] && [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		diff -q "${FILE_PATH}" "${FILE_PATH}.backup.${CHANGE_AGENT}" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			# File and backup differ, replace the file with it's backup copy.
+			mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		else
+			# File is same as backup, remove the backup.
+			rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_backup_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		# Remove the backup.
+		rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
+		fi
+	fi
+
+	return 0
+
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -229,24 +301,6 @@ fi
 
 ERROR_COUNT=0
 
-# Warn if the local_path is mounted.
-is_mounted "${LOCAL_PATH}"
-if [ ${?} -eq 0 ]
-then
-	echo -e "\n${ORNG}WARNING:${NRML} The following local path appears to be mounted;"
-	echo -e "         '${LOCAL_PATH}'\n"
-	question_yes_no "Would you like to continue regardless of the mount state?"
-	if [ "${ANSWER}" = "no" ]
-	then
-		echo -e ""
-		exit 1
-	else
-		# Unmount the connection.
-		echo -e "\n${YELL}Unmounting the connection...${NRML}\n"
-		umount "${LOCAL_PATH}"
-	fi
-fi
-
 # Flatten the local_path so we can use it in a file name.
 LOCAL_PATH_FLAT=`echo "${LOCAL_PATH}" | sed "s/\//_/g"`
 LOCAL_PATH_MD5=`echo "${LOCAL_PATH}" | md5 -q`
@@ -276,23 +330,73 @@ then
 	exit 1
 fi
 
+# Warn if the local_path is mounted.
+is_mounted "${LOCAL_PATH}"
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${ORNG}WARNING:${NRML} The following local path appears to be mounted;"
+	echo -e "         '${LOCAL_PATH}'\n"
+	question_yes_no "Would you like to continue regardless of the mount state?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		echo -e ""
+		exit 1
+	else
+		# Unmount the connection.
+		echo -e "\n${YELL}Unmounting the connection...${NRML}\n"
+		umount "${LOCAL_PATH}"
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Unable to unmount;"
+			echo -e "       '${LOCAL_PATH}'"
+			echo -e "       Aborting.\n"
+			exit 2
+		fi
+
+	fi
+fi
+
+# Backup sshfs-deamon config file in case something goes wrong.
+backup_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
 # Remove the connection from the sshfs-daemon config file.
 echo -e "\n${YELL}Removing sshfs connection...${NRML}\n"
 ${UCL_CMD} remove -f ${SSHFS_DAEMON_CONF_PATH} -o ${SSHFS_DAEMON_CONF_PATH} .connections.${LOCAL_PATH_INDEX}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Remove any ssh keys.
 echo -e "\n${YELL}Removing any associated SSH keys...${NRML}\n"
 if [ -f "${SSHFS_DAEMON_KEY}" ]
 then
+	backup_file ${SSHFS_DAEMON_KEY} ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	rm "${SSHFS_DAEMON_KEY}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 if [ -f "${SSHFS_DAEMON_KEY}.pub" ]
 then
+	backup_file ${SSHFS_DAEMON_KEY}.pub ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	rm "${SSHFS_DAEMON_KEY}.pub"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo -e "\n${ORNG}You may need to manually remove any public ssh keys from the remote users' ${NRML}"
 	echo -e "${ORNG}authorized_keys file on the remote system.${NRML}\n"
 else
 	SSHFS_DAEMON_KEY="none"
+fi
+
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	# Restore sshfs-deamon config file.
+	restore_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+
+	# Restore SSH key files.
+	restore_file ${SSHFS_DAEMON_KEY} ${SCRIPT_NAME}
+	restore_file ${SSHFS_DAEMON_KEY}.pub ${SCRIPT_NAME}
+
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting."
+	exit 2
 fi
 
 # Update configuration in the local repo and if interactive mode then push to remote repo.
@@ -300,25 +404,32 @@ if [ "${SSHFS_DAEMON_KEY}" != "none" ]
 then
 	echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFS_DAEMON_KEY} ...\n"
 	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFS_DAEMON_KEY}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo -e "\n${FDO_SERVER_SCRIPT} remove-config ${SSHFS_DAEMON_KEY}.pub ...\n"
 	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "${SSHFS_DAEMON_KEY}.pub"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
 echo -e "\n${FDO_SERVER_SCRIPT} update-config ${SSHFS_DAEMON_CONF_PATH} ...\n"
 if [ "${IS_INTERACTIVE}" = "no" ]
 then
 	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 else
 	CHANGE_MESSAGE="remove sshfs connection for local_path '${LOCAL_PATH}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${SSHFS_DAEMON_CONF_PATH}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
-echo -e ""
-
-if [ ${ERROR_COUNT} -gt 0 ]
+if [ ${ERROR_COUNT} -ne 0 ]
 then
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong saving the configuration to the repo!\n"
 	exit 2
-else
-	echo -e "\n${LGRN}Successfully removed SSHFS connection for:\n'${NRML}${LOCAL_PATH}${LGRN}'${NRML}\n"
 fi
+
+undo_backup_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+undo_backup_file ${SSHFS_DAEMON_KEY} ${SCRIPT_NAME}
+undo_backup_file ${SSHFS_DAEMON_KEY}.pub ${SCRIPT_NAME}
+
+echo -e "\n${LGRN}Successfully removed SSHFS connection for:\n'${NRML}${LOCAL_PATH}${LGRN}'${NRML}\n"
 
 ################################################################################
