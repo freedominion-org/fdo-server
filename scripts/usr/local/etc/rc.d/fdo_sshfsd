@@ -157,6 +157,11 @@ fdo_sshfsd_start () {
 		CONNECTION_INDEX=$(( ${CONNECTION_INDEX} + 1 ))
 	done
 
+	if [ ${CONNECTION_INDEX} -eq 0 ]
+	then
+		echo -e "\n${YELL}It appears there are no sshfs-daemon connections available.${NRML}\n"
+	fi
+
 }
 
 fdo_sshfsd_stop () {
@@ -195,6 +200,11 @@ fdo_sshfsd_stop () {
 		CONNECTION_INDEX=$(( ${CONNECTION_INDEX} + 1 ))
 	done
 
+	if [ ${CONNECTION_INDEX} -eq 0 ]
+	then
+		echo -e "\n${YELL}It appears there are no sshfs-daemon connections available.${NRML}\n"
+	fi
+
 }
 
 fdo_sshfsd_status () {
@@ -224,6 +234,11 @@ fdo_sshfsd_status () {
 
 		CONNECTION_INDEX=$(( ${CONNECTION_INDEX} + 1 ))
 	done
+
+	if [ ${CONNECTION_INDEX} -eq 0 ]
+	then
+		echo -e "\n${YELL}It appears there are no sshfs-daemon connections available.${NRML}\n"
+	fi
 
 }
 
