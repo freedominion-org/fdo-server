@@ -630,13 +630,11 @@ then
 fi
 
 # Update configuration in the local repo and if interactive mode then push to remote repo.
-echo -e "\n${YELL}Adding/updating configuration to the repo...${NRML}\n"
+echo -e "\n${YELL}Updating configuration to the repo...${NRML}\n"
 if [ "${SSHFS_DAEMON_KEY}" != "none" ]
 then
-	echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFS_DAEMON_KEY} ...\n"
 	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFS_DAEMON_KEY}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-	echo -e "\n${FDO_SERVER_SCRIPT} add-config ${SSHFS_DAEMON_KEY}.pub ...\n"
 	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "${SSHFS_DAEMON_KEY}.pub"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
