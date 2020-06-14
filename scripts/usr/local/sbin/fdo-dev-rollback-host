@@ -217,24 +217,17 @@ then
 	BASH_HISTORY=`cat ~/.bash_history`
 fi
 
-# Compile disposable rollback worker script.
-:> /tmp/fdo-dev-rollback-host.worker.sh
-ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+# Recursively rollback all filesystems in POOL to SNAPSHOT_NAME.
 for FILESYSTEM in `zfs list -H -o name -r ${POOL}`
 do
-	echo "zfs rollback \"${ROLLBACK_FLAGS}\" \"${FILESYSTEM}@${SNAPSHOT_NAME}\"" >> /tmp/fdo-dev-rollback-host.worker.sh
-	ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
+	zfs rollback ${ROLLBACK_FLAGS} "${FILESYSTEM}@${SNAPSHOT_NAME}"
 done
 
-# Recursively rollback all filesystems in POOL to SNAPSHOT_NAME using disposable worker script.
-sh /tmp/fdo-dev-rollback-host.worker.sh &
-ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
 sleep 8
 
 # Set hostname back to what it was at time of snapshot.
 HOSTNAME=`sysrc -n hostname`
 hostname ${HOSTNAME}
-ERROR_COUNT=$(( ${ERROR_COUNT} + 1 ))
 
 # Restore current bash history.
 if [ -n "${BASH_HISTORY}" ]
@@ -243,10 +236,5 @@ then
 fi
 
 echo -e ""
-
-if [ ${ERROR_COUNT} -gt 0 ]
-then
-	exit 2
-fi
 
 ################################################################################
