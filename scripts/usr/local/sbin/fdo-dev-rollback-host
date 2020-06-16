@@ -211,6 +211,8 @@ then
 	exit 0
 fi
 
+echo -e ""
+
 # Store bash history as variable.
 if [ -f "~/.bash_history" ]
 then
