@@ -34,6 +34,9 @@ UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
 HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
+INTERACTIVE_MODE="yes"
+USER_UID=${USER_UID:-""}
+USER_PASSWORD=${USER_PASSWORD:-""}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -64,8 +67,13 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Description:${NRML} Add a hotdesk user to a host configured for FDo NIS/NFS hotdesking."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} username display_name${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} username display_name [--non-interactive]${NRML}"
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} joe.bloggs \"Joe Bloggs\"${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} joe.bloggs \"Joe Bloggs\" --non-interactive${NRML}"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}--non-interactive ; Will not prompt or commit changes to the config repo.${NRML}"
 	echo -e ""
 }
 
@@ -80,6 +88,9 @@ do
 		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
+			--non-interactive)
+				INTERACTIVE_MODE="no"
+				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
 				usage
@@ -159,6 +170,125 @@ test_if_host ()
 	fi
 }
 
+backup_file ()
+{
+	FILE_PATH="${1}"
+	CHANGE_AGENT="${2}"
+	if [ -f "${FILE_PATH}" ]
+	then
+		BACKUP_FILE_PATH="${FILE_PATH}.backup.${CHANGE_AGENT}"
+		cp "${FILE_PATH}" "${BACKUP_FILE_PATH}" 2> /dev/null
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Failed to backup file '${ORNG}${FILE_PATH}${NRML}'!\n"
+			BACKUP_FILE_PATH=""
+			return 2
+		fi
+	else
+		echo -e "\n${LRED}ERROR:${NRML} File '${ORNG}${FILE_PATH}${NRML}' does not exist!\n       Unable to backup.\n"
+		BACKUP_FILE_PATH=""
+		return 1
+	fi
+
+	return 0
+}
+
+restore_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}" ] && [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		diff -q "${FILE_PATH}" "${FILE_PATH}.backup.${CHANGE_AGENT}" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			# File and backup differ, replace the file with it's backup copy.
+			mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		else
+			# File is same as backup, remove the backup.
+			rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_backup_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		# Remove the backup.
+		rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_add_user ()
+{
+	ERROR_COUNT=0
+
+	echo -e "\n${ORNG}Undoing add user process...${NRML}\n"
+
+	# Destroy the hotdesk users' home directory filesystem.
+	if [ ${USER_HOME_FS_CREATED} = true ]
+	then
+		echo -e "${YELL}Destroying the users' home filesystem...${NRML}\n"
+		zfs destroy -rpf ${HOME_ZFS_NAME}/${USERNAME}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Restore local system and NIS users database.
+	echo -e "\n${YELL}Restoring local system and NIS users databases...${NRML}\n"
+	restore_file /etc/exports ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	restore_file /etc/passwd ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	restore_file /etc/master.passwd ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	restore_file /etc/pwd.db ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	restore_file /etc/spwd.db ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	restore_file /var/yp/master.passwd ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sleep 1
+	touch /var/yp/master.passwd
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	cd /var/yp
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	make
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	cd -
+	service mountd reload
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo user removal!\n"
+	else
+		echo -e ""
+	fi
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -184,6 +314,22 @@ then
 	exit 1
 fi
 
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
 # Check that we are not currently running a backupz operation.
 pgrep -fl "fdo-backupz " > /dev/null 2>&1
 if [ ${?} -eq 0 ]
@@ -200,35 +346,61 @@ then
 	exit 1
 fi
 
+# Check that user doesn't already exist.
+pw user show ${USERNAME} > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The user '${ORNG}${USERNAME}${NRML}' already exists on the system!\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that NIS user doesn't already exist.
+ypcat passwd | cut -d":" -f1 | grep "^${USERNAME}$" > /dev/null 2>&1
+if [ ${?} -eq 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The NIS user '${ORNG}${USERNAME}${NRML}' already exists in the YP maps!\n       Aborting.\n"
+	exit 1
+fi
+
 
 ##### MAIN EXECUTION THREAD ####################################################
 
 ERROR_COUNT=0
+USER_HOME_FS_CREATED=false
 
-# Get hotdesk users' home folder pool from config files.
+# Get pool for hotdesk users' home directories.
 HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
-if [ ${?} -ne 0 ] || [ "${HOME_POOL}" = "null" ] || [ "${HOME_POOL}" = "" ]
+if [ "${HOME_POOL}" = "null" ] || [ "${HOME_POOL}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file"
-	echo -e "       '${HOST_CONF_PATH}'\n       is not valid! Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file:"
+	echo -e "       '${ORNG}${HOST_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
 	exit 1
 fi
 
-# Get hotdesk users' home folder root filesystem from config files.
+# Get root filesystem for hotdesk users' home directories.
 HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
-if [ ${?} -ne 0 ] || [ "${HOME_FS}" = "null" ] || [ "${HOME_FS}" = "" ]
+if [ "${HOME_FS}" = "null" ] || [ "${HOME_FS}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file"
-	echo -e "       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file:"
+	echo -e "       '${ORNG}${HOTDESK_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+# Get root filesystem mountpoint for hotdesk users' home directories.
+HOME_MP=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_mountpoint`
+if [ "${HOME_MP}" = "null" ] || [ "${HOME_MP}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root mountpoint specified in the config file:"
+	echo -e "       '${ORNG}${HOTDESK_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
 	exit 1
 fi
 
 # Get hotdesk users' default home folder quota from config files.
 DEFAULT_HOME_FOLDER_QUOTA=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.default_home_folder_quota`
-if [ ${?} -ne 0 ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "null" ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "" ]
+if [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "null" ] || [ "${DEFAULT_HOME_FOLDER_QUOTA}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk default home folder quota specified in the config file"
-	echo -e "       '${HOTDESK_CONF_PATH}'\n       is not valid! Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk default home folder quota specified in the config file:"
+	echo -e "       '${ORNG}${HOTDESK_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
 	exit 1
 fi
 
@@ -237,9 +409,10 @@ HOME_ZFS_NAME="${HOME_POOL}/${HOME_FS}"
 # Determine the NFS subnet and subnet mask.
 DEFAULT_LAN_SUBNET_B="10.0"
 CONFIG_LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.lan.id`
-if [ ${?} -ne 0 ] || [ "${CONFIG_LAN_NET_IFACE}" = "null" ] || [ "${CONFIG_LAN_NET_IFACE}" = "" ]
+if [ "${CONFIG_LAN_NET_IFACE}" = "null" ] || [ "${CONFIG_LAN_NET_IFACE}" = "" ]
 then
-	echo -e "\n${ORNG}WARNING:${NRML} Unable to retrieve the LAN network interface identifier in the config file '${HOST_CONF_PATH}'!\n"
+	echo -e "\n${ORNG}WARNING:${NRML} Unable to retrieve the LAN network interface identifier in the config file:"
+	echo -e "'${ORNG}${HOST_CONF_PATH}${NRML}'.\n"
 	SET_LAN_SUBNET_B="${DEFAULT_LAN_SUBNET_B}"
 else
 	DETECTED_LAN_SUBNET_B=`ifconfig ${CONFIG_LAN_NET_IFACE} | grep "inet.*netmask 0xffff0000" | awk '{print $2}' | sort | head -1 | cut -d. -f1,2`
@@ -254,63 +427,128 @@ FDO_LAN_SUBNET_B=${FDO_LAN_SUBNET_B:-"${SET_LAN_SUBNET_B}"}
 NFS_SUBNET_C=${NFS_SUBNET_C:-"${FDO_LAN_SUBNET_B}.40"}
 NFS_SUBNET_MASK=${NFS_SUBNET_MASK:-"255.255.255.0"}
 
-# Add new NIS user locally
-question_yes_no "\nWould you like to specify the UID of the new user?"
-if [ "${ANSWER}" = "yes" ]
+# Backup affected system files in case something goes wrong.
+backup_file /etc/exports ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+backup_file /var/yp/master.passwd ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+backup_file /etc/passwd ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+backup_file /etc/master.passwd ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+backup_file /etc/pwd.db ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+backup_file /etc/spwd.db ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# Add new NIS user locally.
+if [ "${INTERACTIVE_MODE}" = "yes" ]
 then
-	USER_UID=""
-	while [ "${USER_UID}" = "" ]
-	do
-		echo -e ""
-		readee -p "${LCYN}Enter the new users' UID: ${NRML}" USER_UID_TEMP
-		# Check that the UID is valid.
-		test_valid_integer "${USER_UID_TEMP}" 1000 100000
-		if [ "${VALID_INTEGER}" = "yes" ]
-		then
-			question_yes_no "\nYou have entered '${USER_UID_TEMP}' as the new users' UID.\nIs this correct?"
-			if [ "${ANSWER}" = "yes" ]
+	question_yes_no "\nWould you like to specify the UID of the new user?"
+	if [ "${ANSWER}" = "yes" ]
+	then
+		USER_UID=""
+		while [ "${USER_UID}" = "" ]
+		do
+			echo -e ""
+			readee -p "${LCYN}Enter the new users' UID: ${NRML}" USER_UID_TEMP
+			# Check that the UID is valid.
+			test_valid_integer "${USER_UID_TEMP}" 1000 100000
+			if [ "${VALID_INTEGER}" = "yes" ]
 			then
-				USER_UID=${USER_UID_TEMP}
+				question_yes_no "\nYou have entered '${NRML}${USER_UID_TEMP}${LCYN}' as the new users' UID.\nIs this correct?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					USER_UID=${USER_UID_TEMP}
+				fi
+			else
+				echo -e "\n${LRED}ERROR:${NRML} The new users' UID can not be '${ORNG}${USER_UID}${NRML}'."
+				echo -e "       It must contain only numbers, greater than 1000 and less than 100000.\n"
 			fi
-		else
-			echo -e "\n${LRED}ERROR:${NRML} The new users' UID can not be '${USER_UID}'."
-			echo -e "       It must contain only numbers, greater than 1000 and less than 100000.\n"
-		fi
-	done
-	echo -e ""
-	pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID}
-else
-	echo -e ""
-	pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
+		done
+	fi
 fi
 echo -e ""
-passwd ${USERNAME}
-echo -e ""
+if [ "${USER_UID}" != "" ]
+then
+	test_valid_integer "${USER_UID}" 1000 100000
+	if [ "${VALID_INTEGER}" = "no" ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} The USER_UID specified is not valid!\n       Aborting."
+		undo_add_user
+		exit 1
+	fi
+	if [ "${USER_PASSWORD}" = "" ]
+	then
+		pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	else
+		echo "${USER_PASSWORD}" | pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID} -h 0
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+else
+	if [ "${USER_PASSWORD}" = "" ]
+	then
+		pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	else
+		echo "${USER_PASSWORD}" | pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -h 0
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+fi
+if [ "${INTERACTIVE_MODE}" = "yes" ] && [ "${USER_PASSWORD}" = "" ]
+then
+	echo -e ""
+	passwd ${USERNAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	echo -e ""
+fi
 
-# Create ZFS filesystem for home folder
+# Create ZFS filesystem for home folder.
 zfs create -o quota=${DEFAULT_HOME_FOLDER_QUOTA} ${HOME_ZFS_NAME}/${USERNAME}
+RETURN_CODE=${?}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${RETURN_CODE} ))
+if [ ${RETURN_CODE} -eq 0 ]
+then
+	USER_HOME_FS_CREATED=true
+fi
 
-# Change ownership of home folder
-chown -R ${USERNAME}:users /fdo-hotdesk-home/${USERNAME}
+# Change ownership of home folder.
+chown -R ${USERNAME}:users ${HOME_MP}/${USERNAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
-## TODO: add export (share) and user from hotdesk subsystem UCL config.
-# Add home folder to NFS exports
-echo "/fdo-hotdesk-home/${USERNAME} -maproot=root -network ${NFS_SUBNET_C} -mask ${NFS_SUBNET_MASK}" >> /etc/exports
+# Add home folder to NFS exports.
+echo "${HOME_MP}/${USERNAME} -maproot=root -network ${NFS_SUBNET_C} -mask ${NFS_SUBNET_MASK}" >> /etc/exports
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 echo -e ""
 service mountd reload
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
-# Add local user to NIS maps
+# Add local user to NIS maps.
 cd /var/yp
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 cat /etc/master.passwd | egrep "^${USERNAME}:" >> master.passwd
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 echo -e ""
 make
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
-echo -e "\n${LGRN}Operation complete!${NRML}\n"
-
-if [ ${ERROR_COUNT} -gt 0 ]
+if [ ${ERROR_COUNT} -ne 0 ]
 then
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong adding the user!"
+	echo -e "       Aborting.\n"
+	undo_add_user
 	exit 2
 fi
+
+undo_backup_file /etc/exports ${SCRIPT_NAME}
+undo_backup_file /var/yp/master.passwd ${SCRIPT_NAME}
+undo_backup_file /etc/passwd ${SCRIPT_NAME}
+undo_backup_file /etc/master.passwd ${SCRIPT_NAME}
+undo_backup_file /etc/pwd.db ${SCRIPT_NAME}
+undo_backup_file /etc/spwd.db ${SCRIPT_NAME}
+
+echo -e "\n${LGRN}Successfully added the hotdesk user '${NRML}${USERNAME}${LGRN}'.${NRML}\n"
 
 ################################################################################
