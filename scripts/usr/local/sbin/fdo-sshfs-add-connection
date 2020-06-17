@@ -422,27 +422,26 @@ then
 	exit 2
 fi
 
-# Test that the remote user is valid.
-TEST=`echo "${REMOTE_USER}" | sed "s/^[a-zA-Z0-9._-]\{3,\}$//" | wc -L`
-if [ ${TEST} -ne 0 ]
+# Check that the remote_user is valid.
+IS_SYNTAX_OK=`echo "${REMOTE_USER}" | sed -r "s/^[a-z0-9][a-z0-9\.\_\-]+[a-z0-9]//" | wc -L`
+IS_LENGTH_OK=`echo "${REMOTE_USER}" | sed -r "s/^(.{3,30})//" | wc -L`
+if [ ${IS_SYNTAX_OK} -ne 0 ] || [ "${REMOTE_USER}" = "" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The remote user '${REMOTE_USER}' is invalid!"
-	echo -e "       It must only contain letters, numbers, hyphens, underscores and periods "
-	echo -e "       with a minumum of 3 characters."
-	echo -e "       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The remote_user can not be '${ORNG}${REMOTE_USER}${NRML}'."
+	echo -e "       It must be between 3 and 30 characters and only contain lower case"
+	echo -e "       letters, numbers, periods, underscores and hyphens.\n       Aborting.\n"
 	exit 1
 fi
 
-# Test that the remote host is valid.
+# Check that the remote_host is valid.
 test_valid_host_name  "${REMOTE_HOST}"
 test_valid_inet_address "${REMOTE_HOST}"
 if [ "${VALID_HOST_NAME}" = "no" ] && [ "${VALID_INET_ADDRESS}" = "no" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The remote host '${REMOTE_HOST}' is invalid!"
+	echo -e "\n${LRED}ERROR:${NRML} The remote_host '${REMOTE_HOST}' is invalid!"
 	echo -e "       For host names:"
 	echo -e "       It must only contain letters, numbers, periods and hyphens."
-	echo -e "       It must not begin or end with a hyphen or a period."
-	echo -e "       Aborting.\n"
+	echo -e "       It must not begin or end with a hyphen or a period.\n       Aborting.\n"
 	exit 1
 fi
 
@@ -450,7 +449,7 @@ fi
 TEST=`echo "${REMOTE_PATH}" | sed -r "s/.+.*[/ ]+$//" | wc -L`
 if [ ${TEST} -eq 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The remote path is invalid!"
+	echo -e "\n${LRED}ERROR:${NRML} The remote_path is invalid!"
 	echo -e "       It must not end with a forward slash or a space."
 	echo -e "       Aborting.\n"
 	exit 1
