@@ -1,0 +1,262 @@
+#!/bin/sh
+
+# Copyright (c) 2016 Euan Thoms <euan@potensol.com>.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+##### GLOBAL STATIC VARIABLE DECLARATIONS ######################################
+
+SCRIPT_NAME=`basename ${0}`
+USERNAME="${1}"
+NUM_MANDATORY_ARGS=0
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
+HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
+SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
+BACKUPZ_STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
+
+TERM="xterm"
+LRED="\033[1;31m"
+LGRN="\033[1;32m"
+LBLU="\033[1;34m"
+LCYN="\033[1;36m"
+CYAN="\033[0;36m"
+YELL="\033[1;33m"
+ORNG="\033[0;33m"
+GREY="\033[0;37m"
+DGRY="\033[1;30m"
+NRML="\033[0;00m"
+
+CARRIAGE_RETURN="
+"
+
+##### COMMAND USAGE INFO #######################################################
+
+usage ()
+{
+	if [ "${NO_DISPLAY_USAGE}" = "yes" ]
+	then
+		return 1
+	fi
+
+	echo -e ""
+	echo -e "${LCYN}    ---- ${SCRIPT_NAME} command usage ----${NRML}"
+	echo -e ""
+	echo -e "${YELL}Description:${NRML} List FDo NIS/NFS hotdesk users on this host."
+	echo -e ""
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} [--help]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME}${NRML} --help"
+	echo -e ""
+	echo -e "${YELL}Options:${NRML}"
+	echo -e ""
+	echo -e "${YELL}         --help ; Display command usage.${NRML}"
+	echo -e ""
+}
+
+
+##### PARSE ARGUMENTS ##########################################################
+
+ARG_INDEX=1
+for ARG in "${@}"
+do
+	if [ ${ARG_INDEX} -gt ${NUM_MANDATORY_ARGS} ]
+	then
+		OPTIONAL_ARG_NAME=`echo ${ARG} | cut -d= -f1`
+		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
+		case ${OPTIONAL_ARG_NAME} in
+			--help)
+				usage
+				exit
+				;;
+			*)
+				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
+				usage
+				exit 1
+				;;
+		esac
+	fi
+
+	ARG_INDEX=$(( ${ARG_INDEX} + 1 ))
+
+done
+
+
+##### FUNCTIONS ################################################################
+
+test_if_host ()
+{
+	procstat 0 > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		IS_HOST=yes
+	else
+		IS_HOST=no
+	fi
+}
+
+
+##### SANITY TESTS #############################################################
+
+if [ ${#} -lt ${NUM_MANDATORY_ARGS} ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Incorrect number of arguments!\n       Aborting.\n"
+	usage
+	exit 1
+fi
+
+# Check we are running with root privileges.
+if [ `id -u` -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run with root (super-user) privileges!\n       Aborting.\n"
+	exit 1
+fi
+
+test_if_host
+
+if [ "${IS_HOST}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} This command must be run from the host!\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+
+##### MAIN EXECUTION THREAD ####################################################
+
+ERROR_COUNT=0
+
+# Get pool for hotdesk users' home directories.
+HOME_POOL=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.hotdesk_pool`
+if [ "${HOME_POOL}" = "null" ] || [ "${HOME_POOL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home pool specified in the config file:"
+	echo -e "       '${ORNG}${HOST_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+# Get root filesystem for hotdesk users' home directories.
+HOME_FS=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_filesystem`
+if [ "${HOME_FS}" = "null" ] || [ "${HOME_FS}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root filesystem specified in the config file:"
+	echo -e "       '${ORNG}${HOTDESK_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+# Get root filesystem mountpoint for hotdesk users' home directories.
+HOME_MP=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .general.root_mountpoint`
+if [ "${HOME_MP}" = "null" ] || [ "${HOME_MP}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The Hotdesk home root mountpoint specified in the config file:"
+	echo -e "       '${ORNG}${HOTDESK_CONF_PATH}${NRML}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+HOME_ZFS_NAME="${HOME_POOL}/${HOME_FS}"
+
+# Display hotdesk users table header.
+echo -e ""
+echo -e "${GREY}==============================================================================${NRML}"
+echo -e "${NRML}Username                      NFS export?   Backup Found?                     ${NRML}"
+echo -e "${GREY}==============================================================================${NRML}"
+
+# Display hotdesk users table data, iterate through user in YP passwd map.
+for USERNAME in `ypcat passwd | cut -d: -f1`
+do
+	# Determine if current user has an FDo hotdesk home filesystem.
+	zfs list -H -o name ${HOME_ZFS_NAME}/${USERNAME} > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		# Determine if the current user has an FDo hotdesk home directory NFS export.
+		showmount -E | awk '{print $1}' | grep "^${HOME_MP}/${USERNAME}$" > /dev/null 2>&1
+		if [ ${?} -eq 0 ]
+		then
+			HAS_NFS_EXPORTED="Yes"
+		else
+			HAS_NFS_EXPORTED="No"
+		fi
+
+		# If the backupz state file exists, try to find the backup of hotdesk users' home directory.
+		HAS_BACKUP_FS="No"
+		if [ -e "${BACKUPZ_STATE_PATH}" ]
+		then
+
+			# Try to find the backup pool filesystem that holds the hotdesk users' home directory.
+			for POOL_NAME in `zpool list -H -o name | grep -v "${HOME_POOL}"`
+			do
+				TEST_BACKUP_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}`
+				if [ "${TEST_BACKUP_POOL}" != "" ]
+				then
+					# ASSUME: the hotdesk users' home directory can be in a backup pool in only one of two possible filesystem topologies:
+					#         (i)  ${BACKUP_POOL}/${HOME_POOL}/${HOME_FS}/${USERNAME}
+					#         (ii) ${BACKUP_POOL}/${HOME_POOL}__${HOME_FS}/${USERNAME}
+					TEST_HOME_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}`
+					if [ "${TEST_HOME_POOL}" != "" ]
+					then
+						zfs list -H -o name "${POOL_NAME}/${HOME_POOL}/${HOME_FS}/${USERNAME}" > /dev/null 2>&1
+						if [ ${?} -eq 0 ]
+						then
+							HAS_BACKUP_FS="Yes"
+							break
+						fi
+					fi
+					TEST_HOME_FS=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}/${HOME_FS}`
+					if [ "${TEST_HOME_FS}" != "" ]
+					then
+						zfs list -H -o name "${POOL_NAME}/${HOME_POOL}__${HOME_FS}/${USERNAME}" > /dev/null 2>&1
+						if [ ${?} -eq 0 ]
+						then
+							HAS_BACKUP_FS="Yes"
+							break
+						fi
+					fi
+				fi
+			done
+		fi
+
+		# Print the table row data for the current valid FDo hotdesk user.
+		printf "%-30s%-14s%-14s\n" ${USERNAME} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
+		echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+	fi
+done
+
+echo -e ""
+
+################################################################################
