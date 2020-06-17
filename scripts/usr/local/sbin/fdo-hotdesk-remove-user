@@ -38,7 +38,7 @@ BACKUPZ_STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
 DATE_CMD=/bin/date
 NOW=`${DATE_CMD} +%Y-%m-%d_%H-%M`
 FORCE_MODE="no"
-INTERACTIVE_MODE="yes"
+IS_INTERACTIVE="yes"
 RENAME_BACKUP_FS=${RENAME_BACKUP_FS:-"yes"}
 
 TERM="xterm"
@@ -99,7 +99,7 @@ do
 				FORCE_MODE="yes"
 				;;
 			--non-interactive)
-				INTERACTIVE_MODE="no"
+				IS_INTERACTIVE="no"
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
@@ -368,7 +368,7 @@ then
 fi
 
 # Ask confirmation, since it's a destructive process.
-if [ "${INTERACTIVE_MODE}" = "yes" ]
+if [ "${IS_INTERACTIVE}" = "yes" ]
 then
 	echo -e ""
 	question_yes_no "Confirm removal of hotdesk user '${NRML}${USERNAME}${LCYN}'?"
@@ -484,7 +484,7 @@ then
 			TEST_HOME_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}`
 			if [ "${TEST_HOME_POOL}" != "" ]
 			then
-				zfs list -H -o name "${POOL_NAME}/${HOME_POOL}/${HOME_FS}/${USERNAME}" 2> /dev/null
+				zfs list -H -o name "${POOL_NAME}/${HOME_POOL}/${HOME_FS}/${USERNAME}" > /dev/null 2>&1
 				if [ ${?} -eq 0 ]
 				then
 					BACKUP_FS="${POOL_NAME}/${HOME_POOL}/${HOME_FS}/${USERNAME}"
@@ -494,7 +494,7 @@ then
 			TEST_HOME_FS=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}/${HOME_FS}`
 			if [ "${TEST_HOME_FS}" != "" ]
 			then
-				zfs list -H -o name "${POOL_NAME}/${HOME_POOL}__${HOME_FS}/${USERNAME}" 2> /dev/null
+				zfs list -H -o name "${POOL_NAME}/${HOME_POOL}__${HOME_FS}/${USERNAME}" > /dev/null 2>&1
 				if [ ${?} -eq 0 ]
 				then
 					BACKUP_FS="${POOL_NAME}/${HOME_POOL}__${HOME_FS}/${USERNAME}"
@@ -516,7 +516,7 @@ then
 		echo -e "      '${ORNG}${BACKUP_FS}${NRML}'"
 		echo -e "      This could be a problem if the same username is re-used in future!\n"
 
-		if [ "${INTERACTIVE_MODE}" = "yes" ]
+		if [ "${IS_INTERACTIVE}" = "yes" ]
 		then
 			question_yes_no "Would you like to rename the backup of the users' home directory [RECOMMENDED]?"
 			if [ "${ANSWER}" = "yes" ]
