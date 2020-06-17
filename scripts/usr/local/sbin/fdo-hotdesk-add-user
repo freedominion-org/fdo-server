@@ -34,7 +34,7 @@ UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
 HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
-INTERACTIVE_MODE="yes"
+IS_INTERACTIVE="yes"
 USER_UID=${USER_UID:-""}
 USER_PASSWORD=${USER_PASSWORD:-""}
 
@@ -89,7 +89,7 @@ do
 		OPTIONAL_ARG_VALUE=`echo ${ARG} | cut -d= -f2`
 		case ${OPTIONAL_ARG_NAME} in
 			--non-interactive)
-				INTERACTIVE_MODE="no"
+				IS_INTERACTIVE="no"
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
@@ -168,6 +168,29 @@ test_if_host ()
 	else
 		IS_HOST=no
 	fi
+}
+
+test_valid_person_name ()
+{
+
+	TEST_CASE="${1}"
+
+	VALID_PERSON_NAME="yes"
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_PERSON_NAME="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[a-zA-Z0-9]*[a-zA-Z0-9\ ]*[a-zA-Z0-9]+//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_PERSON_NAME="no"
+		return 2
+	fi
+
+	return 0
 }
 
 backup_file ()
@@ -346,6 +369,26 @@ then
 	exit 1
 fi
 
+# Check that the username only contains letters, numbers, periods, underscores and hyphens between 3 and 30 characters.
+IS_SYNTAX_OK=`echo "${USERNAME}" | sed -r "s/^[a-z0-9][a-z0-9\.\_\-]+[a-z0-9]//" | wc -L`
+IS_LENGTH_OK=`echo "${USERNAME}" | sed -r "s/^(.{3,30})//" | wc -L`
+if [ ${IS_SYNTAX_OK} -ne 0 ] || [ "${USERNAME}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The username can not be '${ORNG}${USERNAME}${NRML}'."
+	echo -e "       It must be between 3 and 30 characters and only contain lower case"
+	echo -e "       letters, numbers, periods, underscores and hyphens.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the display_name only contains letters numbers and spaces.
+test_valid_person_name "${DISPLAY_NAME}"
+if [ "${VALID_PERSON_NAME}" = "yes" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The display_name can not be '${ORNG}${DISPLAY_NAME}${NRML}'."
+	echo -e "       It must contain only letters, numbers and spaces.\n       Aborting.\n"
+	exit 1
+fi
+
 # Check that user doesn't already exist.
 pw user show ${USERNAME} > /dev/null 2>&1
 if [ ${?} -eq 0 ]
@@ -442,7 +485,7 @@ backup_file /etc/spwd.db ${SCRIPT_NAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Add new NIS user locally.
-if [ "${INTERACTIVE_MODE}" = "yes" ]
+if [ "${IS_INTERACTIVE}" = "yes" ]
 then
 	question_yes_no "\nWould you like to specify the UID of the new user?"
 	if [ "${ANSWER}" = "yes" ]
@@ -496,7 +539,7 @@ else
 		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	fi
 fi
-if [ "${INTERACTIVE_MODE}" = "yes" ] && [ "${USER_PASSWORD}" = "" ]
+if [ "${IS_INTERACTIVE}" = "yes" ] && [ "${USER_PASSWORD}" = "" ]
 then
 	echo -e ""
 	passwd ${USERNAME}
