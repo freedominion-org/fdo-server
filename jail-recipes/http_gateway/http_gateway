@@ -4,8 +4,8 @@
 RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.30"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="nginx"                                                        # Optional:  packages to install in the jail
 RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 RECIPE_TCP_PORTS="80,443"                                                      # Optional:  tcp ports to forward, necessary for port forwarding
 RECIPE_UDP_PORTS="none"                                                        # Optional:  udp ports to forward, necessary for port forwarding
 START_JAIL_SERVICES="nginx"                                                    # Optional:  jail services started after cooking (in left to right order)

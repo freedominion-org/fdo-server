@@ -4,15 +4,15 @@
 RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.49"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
 RECIPE_PACKAGES="apache22"                                                     # Optional:  packages to install in the jail
 RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: set to "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: set to "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
+RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
 START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
 SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
 SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
 LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 ################################################################################
 
-prep_recipe()
+prep_recipe ()
 {
 	# Find the http_gateway jail
 	# ASSUME there is only one http_gateway jail on this host and take the first one in the found list.
