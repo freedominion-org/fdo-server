@@ -24,7 +24,7 @@ cook_recipe ()
 	echo -e "${YELL}Please accept when prompted...${NRML}\n"
 	sleep 5
 
-	# Install essential jail recipe packages from the recipe repo
+	# Install essential jail recipe packages from the recipe repo.
 	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
 	if [ ${?} -ne 0 ]
 	then
@@ -33,7 +33,7 @@ cook_recipe ()
 		return
 	fi
 
-	# Update resolv.conf in all existing jails and future jails to use this caching dns server
+	# Update resolv.conf in all existing jails and future jails to use this caching dns server.
 	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" configs/${HOST_NAME}/etc/resolv.conf.static
 	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" /jls/template/etc/resolv.conf
 	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
@@ -41,10 +41,10 @@ cook_recipe ()
 		cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
 	done
 
-	# Update bind global config with the jail IP
+	# Update bind global config with the jail IP.
 	sed -i "" "s/FDO_DNS_CACHE_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
 
-	# Determine if a dhcp server is running on the LAN and recommend changing it's domain-name-servers
+	# Determine if a dhcp server is running on the LAN and recommend changing it's domain-name-servers.
 	nmap ${DHCP_SERVER_JAIL_IP} -sU -p 67 | egrep "^67/udp.*open\|filtered.*dhcp" > /dev/null 2>&1
 	if [ ${?} -eq 0 ]
 	then
@@ -58,7 +58,19 @@ cook_recipe ()
 		pause_prompt 15
 	fi
 
-	# Mandatory: return code
+	# Mandatory: return code.
 	RECIPE_SUCCESS="yes"
+
+}
+
+revert_cook_recipe ()
+{
+
+	# Undo update resolv.conf in all existing jails and future jails to use this caching dns server.
+	sed -i "" "s/^nameserver ${JAIL_IP}/#nameserver FDO_DNS_CACHE_IP/" /jls/template/etc/resolv.conf
+	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
+	do
+		cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
+	done
 
 }
