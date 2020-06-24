@@ -32,6 +32,7 @@ NUM_MANDATORY_ARGS=1
 IS_INTERACTIVE="yes"
 DNS_CACHE_SERVER_FOUND="no"
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
+REPO_NAME=${REPO_NAME:-"fdo-server"}
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -67,7 +68,7 @@ usage ()
 	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} site2.example.net --non-interactive${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
-	echo -e "${YELL}         --non-interactive ; will not prompt or commit changes to the config repo.${NRML}"
+	echo -e "${YELL}         --non-interactive ; Will not prompt or commit changes to the config repo.${NRML}"
 	echo -e ""
 }
 
@@ -150,6 +151,121 @@ test_if_host ()
 	fi
 }
 
+backup_file ()
+{
+	FILE_PATH="${1}"
+	CHANGE_AGENT="${2}"
+	if [ -f "${FILE_PATH}" ]
+	then
+		BACKUP_FILE_PATH="${FILE_PATH}.backup.${CHANGE_AGENT}"
+		cp "${FILE_PATH}" "${BACKUP_FILE_PATH}" 2> /dev/null
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Failed to backup file '${ORNG}${FILE_PATH}${NRML}'!\n"
+			BACKUP_FILE_PATH=""
+			return 2
+		fi
+	else
+		echo -e "\n${LRED}ERROR:${NRML} File '${ORNG}${FILE_PATH}${NRML}' does not exist!\n       Unable to backup.\n"
+		BACKUP_FILE_PATH=""
+		return 1
+	fi
+
+	return 0
+}
+
+restore_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}" ] && [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		diff -q "${FILE_PATH}" "${FILE_PATH}.backup.${CHANGE_AGENT}" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			# File and backup differ, replace the file with it's backup copy.
+			mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		else
+			# File is same as backup, remove the backup.
+			rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_backup_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		# Remove the backup.
+		rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_remove_hostname ()
+{
+	ERROR_COUNT=0
+
+	echo -e "\n${ORNG}Undoing remove hostname process...${NRML}\n"
+
+	# Restore existing and delete newly created system config files.
+	if [ ${REMOVE_HOSTNAME_SYSTEM_MODIFIED} ]
+	then
+		restore_file "${NAMED_CONF_PATH}" ${SCRIPT_NAME}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		restore_file "/jls/${JAIL_NAME}${ZONE_FILE_PATH}" ${SCRIPT_NAME}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Reload bind (named) service.
+	if [ ${REMOVE_HOSTNAME_BIND_RELOADED} = true ]
+	then
+		jexec ${JAIL_ID} service named reload > /dev/null 2>&1
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Undo repo modifications.
+	if [ ${REMOVE_HOSTNAME_REPO_MODIFIED} = true ]
+	then
+		# Roll back local repo to last good commit (!!!DANGEROUS!!!).
+		if [ "${COMMIT_BEFORE_REMOVE_HOSTNAME}" != "" ]
+		then
+			git reset --hard ${COMMIT_BEFORE_REMOVE_HOSTNAME}
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+			git clean -f -d
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		fi
+	fi
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo remove hostname!\n"
+	else
+		echo -e ""
+	fi
+}
+
 
 ##### SANITY TESTS #############################################################
 
@@ -179,7 +295,7 @@ fi
 test_valid_fqhn  "${HOST_NAME}"
 if [ "${VALID_FQHN}" = "no" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The hostname '${HOST_NAME}' is invalid!"
+	echo -e "\n${LRED}ERROR:${NRML} The hostname '${ORNG}${HOST_NAME}${NRML}' is invalid!"
 	echo -e "       It must only contain letters, numbers, periods and hyphens."
 	echo -e "       It must not begin or end with a hyphen or a period."
 	echo -e "       Aborting.\n"
@@ -191,37 +307,73 @@ fi
 
 ERROR_COUNT=0
 
+REMOVE_HOSTNAME_BIND_RELOADED=false
+REMOVE_HOSTNAME_REPO_MODIFIED=false
+REMOVE_HOSTNAME_SYSTEM_MODIFIED=false
+
+# Move into local repo directory.
+cd "/${REPO_NAME}"
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Unable to enter the repo directory; '${ORNG}/${REPO_NAME}${NRML}'!"
+	return 2
+fi
+
+# Save git commit reference so we can roll back changes later.
+COMMIT_BEFORE_REMOVE_HOSTNAME=`git log --format=format:%H -1`
+
 # Iterate through all jails...
 for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
 do
+	NAMED_CONF_PATH="/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf"
+	ZONE_FILE_PATH="/usr/local/etc/namedb/master/${HOST_NAME}.db"
+
 	# ...and if a bind server exists...
-	if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
+	if [ -f "${NAMED_CONF_PATH}" ]
 	then
 		# ...determine if it's a caching server
-		cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^( )*forwarders {" > /dev/null 2>&1
+		cat "${NAMED_CONF_PATH}" | egrep "^( )*forwarders {" > /dev/null 2>&1
 		if [ ${?} -eq 0 ] 
 		then
 
 			DNS_CACHE_SERVER_FOUND=yes
 
 			# Now that we've found a caching server, let's see if the record exists:
-			cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
+			cat "${NAMED_CONF_PATH}" | egrep "^zone \"${HOST_NAME}\"" > /dev/null 2>&1
 			if [ ${?} -ne 0 ]
 			then
-				echo -e "\n${LRED}ERROR:${NRML} The record for hostname ${HOST_NAME} does not exist!"
+				echo -e "\n${LRED}ERROR:${NRML} The record for hostname '${ORNG}${HOST_NAME}${NRML}' does not exist!"
 				echo -e "       Aborting.\n"
 				exit 1
 			fi
 
 			# Hostname record exists, so now let's remove the zone for the hostname record:
 
+			# Backup affected system files in case something goes wrong.
+			backup_file "${NAMED_CONF_PATH}" ${SCRIPT_NAME}
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+			backup_file "/jls/${JAIL_NAME}${ZONE_FILE_PATH}" ${SCRIPT_NAME}
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+			REMOVE_HOSTNAME_SYSTEM_MODIFIED=true
+
 			# - Remove zone entry from named.conf
-			sed -i "" "/^zone \"${HOST_NAME}\"/d" /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
+			sed -i "" "/^zone \"${HOST_NAME}\"/d" "${NAMED_CONF_PATH}"
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 			# - Remove the master zone file
-			rm /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db > /dev/null 2>&1
+			rm /jls/${JAIL_NAME}${ZONE_FILE_PATH} > /dev/null 2>&1
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+			if [ ${ERROR_COUNT} -ne 0 ]
+			then
+				echo -e "\n${LRED}ERROR:${NRML} An unexpected error occurred preparing the new configuration!\n       Aborting.\n"
+				undo_remove_hostname
+				exit 2
+			fi
 
 			# - Reload bind server
+			REMOVE_HOSTNAME_BIND_RELOADED=true
 			JAIL_ID_FILE=`ls -1 /var/run/jail_${JAIL_NAME}.id | head -1`
 			JAIL_ID=`cat ${JAIL_ID_FILE}`
 			echo -e "\n${YELL}Reloading the named service...${NRML}\n"
@@ -230,27 +382,47 @@ do
 			then
 				echo -e "\n${ORNG}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
 			else
-				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${JAIL_NAME}'!\n"
+				echo -e "${YELL}INFO:${NRML} Successfully updated bind9 DNS server in jail '${YELL}${JAIL_NAME}${NRML}'!\n"
 			fi
+
+			# Update configuration in the local repo and if interactive mode then push to remote repo
 			if [ "${IS_INTERACTIVE}" = "no" ]
 			then
-				echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
-				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
-				echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
-				GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
+				REMOVE_HOSTNAME_REPO_MODIFIED=true
+				echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
+				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+				echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
+				GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 			else
 				question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
 				if [ "${ANSWER}" = "yes" ]
 				then
-					echo -e "\n${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf ...\n"
-					CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf
-					echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db ...\n"
-					FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}/usr/local/etc/namedb/master/${HOST_NAME}.db
+					REMOVE_HOSTNAME_REPO_MODIFIED=true
+					echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
+					CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
+					ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+					echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
+					FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
+					ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 				fi
 			fi
+
+			if [ ${ERROR_COUNT} -ne 0 ]
+			then
+				echo -e "\n${LRED}ERROR:${NRML} Something went wrong whilst commiting changes to the configs repo!\n       Aborting.\n"
+				undo_remove_hostname
+				exit 2
+			fi
+
+			break
 		fi
 	fi
 done
+
+undo_backup_file "${NAMED_CONF_PATH}" ${SCRIPT_NAME}
+undo_backup_file "/jls/${JAIL_NAME}${ZONE_FILE_PATH}" ${SCRIPT_NAME}
 
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then  
@@ -259,10 +431,5 @@ then
 fi
 
 echo -e ""
-
-if [ ${ERROR_COUNT} -gt 0 ]
-then
-	exit 2
-fi
 
 ################################################################################
