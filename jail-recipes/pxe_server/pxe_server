@@ -77,10 +77,10 @@ cook_recipe ()
 
 	# Extract syslinux tarball and symlink pxe linux kernel files to tftpboot path 
 	tar -x -C /jls/${JAIL_NAME}/tftpboot/ -f /jls/${JAIL_NAME}/tftpboot/${SYSLINUX_TARBALL}
-	ln -s syslinux-6.03/bios/core/pxelinux.0 /jls/${JAIL_NAME}/tftpboot/pxelinux.0
-	ln -s syslinux-6.03/bios/com32/elflink/ldlinux/ldlinux.c32 /jls/${JAIL_NAME}/tftpboot/ldlinux.c32
-	ln -s syslinux-6.03/bios/com32/libutil/libutil.c32 /jls/${JAIL_NAME}/tftpboot/libutil.c32
-	ln -s syslinux-6.03/bios/com32/menu/menu.c32 /jls/${JAIL_NAME}/tftpboot/menu.c32
+	ln -s syslinux-${SYSLINUX_VERSION}/bios/core/pxelinux.0 /jls/${JAIL_NAME}/tftpboot/pxelinux.0
+	ln -s syslinux-${SYSLINUX_VERSION}/bios/com32/elflink/ldlinux/ldlinux.c32 /jls/${JAIL_NAME}/tftpboot/ldlinux.c32
+	ln -s syslinux-${SYSLINUX_VERSION}/bios/com32/libutil/libutil.c32 /jls/${JAIL_NAME}/tftpboot/libutil.c32
+	ln -s syslinux-${SYSLINUX_VERSION}/bios/com32/menu/menu.c32 /jls/${JAIL_NAME}/tftpboot/menu.c32
 
 	echo -e "\n${YELL}Extracting Clonezilla archive into bootable images directory...${NRML}\n"
 
