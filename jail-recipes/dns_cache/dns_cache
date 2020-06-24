@@ -53,7 +53,7 @@ cook_recipe ()
 		echo -e   "        IP address [${JAIL_IP}].                                                "
 		echo -e   "        The DHCP server config file could be found at the following path in the "
 		echo -e   "        'dhcp_server' recipe jail:                                              "
-		echo -e   "        ${LBLU}/usr/local/etc/dhcpd.conf${NRML}                                 \n"
+		echo -e   "        ${ORNG}/usr/local/etc/dhcpd.conf${NRML}                                 \n"
 
 		pause_prompt 15
 	fi
