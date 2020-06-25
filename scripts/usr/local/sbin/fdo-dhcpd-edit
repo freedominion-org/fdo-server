@@ -69,7 +69,7 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e ""
-	echo -e "${YELL}--help    Display command usage.${NRML}"
+	echo -e "${YELL}         --help ; Display command usage.${NRML}"
 	echo -e ""
 }
 
@@ -233,13 +233,13 @@ fi
 # Test if the config file exists
 if [ ! -f "${CONFIG_FILE}" ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${CONFIG_FILE}' does not exist!\n       Aborting.\n"
+	echo -e "\n${LRED}ERROR:${NRML} The dhcpd config file '${ORNG}${CONFIG_FILE}${NRML}' does not exist!\n       Aborting.\n"
 	usage
 	exit 1
 fi
 
 # Open the dhcpd server config file in users preferred editor.
-${EDITOR} ${CONFIG_FILE}
+${EDITOR} "${CONFIG_FILE}"
 
 question_yes_no "\nWould you like to restart the service to pick up any changes now?"
 if [ "${ANSWER}" = "yes" ]
@@ -248,10 +248,5 @@ then
 fi
 
 echo -e ""
-
-if [ ${ERROR_COUNT} -gt 0 ]
-then
-	exit 2
-fi
 
 ################################################################################
