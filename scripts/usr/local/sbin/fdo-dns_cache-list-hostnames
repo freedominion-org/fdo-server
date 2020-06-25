@@ -65,7 +65,7 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Options:${NRML}"
 	echo -e ""
-	echo -e "${YELL}         --help            ; display command usage.${NRML}"
+	echo -e "${YELL}         --help ; Display command usage.${NRML}"
 	echo -e ""
 }
 
@@ -143,11 +143,13 @@ ERROR_COUNT=0
 # Iterate through all jails...
 for JAIL_NAME in `ls -1 /jls 2> /dev/null | cut -d/ -f1 | egrep -v "template"`
 do
+	NAMED_CONF_PATH="/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf"
+
 	# ...and if a bind server exists...
-	if [ -f "/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf" ]
+	if [ -f "${NAMED_CONF_PATH}" ]
 	then
 		# ...determine if it's a caching server
-		cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^( )*forwarders {" > /dev/null 2>&1
+		cat "${NAMED_CONF_PATH}" | egrep "^( )*forwarders {" > /dev/null 2>&1
 		if [ ${?} -eq 0 ] 
 		then
 			DNS_CACHE_SERVER_FOUND=yes
@@ -155,16 +157,16 @@ do
 			# Now that we've found a caching server, let's list the hostname zones:
 			echo -e ""
 			echo -e "${GREY}==============================================================================${NRML}"
-			echo -e "[ Host name ] ${LBLU}[ IP Address ] ${NRML}"
+			echo -e "${NRML}Hostname                                                    IP Address        ${NRML}"
 			echo -e "${GREY}==============================================================================${NRML}"
 
 			IFS=${CARRIAGE_RETURN}
-			ZONES=`cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"" | egrep -v ${EXCLUDED_ZONES} | cut -d'"' -f2`
+			ZONES=`cat ${NAMED_CONF_PATH} | egrep "^zone \"" | egrep -v ${EXCLUDED_ZONES} | cut -d'"' -f2`
 			for ZONE in ${ZONES}
 			do
-				ZONE_FILE_PATH=`cat /jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf | egrep "^zone \"${ZONE}\"" | cut -d'"' -f4`
+				ZONE_FILE_PATH=`cat ${NAMED_CONF_PATH} | egrep "^zone \"${ZONE}\"" | cut -d'"' -f4`
 				HOST_IP=`cat "/jls/${JAIL_NAME}/${ZONE_FILE_PATH}" | egrep "^${ZONE}" | awk '{print $3}'`
-				echo -e "${ZONE}  ${LBLU}${HOST_IP}${NRML}"
+				printf "%-60s%-18s\n" ${ZONE} ${HOST_IP}
 				echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
 			done
 		fi
@@ -178,10 +180,5 @@ then
 fi
 
 echo -e ""
-
-if [ ${ERROR_COUNT} -gt 0 ]
-then
-	exit 2
-fi
 
 ################################################################################
