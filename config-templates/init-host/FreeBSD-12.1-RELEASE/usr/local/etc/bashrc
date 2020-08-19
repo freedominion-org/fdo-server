@@ -1,0 +1,64 @@
+# System-wide .bashrc file for interactive bash(1) shells.
+
+# If not running interactively, don't do anything
+[ -z "$PS1" ] && return
+
+# don't put duplicate lines or lines starting with space in the history.
+# See bash(1) for more options
+HISTCONTROL=ignoreboth
+
+# append to the history file, don't overwrite it
+shopt -s histappend
+
+# Set history size to unlimited.
+export HISTSIZE=-1
+export HISTFILESIZE=-1
+
+# Set history timestamp format.
+export HISTTIMEFORMAT="%F %T "
+
+# Make command history file (.bash_history) update in real time 
+PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
+
+# check the window size after each command and, if necessary,
+# update the values of LINES and COLUMNS.
+shopt -s checkwinsize
+
+
+# Colourize ls command
+DIR=Ex
+SYM_LINK=Gx
+SOCKET=Fx
+PIPE=dx
+EXE=Cx
+BLOCK_SP=Dx
+CHAR_SP=Dx
+EXE_SUID=hb
+EXE_GUID=ad
+DIR_STICKY=Ex
+DIR_WO_STICKY=Ex
+
+export LSCOLORS="$DIR$SYM_LINK$SOCKET$PIPE$EXE\
+$BLOCK_SP$CHAR_SP$EXE_SUID$EXE_GUID\
+$DIR_STICKY$DIR_WO_STICKY"
+
+export CLICOLOR="YES"
+alias ls="ls -FG"
+alias vi="vim"
+alias less="less --tabs=4"
+alias more="more --tabs=4"
+
+# Source alias definitions.
+if [ -f /usr/local/etc/bash_aliases ]; then
+    . /usr/local/etc/bash_aliases
+fi
+
+# enable programmable completion features
+if [ -f /usr/local/etc/bash_completion ] && ! shopt -oq posix; then
+    . /usr/local/etc/bash_completion
+fi
+
+# source extra bash completion files
+for f in /usr/local/etc/bash_completion.d/*; do
+   . $f
+done
