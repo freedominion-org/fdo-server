@@ -319,7 +319,7 @@ then
 fi
 
 # Check that the host.conf file is accessible.
-TEST_CONTENTS=`uclcmd get -u -f ${HOST_CONF_PATH} .general 2>&1`
+TEST_CONTENTS=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
 if [ ${?} -ne 0 ] || [ "${TEST_CONTENTS}" = "null" ] || [ "${TEST_CONTENTS}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
@@ -327,7 +327,7 @@ then
 fi
 
 # Check that the vms.conf file is accessible.
-TEST_CONTENTS=`uclcmd get -u -f ${VMS_CONF_PATH} .general 2>&1`
+TEST_CONTENTS=`${UCL_CMD} get -u -f ${VMS_CONF_PATH} .general 2>&1`
 if [ ${?} -ne 0 ] || [ "${TEST_CONTENTS}" = "null" ] || [ "${TEST_CONTENTS}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${VMS_CONF_PATH}'!\n       Aborting.\n"
