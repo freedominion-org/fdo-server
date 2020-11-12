@@ -460,17 +460,13 @@ do
 				GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
 				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 			else
-				question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
-				if [ "${ANSWER}" = "yes" ]
-				then
-					ADD_HOSTNAME_REPO_MODIFIED=true
-					echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
-					CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
-					ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-					echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
-					FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
-					ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-				fi
+				ADD_HOSTNAME_REPO_MODIFIED=true
+				echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
+				CHANGE_MESSAGE="add hostname '${HOST_NAME}' to caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+				echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
+				FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 			fi
 
 			if [ ${ERROR_COUNT} -ne 0 ]
