@@ -261,6 +261,10 @@ start_vm ()
 		echo -e "\nSTART_COMMAND:\n${START_COMMAND}\n\n"
 	fi
 
+	# Add VM tap interface to bridge, in case it's not yet added.
+	VM_BRIDGE_NAME="bridge${VMS_BRIDGE_ID}"
+	ifconfig "${VM_BRIDGE_NAME}" addm "${VM_TAP_INTERFACE}" > /dev/null 2>&1
+
 	get_vm_state "${VM_NAME}"
 	echo -e "\n${YELL}Starting VM ${VM_NAME} ...${NRML}"
 	sh -c "${START_COMMAND}"
@@ -349,6 +353,14 @@ VMS_POOL_NAME=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .storage.vms_pool`
 if [ ${?} -ne 0 ] || [ "${VMS_POOL_NAME}" = "null" ] || [ "${VMS_POOL_NAME}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Failed to get the VMs pool name from the host config file!\n       Aborting.\n"
+	exit 2
+fi
+
+# Get the VMs bridge id from the VMs config file.
+VMS_BRIDGE_ID=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .network.bridge_id_num`
+if [ ${?} -ne 0 ] || [ "${VMS_BRIDGE_ID}" = "null" ] || [ "${VMS_BRIDGE_ID}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to get the VMs bridge id from the VMs config file!\n       Aborting.\n"
 	exit 2
 fi
 
