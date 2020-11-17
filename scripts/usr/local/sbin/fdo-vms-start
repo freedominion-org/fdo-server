@@ -251,7 +251,7 @@ start_vm ()
 
 	START_COMMAND="${START_COMMAND} -s 5,${VM_NIC_DRIVER},${VM_TAP_INTERFACE}"
 
-	if [ "${VM_VNC_ENABLED}" = "enabled" ]
+	if [ "${VM_VNC_ENABLED}" = true ]
 	then
 		if [ "${VM_VNC_PASSWORD}" != "" ] && [ "${VM_VNC_PASSWORD}" != "null" ]
 		then

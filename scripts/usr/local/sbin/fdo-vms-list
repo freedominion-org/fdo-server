@@ -301,10 +301,16 @@ then
 		if [ "${VALID_VM_NAME}" = "yes" ]
 		then
 			VM_VNC_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_enabled`
+			if [ "${VM_VNC_ENABLED}" = true ]
+			then
+				VM_VNC_ENABLED_TEXT="Enabled"
+			else
+				VM_VNC_ENABLED_TEXT="Disabled"
+			fi
 			get_vm_state ${TEMPLATE_NAME}
 			if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 			then
-				printf "%-60s%-10s%-8s\n" ${TEMPLATE_NAME} ${VM_VNC_ENABLED} ${VM_STATE}
+				printf "%-60s%-10s%-8s\n" ${TEMPLATE_NAME} ${VM_VNC_ENABLED_TEXT} ${VM_STATE}
 			else
 				echo -e "${TEMPLATE_NAME} ${VM_STATE}"
 			fi
@@ -345,10 +351,16 @@ then
 		then
 			VM_TEMPLATE_NAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.template_name`
 			VM_VNC_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_enabled`
+			if [ "${VM_VNC_ENABLED}" = true ]
+			then
+				VM_VNC_ENABLED_TEXT="Enabled"
+			else
+				VM_VNC_ENABLED_TEXT="Disabled"
+			fi
 			get_vm_state ${VM_NAME}
 			if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 			then
-				printf "%-30s%-30s%-10s%-8s\n" ${VM_NAME} ${VM_TEMPLATE_NAME} ${VM_VNC_ENABLED} ${VM_STATE}
+				printf "%-30s%-30s%-10s%-8s\n" ${VM_NAME} ${VM_TEMPLATE_NAME} ${VM_VNC_ENABLED_TEXT} ${VM_STATE}
 			else
 				echo -e "${VM_NAME} ${VM_STATE}"
 			fi
