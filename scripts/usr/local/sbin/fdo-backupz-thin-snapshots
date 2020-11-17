@@ -145,9 +145,9 @@ thin_snapshots_by_filesystem()
 			echo -e "\nINFO: Ignoring the snapshot '${SNAPSHOT}'.\n      It does not appear to be a backupz (timestamp) snapshot.\n" >> ${LOG_FILE_PATH}
 			continue
 		fi
-		${UCL_CMD} set -f "${TEMPDATA_PATH}" .snapshot_names.${i} "${SNAPSHOT}"
-		${UCL_CMD} set -f "${TEMPDATA_PATH}" .snapshot_timestamps.${i} "${SNAPSHOT_TIMESTAMP}"
-		${UCL_CMD} set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "keep"
+		${UCL_CMD} set -f "${TEMPDATA_PATH}" -t string .snapshot_names.${i} "${SNAPSHOT}"
+		${UCL_CMD} set -f "${TEMPDATA_PATH}" -t string .snapshot_timestamps.${i} "${SNAPSHOT_TIMESTAMP}"
+		${UCL_CMD} set -f "${TEMPDATA_PATH}" -t string .snapshot_actions.${i} "keep"
 
 		if [ ${SNAPSHOT_TIMESTAMP} -lt ${EARLIEST_TIMESTAMP} ]
 		then
@@ -158,7 +158,7 @@ thin_snapshots_by_filesystem()
 
 	FIRST_PROJECTION=$(( ${NOW} - ${OFFSET} ))
 
-	${UCL_CMD} set -f "${TEMPDATA_PATH}" .projections.0 ${FIRST_PROJECTION}
+	${UCL_CMD} set -f "${TEMPDATA_PATH}" -t number .projections.0 ${FIRST_PROJECTION}
 
 	NEXT_PROJECTION=${FIRST_PROJECTION}
 
@@ -167,12 +167,12 @@ thin_snapshots_by_filesystem()
 	while [ ${NEXT_PROJECTION} -gt ${EARLIEST_TIMESTAMP} ]
 	do
 		NEXT_PROJECTION=$(( ${NEXT_PROJECTION} - ${INTERVAL} ))
-		${UCL_CMD} set -f "${TEMPDATA_PATH}" .projections.${j} ${NEXT_PROJECTION}
+		${UCL_CMD} set -f "${TEMPDATA_PATH}" -t number .projections.${j} ${NEXT_PROJECTION}
 		j=$(( ${j} + 1 ))
 	done
 
 	# Add one more projection at the end (UNIX epoch +1) so we don't get out of index error.
-	${UCL_CMD} set -f "${TEMPDATA_PATH}" .projections.${j} 1
+	${UCL_CMD} set -f "${TEMPDATA_PATH}" -t number .projections.${j} 1
 
 	# For completeness of log output to reflect what snapshots were kept.
 	SNAPSHOT_NAME=`${UCL_CMD} get -f "${TEMPDATA_PATH}" -q .snapshot_names.$(( ${i} - 1 ))`
@@ -206,7 +206,7 @@ thin_snapshots_by_filesystem()
 				NEXT_PROJECTION=`${UCL_CMD} get -f "${TEMPDATA_PATH}" -q .projections.$(( ${j} + 1 ))`
 				if [ ${NEXT_SNAPSHOT} -gt ${NEXT_PROJECTION} ] && [ ${LAST_KEPT_TO_NEXT_DELTA} -lt $(( ${INTERVAL} + ${DAY_IN_SECS} )) ]
 				then
-					${UCL_CMD} set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "destroy"
+					${UCL_CMD} set -f "${TEMPDATA_PATH}" -t string .snapshot_actions.${i} "destroy"
 				fi
 			else
 				NEXT_PROJECTION=0
@@ -216,7 +216,7 @@ thin_snapshots_by_filesystem()
 					NEXT_SNAPSHOT_PLUS_INTERVAL=$(( ${NEXT_SNAPSHOT} + ${INTERVAL} ))
 					j=$(( ${j} + 1 ))
 				done
-				${UCL_CMD} set -f "${TEMPDATA_PATH}" .snapshot_actions.${i} "keep"
+				${UCL_CMD} set -f "${TEMPDATA_PATH}" -t string .snapshot_actions.${i} "keep"
 				LAST_SNAPSHOT_KEPT=${i}
 			fi
 		fi
@@ -414,7 +414,7 @@ touch ${STATE_PATH}
 cp ${STATE_PATH} ${STATE_PATH}.lock
 
 # Set the job state to 'thinning' for this job.
-${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "thinning"
+${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "thinning"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # If we hit any errors so far, let's not proceed and revert backupz state file.
@@ -472,7 +472,7 @@ done
 cp ${STATE_PATH} ${STATE_PATH}.lock
 
 # Set the job state to 'completed' for this filesystem.
-${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "completed"
+${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "completed"
 
 # ASSUME that thin-snapshots was successful, so let's remove the state lock and proceed.
 rm ${STATE_PATH}.lock

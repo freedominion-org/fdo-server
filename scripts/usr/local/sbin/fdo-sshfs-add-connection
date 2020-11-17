@@ -605,15 +605,15 @@ CONNECTIONS_ARRAY_INDEX=${UCL_ARRAY_LENGTH}
 # Now let's add the entry to the sshfs-daemon config file.
 ${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t object .connections.${CONNECTIONS_ARRAY_INDEX} "{ }"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.local_path "${LOCAL_PATH}"
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t string .connections.${CONNECTIONS_ARRAY_INDEX}.local_path "${LOCAL_PATH}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_host "${REMOTE_HOST}"
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t string .connections.${CONNECTIONS_ARRAY_INDEX}.remote_host "${REMOTE_HOST}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_path "${REMOTE_PATH}"
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t string .connections.${CONNECTIONS_ARRAY_INDEX}.remote_path "${REMOTE_PATH}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_user "${REMOTE_USER}"
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t string .connections.${CONNECTIONS_ARRAY_INDEX}.remote_user "${REMOTE_USER}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} .connections.${CONNECTIONS_ARRAY_INDEX}.remote_port "${REMOTE_PORT}"
+${UCL_CMD} set -f ${SSHFS_DAEMON_CONF_PATH} -t number .connections.${CONNECTIONS_ARRAY_INDEX}.remote_port "${REMOTE_PORT}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 if [ ${ERROR_COUNT} -ne 0 ]

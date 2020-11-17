@@ -353,7 +353,7 @@ touch ${STATE_PATH}
 cp ${STATE_PATH} ${STATE_PATH}.lock
 
 # Set the job state to 'repairing' for this job.
-${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "repairing"
+${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "repairing"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # If we hit any errors so far, let's not proceed and revert backupz state file.
@@ -424,20 +424,20 @@ echo -e "\nSetting backupz state variables to previous completed backup state...
 if [ "${COMPLETED_JOB}" = "no-previous-job-completed" ]
 then
 	# Set the job state to 'null' for this filesystem.
-	${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "null"
+	${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "null"
 else
 	# Set the job state to 'completed' for this filesystem.
-	${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "completed"
+	${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state" "completed"
 fi
 
 # Set the current job name to 'null' for this filesystem.
-${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name" "null"
+${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name" "null"
 
 # Set the current job error id to 'null' for this filesystem.
-${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id" "null"
+${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id" "null"
 
 # Set the current job error dataset to 'null' for this filesystem.
-${UCL_CMD} set -f ${STATE_PATH} ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset" "null"
+${UCL_CMD} set -f ${STATE_PATH} -t string ".pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset" "null"
 
 # ASSUME that repair was successful, so let's remove the state lock and proceed.
 rm ${STATE_PATH}.lock

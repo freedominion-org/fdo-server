@@ -111,11 +111,11 @@ error_occurred () {
 	cp ${STATE_PATH} ${STATE_PATH}.lock
 
 	# Set job state to 'failed'.
-	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "failed"
+	${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "failed"
 	# Set job error identifier.
-	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id "${ERROR_ID}"
+	${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_id "${ERROR_ID}"
 	# Set job error snapshot.
-	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset "${ERROR_DATASET}"
+	${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_error_dataset "${ERROR_DATASET}"
 
 	# Remove backupz state lock and exit.
 	rm ${STATE_PATH}.lock
@@ -320,11 +320,11 @@ then
 else
 
 	# Set the job state to 'running' for this job.
-	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "running"
+	${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "running"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	# Set the current job name to NOW (timestamp) for this job.
-	${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name "${NOW}"
+	${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name "${NOW}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 fi
@@ -443,9 +443,9 @@ done
 cp ${STATE_PATH} ${STATE_PATH}.lock
 
 # Assuming backup was successful, set job state to 'completed' and completed_job_name and current_job_name accordingly.
-${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "completed"
-${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name "${NOW}"
-${UCL_CMD} set -f ${STATE_PATH} .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name "null"
+${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.job_state "completed"
+${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.completed_job_name "${NOW}"
+${UCL_CMD} set -f ${STATE_PATH} -t string .pools.${BACKUP_POOL}.filesystems.${FILESYSTEM}.current_job_name "null"
 
 # Remove backupz state lock.
 rm ${STATE_PATH}.lock

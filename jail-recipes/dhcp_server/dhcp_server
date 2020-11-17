@@ -95,7 +95,7 @@ cook_recipe ()
 		RECIPE_SUCCESS="no"
 		return
 	fi
-	${UCL_CMD} set -f configs/${HOST_NAME}${JAILS_CONF_PATH} .jails.${JAILS_ARRAY_INDEX}.devfs_ruleset 48
+	${UCL_CMD} set -f configs/${HOST_NAME}${JAILS_CONF_PATH} -t number .jails.${JAILS_ARRAY_INDEX}.devfs_ruleset 48
 	if [ ${?} -ne 0 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set jail directive 'devfs_ruleset'.\n"
