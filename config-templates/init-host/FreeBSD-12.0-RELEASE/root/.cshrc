@@ -11,6 +11,10 @@ alias la	ls -aF
 alias lf	ls -FA
 alias ll	ls -lAF
 
+# read(2) of directories may not be desirable by default, as this will provoke
+# EISDIR errors from each directory encountered.
+alias grep	grep -d skip
+
 # A righteous umask
 umask 22
 
@@ -18,7 +22,6 @@ set path = (/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin $HOME/b
 
 setenv	EDITOR	vim
 setenv	PAGER	less
-setenv	BLOCKSIZE	K
 
 if ($?prompt) then
 	# An interactive shell -- set some stuff up

@@ -23,20 +23,20 @@ alias j=jobs
 alias m="$PAGER"
 alias ll='ls -laFo'
 alias l='ls -l'
-alias g='egrep -i'
+alias g='grep -d skip -E -i'
  
+# read(2) of directories may not be desirable by default, as this will provoke
+# EISDIR errors from each directory encountered.
+alias grep='grep -d skip'
+
 # # be paranoid
 # alias cp='cp -ip'
 # alias mv='mv -i'
 # alias rm='rm -i'
 
 
-# # set prompt: ``username@hostname$ '' 
-# PS1="`whoami`@`hostname | sed 's/\..*//'`"
-# case `id -u` in
-# 	0) PS1="${PS1}# ";;
-# 	*) PS1="${PS1}$ ";;
-# esac
+# set prompt: ``username@hostname:directory $ ''
+PS1="\u@\h:\w \\$ "
 
 # search path for cd(1)
 # CDPATH=:$HOME
