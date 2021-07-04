@@ -94,16 +94,23 @@ test_configs () {
 
 is_mounted () {
 
+	IS_MOUNTED=false
+	MOUNTPOINT_DF_INFO=`df -t fusefs.sshfs "${1}"`
+	if [ "${MOUNTPOINT_DF_INFO}" = "" ]
+	then
+		return
+	fi
+	CANONICAL_MOUNTPOINT=`echo "${MOUNTPOINT_DF_INFO}" | head -2 | tail -1 | awk '{print $6}'`
 	IFS=${CARRIAGE_RETURN}
 	SSHFS_MOUNTPOINTS=`mount -p -t fusefs.sshfs | awk -F '\t'+ '{print $2}' | awk -F " fusefs.sshfs" '{print $1}'`
 	for MOUNTPOINT in ${SSHFS_MOUNTPOINTS}
 	do
-		if [ "${MOUNTPOINT}" = "${1}" ]
+		if [ "${MOUNTPOINT}" = "${CANONICAL_MOUNTPOINT}" ]
 		then
-			return 0
+			IS_MOUNTED=true
+			return
 		fi
 	done
-	return 1
 }
 
 fdo_sshfsd_start () {
@@ -124,7 +131,7 @@ fdo_sshfsd_start () {
 		echo -e "\n${YELL}Connecting SSHFS URI: '${NRML}${REMOTE_URI}${YELL}'${NRML}" 
 
 		is_mounted "${LOCAL_PATH}"
-		if [ ${?} -eq 0 ]
+		if [ ${IS_MOUNTED} = true ]
 		then
 			echo -e "  ${ORNG}The mount point '${NRML}${LOCAL_PATH}${ORNG}' is already mounted!${NRML}"
 		else
@@ -182,7 +189,7 @@ fdo_sshfsd_stop () {
 		echo -e "\n${YELL}Disconnecting SSHFS URI: '${NRML}${REMOTE_URI}${YELL}'${NRML}" 
 
 		is_mounted "${LOCAL_PATH}"
-		if [ ${?} -eq 0 ]
+		if [ ${IS_MOUNTED} = true ]
 		then
 			echo -e "  ${YELL}Unmounting '${NRML}${LOCAL_PATH}${YELL}' ...${NRML}"
 			umount ${LOCAL_PATH}
@@ -225,7 +232,7 @@ fdo_sshfsd_status () {
 		echo -e "\n${YELL}Status of SSHFS URI: '${NRML}${REMOTE_URI}${YELL}'${NRML}" 
 
 		is_mounted "${LOCAL_PATH}"
-		if [ ${?} -eq 0 ]
+		if [ ${IS_MOUNTED} = true ]
 		then
 			echo -e "  ${LGRN}The mount point '${NRML}${LOCAL_PATH}${LGRN}' is mounted.${NRML}\n"
 		else
