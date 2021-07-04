@@ -36,7 +36,7 @@ alias grep='grep -d skip'
 
 
 # set prompt: ``username@hostname:directory $ ''
-PS1="\u@\h:\w \\$ "
+PS1="[\u@\h:\W]# "
 
 # search path for cd(1)
 # CDPATH=:$HOME
