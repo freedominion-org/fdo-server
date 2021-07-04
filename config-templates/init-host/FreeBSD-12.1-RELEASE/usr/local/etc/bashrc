@@ -1,5 +1,10 @@
 # System-wide .bashrc file for interactive bash(1) shells.
 
+export LANG=HOST_LOCALE
+export MM_CHARSET=HOST_CHARSET
+
+export TZ=HOST_TIMEZONE
+
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 

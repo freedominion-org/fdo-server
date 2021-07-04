@@ -12,7 +12,7 @@
 # Allow terminal messages
 # mesg y
 
-LANG=HOST_LOCALE; export LANG
-MM_CHARSET=HOST_CHARSET; export MM_CHARSET
+export LANG=HOST_LOCALE
+export MM_CHARSET=HOST_CHARSET
 
 export TZ=HOST_TIMEZONE
