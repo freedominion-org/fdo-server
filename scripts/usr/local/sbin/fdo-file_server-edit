@@ -214,7 +214,7 @@ then
 		SELECT_JAIL_PROMPT="Select the file server jail to edit:"
 		while [ "${JAIL_NAME}" = "" ]
 		do
-			dialog --no-items --no-cancel --menu "${SELECT_JAIL_PROMPT}" 12 40 10 ${FOUND_RECIPE_JAILS} 2> ${DIALOG_OUT_FILE}
+			dialog --no-items --no-cancel --menu "${SELECT_JAIL_PROMPT}" 24 72 16 ${FOUND_RECIPE_JAILS} 2> ${DIALOG_OUT_FILE}
 			JAIL_NAME_TEMP=`cat ${DIALOG_OUT_FILE}`
 			echo -e "\n"
 			question_yes_no "\nYou have selected '${JAIL_NAME_TEMP}' as the file server jail to edit.\nIs this correct?"
@@ -256,7 +256,7 @@ fi
 # If more than one site, prompt user to select a site from available site config files.
 while [ "${SITE}" = "" ]
 do
-	dialog --no-cancel --no-items --menu "Select a site:" 12 60 10 ${SITES_AVAILABLE} 2> ${DIALOG_OUT_FILE}
+	dialog --no-cancel --no-items --menu "Select a site:" 24 72 16 ${SITES_AVAILABLE} 2> ${DIALOG_OUT_FILE}
 	SITE_TEMP=`cat ${DIALOG_OUT_FILE}`
 	echo -e "\n\n"
 	question_yes_no "You have selected '${SITE_TEMP}' as the site to edit.\nIs this correct?"

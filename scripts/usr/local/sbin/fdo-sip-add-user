@@ -217,7 +217,7 @@ then
 		SELECT_JAIL_PROMPT="Select the SIP server jail to edit:"
 		while [ "${JAIL_NAME}" = "" ]
 		do
-			dialog --no-items --no-cancel --menu "${SELECT_JAIL_PROMPT}" 12 40 10 ${FOUND_RECIPE_JAILS} 2> ${DIALOG_OUT_FILE}
+			dialog --no-items --no-cancel --menu "${SELECT_JAIL_PROMPT}" 24 72 16 ${FOUND_RECIPE_JAILS} 2> ${DIALOG_OUT_FILE}
 			JAIL_NAME_TEMP=`cat ${DIALOG_OUT_FILE}`
 			echo -e "\n"
 			question_yes_no "\nYou have selected '${JAIL_NAME_TEMP}' as the SIP jail to edit.\nIs this correct?"
