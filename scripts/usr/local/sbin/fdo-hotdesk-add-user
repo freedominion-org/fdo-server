@@ -194,6 +194,37 @@ test_valid_person_name ()
 	return 0
 }
 
+ucl_array_length ()
+{
+	UCL_ARRAY_LENGTH_FILE_PATH="${1}"
+	UCL_ARRAY_LENGTH_VARIABLE="${2}"
+	UCL_ARRAY_LENGTH=0
+
+	UCL_ARRAY_LENGTH_OBJECT=`${UCL_CMD} get -f "${UCL_ARRAY_LENGTH_FILE_PATH}" "${UCL_ARRAY_LENGTH_VARIABLE}" 2> /dev/null`
+	if [ ${?} -ne 0 ]
+	then
+		# Unexpected error accessing the UCL file.
+		return 2
+	fi
+
+	if [ "${UCL_ARRAY_LENGTH_OBJECT}" != "[array]" ]
+	then
+		# The variable was not a valid array, return expected error.
+		return 1
+	fi
+
+	while [ "${UCL_ARRAY_LENGTH_OBJECT}" != "null" ]
+	do
+		UCL_ARRAY_LENGTH_OBJECT=`${UCL_CMD} get -f "${UCL_ARRAY_LENGTH_FILE_PATH}" "${UCL_ARRAY_LENGTH_VARIABLE}.${UCL_ARRAY_LENGTH}"`
+		if [ "${UCL_ARRAY_LENGTH_OBJECT}" != "null" ]
+		then
+			UCL_ARRAY_LENGTH=$(( ${UCL_ARRAY_LENGTH} + 1 ))
+		fi
+	done
+
+	return 0
+}
+
 backup_file ()
 {
 	FILE_PATH="${1}"
@@ -416,7 +447,7 @@ fi
 
 # Check that the display_name only contains letters numbers and spaces.
 test_valid_person_name "${DISPLAY_NAME}"
-if [ "${VALID_PERSON_NAME}" = "yes" ]
+if [ "${VALID_PERSON_NAME}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The display_name can not be '${ORNG}${DISPLAY_NAME}${NRML}'."
 	echo -e "       It must contain only letters, numbers and spaces.\n       Aborting.\n"
