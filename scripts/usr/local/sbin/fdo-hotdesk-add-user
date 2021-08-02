@@ -620,19 +620,23 @@ fi
 ENCRYPTED_PASSWORD=`cat /etc/master.passwd | grep "^${USERNAME}:" | cut -d: -f2`
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
+# Get the users effective uid from /etc/master.passwd file.
+EFFECTIVE_USER_UID=`cat /etc/master.passwd | grep "^${USERNAME}:" | cut -d: -f3`
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
 # Get the users array index from the hotdesk config file.
 ucl_array_length ${HOTDESK_CONF_PATH} .users
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-HOTDESK_ARRAY_INDEX=${UCL_ARRAY_LENGTH}
+HOTDESK_USERS_ARRAY_INDEX=${UCL_ARRAY_LENGTH}
 
 # Now add the hotdesk user info to the hotdesk.conf.
-${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t object .users.${HOTDESK_INDEX} "{ username = \"${USERNAME}\"; }"
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t object .users.${HOTDESK_USERS_ARRAY_INDEX} "{ username = \"${USERNAME}\"; }"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t number .users.${HOTDESK_INDEX}.uid "${USER_UID}"
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t number .users.${HOTDESK_USERS_ARRAY_INDEX}.uid "${EFFECTIVE_USER_UID}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t string .users.${HOTDESK_INDEX}.display_name "${DISPLAY_NAME}"
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t string .users.${HOTDESK_USERS_ARRAY_INDEX}.display_name "${DISPLAY_NAME}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t string .users.${HOTDESK_INDEX}.encrypted_password "${ENCRYPTED_PASSWORD}"
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t string .users.${HOTDESK_USERS_ARRAY_INDEX}.encrypted_password "${ENCRYPTED_PASSWORD}"
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Create ZFS filesystem for home folder.
