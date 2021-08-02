@@ -30,6 +30,7 @@ SCRIPT_NAME=`basename ${0}`
 USERNAME="${1}"
 DISPLAY_NAME="${2}"
 NUM_MANDATORY_ARGS=2
+FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
 HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
@@ -304,6 +305,10 @@ undo_add_user ()
 	service mountd reload
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
+	# Restore hotdesk.conf UCL config file.
+	restore_file ${HOTDESK_CONF_PATH} ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo user removal!\n"
@@ -351,6 +356,35 @@ if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
 	exit 2
+fi
+
+# Check that the hotdesk subsystem is initialised.
+HOTDESK_SUBSYS_COMPAT=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .subsystems.hotdesk_compat`
+if [ "${HOTDESK_SUBSYS_COMPAT}" = "null" ] || [ "${HOTDESK_SUBSYS_COMPAT}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} It appears that the Hotdesk subsystem is not initialised."
+	echo -e "       Consider using the command:"
+	echo -e "       ${LBLU}${SCRIPT_NAME} init-hotdesk${NRML}\n       Aborting.\n"
+	return 1
+fi
+
+# Check that the hotdesk.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOTDESK_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOTDESK_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check for unsaved registered host config files.
+echo -e "\n${YELL}Now we need to check if there are any unsaved changes to this hosts registered\nconfig files...${NRML}\n"
+${FDO_SERVER_SCRIPT} check-configs --script > /dev/null 2>&1
+if [ ${?} -gt 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} One or more host config files are not updated in the repo."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} check-configs${NRML}' subcommand to see what's out-of-date."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} update-config${NRML}' subcommannd to keep the repo up-to-date.\n       Aborting.\n"
+	exit 1
 fi
 
 # Check that we are not currently running a backupz operation.
@@ -407,6 +441,8 @@ fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
+
+trap 'undo_add_user ; exit 3' HUP INT QUIT KILL TERM
 
 ERROR_COUNT=0
 USER_HOME_FS_CREATED=false
@@ -483,6 +519,8 @@ backup_file /etc/pwd.db ${SCRIPT_NAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 backup_file /etc/spwd.db ${SCRIPT_NAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+backup_file ${HOTDESK_CONF_PATH} ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Add new NIS user locally.
 if [ "${IS_INTERACTIVE}" = "yes" ]
@@ -547,6 +585,25 @@ then
 	echo -e ""
 fi
 
+# Get the users encrypted password from /etc/master.passwd file.
+ENCRYPTED_PASSWORD=`cat /etc/master.passwd | grep "^${USERNAME}:" | cut -d: -f2`
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# Get the users array index from the hotdesk config file.
+ucl_array_length ${HOTDESK_CONF_PATH} .users
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+HOTDESK_ARRAY_INDEX=${UCL_ARRAY_LENGTH}
+
+# Now add the hotdesk user info to the hotdesk.conf.
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t object .users.${HOTDESK_INDEX} "{ username = \"${USERNAME}\"; }"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t number .users.${HOTDESK_INDEX}.uid "${USER_UID}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t string .users.${HOTDESK_INDEX}.display_name "${DISPLAY_NAME}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+${UCL_CMD} set -f ${HOTDESK_CONF_PATH} -t string .users.${HOTDESK_INDEX}.encrypted_password "${ENCRYPTED_PASSWORD}"
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
 # Create ZFS filesystem for home folder.
 zfs create -o quota=${DEFAULT_HOME_FOLDER_QUOTA} ${HOME_ZFS_NAME}/${USERNAME}
 RETURN_CODE=${?}
@@ -585,12 +642,30 @@ then
 	exit 2
 fi
 
+# Update configuration in the local repo and if interactive mode then push to remote repo.
+echo -e "\n${YELL}Updating configuration to the repo...${NRML}\n"
+if [ "${IS_INTERACTIVE}" = "no" ]
+then
+	CHANGE_MESSAGE="add hotdesk user '${USERNAME}'" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${HOTDESK_CONF_PATH}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+else
+	CHANGE_MESSAGE="add hotdesk user '${USERNAME}'" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${HOTDESK_CONF_PATH}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
+
+if [ ${ERROR_COUNT} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong saving the configuration to the repo!\n"
+	exit 2
+fi
+
 undo_backup_file /etc/exports ${SCRIPT_NAME}
 undo_backup_file /var/yp/master.passwd ${SCRIPT_NAME}
 undo_backup_file /etc/passwd ${SCRIPT_NAME}
 undo_backup_file /etc/master.passwd ${SCRIPT_NAME}
 undo_backup_file /etc/pwd.db ${SCRIPT_NAME}
 undo_backup_file /etc/spwd.db ${SCRIPT_NAME}
+undo_backup_file ${HOTDESK_CONF_PATH} ${SCRIPT_NAME}
 
 echo -e "\n${LGRN}Successfully added the hotdesk user '${NRML}${USERNAME}${LGRN}'.${NRML}\n"
 
