@@ -35,6 +35,8 @@ HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
 SYSTEM_STATE_ROOT=${SYSTEM_STATE_ROOT:-"/var/db"}
 BACKUPZ_STATE_PATH=${STATE_PATH:-"${SYSTEM_STATE_ROOT}/fdo-backupz.state"}
+HOTDESK_UID_MIN=5001
+HOTDESK_UID_MAX=9999
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -116,6 +118,61 @@ test_if_host ()
 	fi
 }
 
+check_user_home_status ()
+{
+	HAS_NFS_EXPORTED="No"
+	HAS_BACKUP_FS="No"
+
+	# Determine if current user has an FDo hotdesk home filesystem.
+	zfs list -H -o name ${HOME_ZFS_NAME}/${USERNAME} > /dev/null 2>&1
+	if [ ${?} -eq 0 ]
+	then
+		# Determine if the current user has an FDo hotdesk home directory NFS export.
+		showmount -E | awk '{print $1}' | grep "^${HOME_MP}/${USERNAME}$" > /dev/null 2>&1
+		if [ ${?} -eq 0 ]
+		then
+			HAS_NFS_EXPORTED="Yes"
+		fi
+
+		# If the backupz state file exists, try to find the backup of hotdesk users' home directory.
+		HAS_BACKUP_FS="No"
+		if [ -e "${BACKUPZ_STATE_PATH}" ]
+		then
+
+			# Try to find the backup pool filesystem that holds the hotdesk users' home directory.
+			for POOL_NAME in `zpool list -H -o name | grep -v "${HOME_POOL}"`
+			do
+				TEST_BACKUP_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}`
+				if [ "${TEST_BACKUP_POOL}" != "" ]
+				then
+					# ASSUME: the hotdesk users' home directory can be in a backup pool in only one of two possible filesystem topologies:
+					#         (i)  ${BACKUP_POOL}/${HOME_POOL}/${HOME_FS}/${USERNAME}
+					#         (ii) ${BACKUP_POOL}/${HOME_POOL}__${HOME_FS}/${USERNAME}
+					TEST_HOME_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}`
+					if [ "${TEST_HOME_POOL}" != "" ]
+					then
+						zfs list -H -o name "${POOL_NAME}/${HOME_POOL}/${HOME_FS}/${USERNAME}" > /dev/null 2>&1
+						if [ ${?} -eq 0 ]
+						then
+							HAS_BACKUP_FS="Yes"
+							break
+						fi
+					fi
+					TEST_HOME_FS=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}/${HOME_FS}`
+					if [ "${TEST_HOME_FS}" != "" ]
+					then
+						zfs list -H -o name "${POOL_NAME}/${HOME_POOL}__${HOME_FS}/${USERNAME}" > /dev/null 2>&1
+						if [ ${?} -eq 0 ]
+						then
+							HAS_BACKUP_FS="Yes"
+							break
+						fi
+					fi
+				fi
+			done
+		fi
+	fi
+}
 
 ##### SANITY TESTS #############################################################
 
@@ -157,6 +214,24 @@ then
 	exit 2
 fi
 
+# Check that the hotdesk subsystem is initialised.
+HOTDESK_SUBSYS_COMPAT=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .subsystems.hotdesk_compat`
+if [ "${HOTDESK_SUBSYS_COMPAT}" = "null" ] || [ "${HOTDESK_SUBSYS_COMPAT}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} It appears that the Hotdesk subsystem is not initialised."
+	echo -e "       Consider using the command:"
+	echo -e "       ${LBLU}${SCRIPT_NAME} init-hotdesk${NRML}\n       Aborting.\n"
+	return 1
+fi
+
+# Check that the hotdesk.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOTDESK_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOTDESK_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
 
 ##### MAIN EXECUTION THREAD ####################################################
 
@@ -190,72 +265,112 @@ then
 fi
 
 HOME_ZFS_NAME="${HOME_POOL}/${HOME_FS}"
+USERNAMES_MISSING_FROM_UCL=false
+USERNAMES_MISSING_FROM_SYSTEM=false
+USER_UID_MISMATCHES=false
 
 # Display hotdesk users table header.
 echo -e ""
 echo -e "${GREY}==============================================================================${NRML}"
-echo -e "${NRML}Username                      NFS export?   Backup Found?                     ${NRML}"
+echo -e "${NRML}Username                      UID   NFS export?   Backup Found?               ${NRML}"
 echo -e "${GREY}==============================================================================${NRML}"
 
-# Display hotdesk users table data, iterate through user in YP passwd map.
-for USERNAME in `ypcat passwd | cut -d: -f1`
+# Display hotdesk users table data, iterate through users in NIS passwd map.
+for USERNAME in `ypcat passwd | cut -d: -f1 | sort`
 do
-	# Determine if current user has an FDo hotdesk home filesystem.
-	zfs list -H -o name ${HOME_ZFS_NAME}/${USERNAME} > /dev/null 2>&1
-	if [ ${?} -eq 0 ]
+	# Set default output formatting colours.
+	USERNAME_COLOUR=${NRML}
+	USER_UID_COLOUR=${NRML}
+
+	# Get the users uid from YP passwd map.
+	USER_UID=`ypcat passwd | grep "^${USERNAME}:" | cut -d: -f3`
+
+	# Check if the username exists in the hotdesk.conf users list.
+	USER_INDEX=0
+	USERNAME_FOUND_IN_UCL=false
+	while [ `${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}` != "null" ]
+	do
+		TEST_USERNAME=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}.username`
+		if [ "${USERNAME}" = "${TEST_USERNAME}" ]
+		then
+			USERNAME_FOUND_IN_UCL=true
+			USERNAME_COLOUR=${LGRN}
+
+			# Check that the users uid matches that of the same user in hotdesk.conf.
+			TEST_USER_UID=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}.uid`
+			if [ "${USER_UID}" = "${TEST_USER_UID}" ]
+			then
+				USER_UID_COLOUR=${LGRN}
+			else
+				USER_UID_COLOUR=${ORNG}
+				USER_UID_MISMATCHES=true
+			fi
+		fi
+		USER_INDEX=$(( ${USER_INDEX} + 1 ))
+	done
+	if [ ${USERNAME_FOUND_IN_UCL} = false ]
 	then
-		# Determine if the current user has an FDo hotdesk home directory NFS export.
-		showmount -E | awk '{print $1}' | grep "^${HOME_MP}/${USERNAME}$" > /dev/null 2>&1
-		if [ ${?} -eq 0 ]
+		USERNAMES_MISSING_FROM_UCL=true
+		USERNAME_COLOUR=${ORNG}
+	fi
+
+	check_user_home_status
+
+	# Print the table row data for the current FDo hotdesk user found on the system NIS maps.
+	printf "${USERNAME_COLOUR}%-30s${USER_UID_COLOUR}%-6s${NRML}%-14s%-14s\n" ${USERNAME} ${USER_UID} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
+	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+done
+
+# Display remaining hotdesk users table data, iterate through hotdesk.conf looking for users missing from the system.
+USER_INDEX=0
+while [ `${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}` != "null" ]
+do
+	USERNAME=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}.username`
+	USER_UID=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}.uid`
+
+	USERNAME_FOUND_IN_SYSTEM=false
+	for TEST_USERNAME in `ypcat passwd | cut -d: -f1`
+	do
+		if [ "${USERNAME}" = "${TEST_USERNAME}" ]
 		then
-			HAS_NFS_EXPORTED="Yes"
-		else
-			HAS_NFS_EXPORTED="No"
+			USERNAME_FOUND_IN_SYSTEM=true
 		fi
+	done
 
-		# If the backupz state file exists, try to find the backup of hotdesk users' home directory.
-		HAS_BACKUP_FS="No"
-		if [ -e "${BACKUPZ_STATE_PATH}" ]
-		then
+	if [ ${USERNAME_FOUND_IN_SYSTEM} = false ]
+	then
+		USERNAMES_MISSING_FROM_SYSTEM=true
 
-			# Try to find the backup pool filesystem that holds the hotdesk users' home directory.
-			for POOL_NAME in `zpool list -H -o name | grep -v "${HOME_POOL}"`
-			do
-				TEST_BACKUP_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}`
-				if [ "${TEST_BACKUP_POOL}" != "" ]
-				then
-					# ASSUME: the hotdesk users' home directory can be in a backup pool in only one of two possible filesystem topologies:
-					#         (i)  ${BACKUP_POOL}/${HOME_POOL}/${HOME_FS}/${USERNAME}
-					#         (ii) ${BACKUP_POOL}/${HOME_POOL}__${HOME_FS}/${USERNAME}
-					TEST_HOME_POOL=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}`
-					if [ "${TEST_HOME_POOL}" != "" ]
-					then
-						zfs list -H -o name "${POOL_NAME}/${HOME_POOL}/${HOME_FS}/${USERNAME}" > /dev/null 2>&1
-						if [ ${?} -eq 0 ]
-						then
-							HAS_BACKUP_FS="Yes"
-							break
-						fi
-					fi
-					TEST_HOME_FS=`${UCL_CMD} get -f ${BACKUPZ_STATE_PATH} -u .pools.${POOL_NAME}.filesystems.${HOME_POOL}/${HOME_FS}`
-					if [ "${TEST_HOME_FS}" != "" ]
-					then
-						zfs list -H -o name "${POOL_NAME}/${HOME_POOL}__${HOME_FS}/${USERNAME}" > /dev/null 2>&1
-						if [ ${?} -eq 0 ]
-						then
-							HAS_BACKUP_FS="Yes"
-							break
-						fi
-					fi
-				fi
-			done
-		fi
+		check_user_home_status
 
-		# Print the table row data for the current valid FDo hotdesk user.
-		printf "%-30s%-14s%-14s\n" ${USERNAME} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
+		# Print the table row data for the current FDo hotdesk user in hotdesk.conf but missing from the system NIS maps.
+		printf "${LRED}%-30s%-6s${NRML}%-14s%-14s\n" ${USERNAME} ${USER_UID} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
 		echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
 	fi
+
+	USER_INDEX=$(( ${USER_INDEX} + 1 ))
 done
+
+if [ ${USERNAMES_MISSING_FROM_UCL} = true ]
+then
+	echo -e "\n${ORNG}WARNING:${NRML} At least one hotdesk user on the system is missing from the"
+	echo -e "         hotdesk subsystem config file: '${HOTDESK_CONF_PATH}'."
+	echo -e "         The username of these users is ${ORNG}highlighted${NRML} in the table above.\n"
+fi
+
+if [ ${USER_UID_MISMATCHES} = true ]
+then
+	echo -e "\n${ORNG}WARNING:${NRML} At least one hotdesk user on the system has a uid mismatch with the"
+	echo -e "         hotdesk subsystem config file: '${HOTDESK_CONF_PATH}'."
+	echo -e "         The uid of these users is ${ORNG}highlighted${NRML} in the table above.\n"
+fi
+
+if [ ${USERNAMES_MISSING_FROM_SYSTEM} = true ]
+then
+	echo -e "\n${ORNG}ERROR:${NRML} At least one hotdesk user is missing from the system NIS (yp) maps,"
+	echo -e "       according to the hotdesk subsystem config file: '${HOTDESK_CONF_PATH}'."
+	echo -e "       The username and uid of these users is ${LRED}highlighted${NRML} in the table above.\n"
+fi
 
 echo -e ""
 

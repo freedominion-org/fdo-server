@@ -38,6 +38,8 @@ HOTDESK_CONF_PATH=${HOTDESK_CONF_PATH:-"${FDO_CONFIG_ROOT}/hotdesk.conf"}
 IS_INTERACTIVE="yes"
 USER_UID=${USER_UID:-""}
 USER_PASSWORD=${USER_PASSWORD:-""}
+HOTDESK_UID_MIN=5001
+HOTDESK_UID_MAX=9999
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -554,7 +556,7 @@ backup_file ${HOTDESK_CONF_PATH} ${SCRIPT_NAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Add new NIS user locally.
-if [ "${IS_INTERACTIVE}" = "yes" ]
+if [ "${IS_INTERACTIVE}" = "yes" ] && [ "${USER_UID}" = "" ]
 then
 	question_yes_no "\nWould you like to specify the UID of the new user?"
 	if [ "${ANSWER}" = "yes" ]
@@ -563,9 +565,10 @@ then
 		while [ "${USER_UID}" = "" ]
 		do
 			echo -e ""
-			readee -p "${LCYN}Enter the new users' UID: ${NRML}" USER_UID_TEMP
+			readee -p "${LCYN}Enter the new users' UID [${HOTDESK_UID_MIN}-${HOTDESK_UID_MAX}]: ${NRML}" USER_UID_TEMP
+
 			# Check that the UID is valid.
-			test_valid_integer "${USER_UID_TEMP}" 1000 100000
+			test_valid_integer "${USER_UID_TEMP}" ${HOTDESK_UID_MIN} ${HOTDESK_UID_MAX}
 			if [ "${VALID_INTEGER}" = "yes" ]
 			then
 				question_yes_no "\nYou have entered '${NRML}${USER_UID_TEMP}${LCYN}' as the new users' UID.\nIs this correct?"
@@ -574,40 +577,91 @@ then
 					USER_UID=${USER_UID_TEMP}
 				fi
 			else
-				echo -e "\n${LRED}ERROR:${NRML} The new users' UID can not be '${ORNG}${USER_UID}${NRML}'."
-				echo -e "       It must contain only numbers, greater than 1000 and less than 100000.\n"
+				echo -e "\n${LRED}ERROR:${NRML} The new users' UID can not be '${ORNG}${USER_UID_TEMP}${NRML}'."
+				echo -e "       It must contain only numbers, greater than ${HOTDESK_UID_MIN} and less than ${HOTDESK_UID_MAX}.\n"
 			fi
 		done
 	fi
 fi
+
 echo -e ""
-if [ "${USER_UID}" != "" ]
+
+# Get lists of in use uid numbers from local, nis and hotdesk.conf.
+ALL_CURRENT_LOCAL_UIDS=`cat /etc/passwd | sed "/^#/d" | cut -d: -f3 | sed "s:[^0-9]*::g"`
+ALL_CURRENT_NIS_UIDS=`ypcat passwd | sed "/^#/d" | cut -d: -f3 | sed "s:[^0-9]*::g"`
+ALL_CURRENT_UCL_UIDS=""
+USER_INDEX=0
+while [ `${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}` != "null" ]
+do
+	UCL_USER_UID=`${UCL_CMD} get -f ${HOTDESK_CONF_PATH} -q .users.${USER_INDEX}.uid`
+	ALL_CURRENT_UCL_UIDS="${ALL_CURRENT_UCL_UIDS}${CARRIAGE_RETURN}${UCL_USER_UID}"
+	USER_INDEX=$(( ${USER_INDEX} + 1 ))
+done
+
+if [ "${USER_UID}" = "" ]
 then
-	test_valid_integer "${USER_UID}" 1000 100000
-	if [ "${VALID_INTEGER}" = "no" ]
+	# We get here if the uid is unspecified, let us automatically assign the next available.
+
+	# Get next available uid within allowed range.
+	NEXT_USER_UID_FOUND=false
+	NEXT_USER_UID=${HOTDESK_UID_MIN}
+	while [ ${NEXT_USER_UID_FOUND} = false ] && [ ${NEXT_USER_UID} -lt ${HOTDESK_UID_MAX} ]
+	do
+		echo "${ALL_CURRENT_LOCAL_UIDS}" | grep -w "${NEXT_USER_UID}" > /dev/null 2>&1
+		RESULT1=${?}
+		echo "${ALL_CURRENT_NIS_UIDS}" | grep -w "${NEXT_USER_UID}" > /dev/null 2>&1
+		RESULT2=${?}
+		echo "${ALL_CURRENT_UCL_UIDS}" | grep -w "${NEXT_USER_UID}" > /dev/null 2>&1
+		RESULT3=${?}
+		if [ ${RESULT1} -ne 0 ] && [ ${RESULT2} -ne 0 ] && [ ${RESULT3} -ne 0 ]
+		then
+			NEXT_USER_UID_FOUND=true
+			USER_UID=${NEXT_USER_UID}
+		fi
+		NEXT_USER_UID=$(( ${NEXT_USER_UID} + 1 ))
+	done
+	if [ ${NEXT_USER_UID_FOUND} = false ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} The USER_UID specified is not valid!\n       Aborting."
+		echo -e "\n${LRED}ERROR:${NRML} Could not find the next available UID for the Hotdesk user!\n       Aborting."
 		undo_add_user
 		exit 1
 	fi
-	if [ "${USER_PASSWORD}" = "" ]
-	then
-		pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID}
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-	else
-		echo "${USER_PASSWORD}" | pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID} -h 0
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-	fi
 else
-	if [ "${USER_PASSWORD}" = "" ]
+	# Test if specified uid is valid.
+	test_valid_integer "${USER_UID}" ${HOTDESK_UID_MIN} ${HOTDESK_UID_MAX}
+	if [ "${VALID_INTEGER}" = "no" ]
 	then
-		pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-	else
-		echo "${USER_PASSWORD}" | pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -h 0
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		echo -e "\n${LRED}ERROR:${NRML} The Hotdesk user UID specified is not valid!\n       Aborting."
+		undo_add_user
+		exit 1
+	fi
+
+	# Test if specified uid is not already in use.
+	echo "${ALL_CURRENT_LOCAL_UIDS}" | grep -w "${USER_UID}" > /dev/null 2>&1
+	RESULT1=${?}
+	echo "${ALL_CURRENT_NIS_UIDS}" | grep -w "${USER_UID}" > /dev/null 2>&1
+	RESULT2=${?}
+	echo "${ALL_CURRENT_UCL_UIDS}" | grep -w "${USER_UID}" > /dev/null 2>&1
+	RESULT3=${?}
+	if [ ${RESULT1} -eq 0 ] || [ ${RESULT2} -eq 0 ] || [ ${RESULT3} -eq 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} The Hotdesk user UID specified is already in use!\n       Aborting."
+		undo_add_user
+		exit 1
 	fi
 fi
+
+# Add the user to the local system.
+if [ "${USER_PASSWORD}" = "" ]
+then
+	pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+else
+	echo "${USER_PASSWORD}" | pw useradd -n ${USERNAME} -c "${DISPLAY_NAME}" -d /home/${USERNAME} -g users -s /bin/bash -u ${USER_UID} -h 0
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
+
+# If using interactive mode and password is not specified via environment variable, set it manually.
 if [ "${IS_INTERACTIVE}" = "yes" ] && [ "${USER_PASSWORD}" = "" ]
 then
 	echo -e ""
@@ -666,6 +720,8 @@ cat /etc/master.passwd | egrep "^${USERNAME}:" >> master.passwd
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 echo -e ""
+
+# Update the new NIS domain.
 make
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
@@ -694,6 +750,7 @@ then
 	exit 2
 fi
 
+# Since everything seems successful, we can remove the backup configs.
 undo_backup_file /etc/exports ${SCRIPT_NAME}
 undo_backup_file /var/yp/master.passwd ${SCRIPT_NAME}
 undo_backup_file /etc/passwd ${SCRIPT_NAME}
