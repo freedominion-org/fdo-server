@@ -34,6 +34,8 @@ UDP_PORTS="${4}"
 NUM_MANDATORY_ARGS=4
 IS_INTERACTIVE="yes"
 IS_REPO_CONF=${IS_REPO_CONF:-"no"}
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 PF_CONF_PATH=${PF_CONF_PATH:-"/etc/pf.conf"}
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 
@@ -225,6 +227,95 @@ test_if_host ()
 	fi
 }
 
+backup_file ()
+{
+	FILE_PATH="${1}"
+	CHANGE_AGENT="${2}"
+	if [ -f "${FILE_PATH}" ]
+	then
+		BACKUP_FILE_PATH="${FILE_PATH}.backup.${CHANGE_AGENT}"
+		cp "${FILE_PATH}" "${BACKUP_FILE_PATH}" 2> /dev/null
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Failed to backup file '${ORNG}${FILE_PATH}${NRML}'!\n"
+			BACKUP_FILE_PATH=""
+			return 2
+		fi
+	else
+		echo -e "\n${LRED}ERROR:${NRML} File '${ORNG}${FILE_PATH}${NRML}' does not exist!\n       Unable to backup.\n"
+		BACKUP_FILE_PATH=""
+		return 1
+	fi
+
+	return 0
+}
+
+restore_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}" ] && [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		diff -q "${FILE_PATH}" "${FILE_PATH}.backup.${CHANGE_AGENT}" > /dev/null 2>&1
+		if [ ${?} -ne 0 ]
+		then
+			# File and backup differ, replace the file with it's backup copy.
+			mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		else
+			# File is same as backup, remove the backup.
+			rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+			if [ ${?} -ne 0 ]
+			then
+				return 2
+			fi
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_backup_file ()
+{
+	FILE_PATH=${1}
+	CHANGE_AGENT="${2}"
+
+	if [ -f "${FILE_PATH}.backup.${CHANGE_AGENT}" ]
+	then
+		# Remove the backup.
+		rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
+		fi
+	fi
+
+	return 0
+
+}
+
+undo_add_rule ()
+{
+	ERROR_COUNT=0
+
+	echo -e "\n${ORNG}Undoing add port forward rule process...${NRML}\n"
+
+	# Restore pf.conf config file.
+	restore_file ${PF_CONF_PATH} ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo add port forward rule!\n"
+	else
+		echo -e ""
+	fi
+}
 
 ##### SANITY TESTS #############################################################
 
@@ -250,6 +341,23 @@ then
 	exit 1
 fi
 
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
+# Check that the pf.conf config file exists.
 if [ ! -f ${PF_CONF_PATH} ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The pf config file '${PF_CONF_PATH}' does not exist!\n       Aborting.\n"
@@ -307,6 +415,8 @@ fi
 
 ##### MAIN EXECUTION THREAD ####################################################
 
+trap 'undo_add_rule ; exit 3' HUP INT QUIT KILL TERM
+
 ERROR_COUNT=0
 
 # Prepare macro and rule definitions as variables.
@@ -326,13 +436,9 @@ else
 	UDP_RULES_DEF="\\${CARRIAGE_RETURN}rdr on \$ext_if proto udp from any to any port \$${RULE_NAME}_udp_ports -> \$${RULE_NAME}_ip"
 fi
 
-# Make a temporary backup of pf.conf in case problem occur whilst making changes.
-cp "${PF_CONF_PATH}" "/tmp/${SCRIPT_NAME}.conf-backup.tmp"
-if [ ${?} -ne 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} Unable to make a backup copy of:\n       ${ORNG}${PF_CONF_PATH}${NRML}\n       Aborting.\n"
-	exit 2
-fi
+# Backup pf.conf config file in case something goes wrong.
+backup_file ${PF_CONF_PATH} ${SCRIPT_NAME}
+ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 # Add new port foward rule macros to pf config file.
 sed -i "" "s|\(^[#]* PORT FORWARD RULES MACROS [#]*\)|\1\\${CARRIAGE_RETURN}${IP_MACRO_DEF}${TCP_PORTS_MACRO_DEF}${UDP_PORTS_MACRO_DEF}|" ${PF_CONF_PATH}
@@ -352,14 +458,11 @@ then
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 fi
 
-# If any error during string replacements changes, restore healthy config and exit with error.
 if [ ${ERROR_COUNT} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} An unxepected error occured whilst making changes to:\n       ${ORNG}${PF_CONF_PATH}${NRML}\n       Aborting.\n"
-	mv "/tmp/${SCRIPT_NAME}.conf-backup.tmp" "${PF_CONF_PATH}"
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting."
+	undo_add_rule
 	exit 2
-else
-	rm "/tmp/${SCRIPT_NAME}.conf-backup.tmp"
 fi
 
 if [ "${IS_REPO_CONF}" = "no" ]
@@ -387,6 +490,8 @@ if [ ${ERROR_COUNT} -gt 0 ]
 then
 	exit 2
 fi
+
+undo_backup_file ${PF_CONF_PATH} ${SCRIPT_NAME}
 
 if [ "${IS_INTERACTIVE}" = "yes" ]
 then
