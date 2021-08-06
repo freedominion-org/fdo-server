@@ -291,6 +291,22 @@ then
 	exit 1
 fi
 
+# Check that the host.conf file exists.
+if [ ! -e "${HOST_CONF_PATH}" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The host config file \n       '${ORNG}${HOST_CONF_PATH}${NRML}'"
+	echo -e "       appears to be missing.\n       Aborting.\n"
+	exit 1
+fi
+
+# Check that the host.conf file is accessible.
+TEST_UCL=`${UCL_CMD} get -u -f ${HOST_CONF_PATH} .general 2>&1`
+if [ ${?} -ne 0 ] || [ "${TEST_UCL}" = "null" ] || [ "${TEST_UCL}" = "" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} Failed to access the config file '${HOST_CONF_PATH}'!\n       Aborting.\n"
+	exit 2
+fi
+
 # Check that the hostname is valid.
 test_valid_fqhn  "${HOST_NAME}"
 if [ "${VALID_FQHN}" = "no" ]
@@ -304,6 +320,8 @@ fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
+
+trap 'undo_remove_hostname ; exit 3' HUP INT QUIT KILL TERM
 
 ERROR_COUNT=0
 
