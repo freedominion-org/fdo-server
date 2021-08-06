@@ -253,7 +253,7 @@ undo_remove_user ()
 {
 	ERROR_COUNT=0
 
-	echo -e "\n${ORNG}Undoing user removal process...${NRML}\n"
+	echo -e "\n${ORNG}Undoing remove user process...${NRML}\n"
 
 	# Restore local system and NIS users database.
 	restore_file /etc/exports ${SCRIPT_NAME}
@@ -285,7 +285,7 @@ undo_remove_user ()
 
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo user removal!\n"
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo remove user!\n"
 	else
 		echo -e ""
 	fi

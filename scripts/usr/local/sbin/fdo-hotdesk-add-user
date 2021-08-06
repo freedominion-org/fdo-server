@@ -344,7 +344,7 @@ undo_add_user ()
 
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo user removal!\n"
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo add user!\n"
 	else
 		echo -e ""
 	fi
