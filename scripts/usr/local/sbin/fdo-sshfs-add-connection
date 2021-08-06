@@ -344,6 +344,27 @@ undo_backup_file ()
 
 }
 
+undo_add_connection ()
+{
+	ERROR_COUNT=0
+
+	echo -e "\n${ORNG}Undoing add connection process...${NRML}\n"
+
+	# Restore sshfs-daemon.conf UCL config file.
+	restore_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Remove SSH key files.
+	rm ${SSHFS_DAEMON_KEY} 2> /dev/null
+	rm ${SSHFS_DAEMON_KEY}.pub 2> /dev/null
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo add connection!\n"
+	else
+		echo -e ""
+	fi
+}
 
 ##### SANITY TESTS #############################################################
 
@@ -518,6 +539,8 @@ fi
 
 ##### MAIN EXECUTION THREAD ####################################################
 
+trap 'undo_add_connection ; exit 3' HUP INT QUIT KILL TERM
+
 ERROR_COUNT=0
 
 # Warn if the local_path is not empty.
@@ -618,13 +641,8 @@ ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 if [ ${ERROR_COUNT} -ne 0 ]
 then
-	# Restore sshfs-deamon config file.
-	restore_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
-
-	rm ${SSHFS_DAEMON_KEY} 2> /dev/null
-	rm ${SSHFS_DAEMON_KEY}.pub 2> /dev/null
-
 	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting."
+	undo_add_connection
 	exit 2
 fi
 

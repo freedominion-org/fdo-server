@@ -218,6 +218,29 @@ undo_backup_file ()
 
 }
 
+undo_remove_connection ()
+{
+	ERROR_COUNT=0
+
+	echo -e "\n${ORNG}Undoing remove connection process...${NRML}\n"
+
+	# Restore sshfs-daemon.conf UCL config file.
+	restore_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Restore SSH key files.
+	restore_file ${SSHFS_DAEMON_KEY} ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	restore_file ${SSHFS_DAEMON_KEY}.pub ${SCRIPT_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} An error occurred whilst trying to undo remove connection!\n"
+	else
+		echo -e ""
+	fi
+}
 
 ##### SANITY TESTS #############################################################
 
@@ -298,6 +321,8 @@ fi
 
 
 ##### MAIN EXECUTION THREAD ####################################################
+
+trap 'undo_remove_connection ; exit 3' HUP INT QUIT KILL TERM
 
 ERROR_COUNT=0
 
@@ -388,14 +413,8 @@ fi
 
 if [ ${ERROR_COUNT} -ne 0 ]
 then
-	# Restore sshfs-deamon config file.
-	restore_file ${SSHFS_DAEMON_CONF_PATH} ${SCRIPT_NAME}
-
-	# Restore SSH key files.
-	restore_file ${SSHFS_DAEMON_KEY} ${SCRIPT_NAME}
-	restore_file ${SSHFS_DAEMON_KEY}.pub ${SCRIPT_NAME}
-
 	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting."
+	undo_remove_connection
 	exit 2
 fi
 
