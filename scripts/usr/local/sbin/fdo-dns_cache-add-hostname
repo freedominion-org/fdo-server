@@ -33,6 +33,9 @@ NUM_MANDATORY_ARGS=2
 IS_INTERACTIVE="yes"
 DNS_CACHE_SERVER_FOUND="no"
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
+UCL_CMD="/usr/local/bin/uclcmd"
+FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
+HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 REPO_NAME=${REPO_NAME:-"fdo-server"}
 
 TERM="xterm"
