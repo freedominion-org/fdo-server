@@ -34,10 +34,11 @@ UDP_PORTS="${4}"
 NUM_MANDATORY_ARGS=4
 IS_INTERACTIVE="yes"
 IS_REPO_CONF=${IS_REPO_CONF:-"no"}
+FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
+UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
 HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 PPP_CONF_PATH=${PPP_CONF_PATH:-"/etc/ppp/ppp.conf"}
-FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 
 TERM="xterm"
 LRED="\033[1;31m"
