@@ -356,6 +356,8 @@ echo -e ""
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the config repo!\n       Aborting."
+	undo_remove_rule
 	exit 2
 fi
 

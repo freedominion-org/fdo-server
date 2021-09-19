@@ -290,7 +290,7 @@ undo_add_hostname ()
 	fi
 
 	# Undo repo modifications.
-	if [ ${ADD_HOSTNAME_REPO_MODIFIED} = true ]
+	if [ ${ADD_HOSTNAME_REPO_MODIFIED} = true ] && [ "${IS_INTERACTIVE}" = "yes" ]
 	then
 		# Roll back local repo to last good commit (!!!DANGEROUS!!!).
 		if [ "${COMMIT_BEFORE_ADD_HOSTNAME}" != "" ]

@@ -249,7 +249,7 @@ undo_remove_hostname ()
 	fi
 
 	# Undo repo modifications.
-	if [ ${REMOVE_HOSTNAME_REPO_MODIFIED} = true ]
+	if [ ${REMOVE_HOSTNAME_REPO_MODIFIED} = true ] && [ "${IS_INTERACTIVE}" = "yes" ]
 	then
 		# Roll back local repo to last good commit (!!!DANGEROUS!!!).
 		if [ "${COMMIT_BEFORE_REMOVE_HOSTNAME}" != "" ]
