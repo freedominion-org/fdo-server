@@ -2,7 +2,7 @@
 
 #### Recipe Variable Definitions ###############################################
 RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="isc-dhcp44-server"                                            # Optional:  packages to install in the jail
+RECIPE_PACKAGES="net/isc-dhcp44-server"                                        # Optional:  packages to install in the jail
 RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
 RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking

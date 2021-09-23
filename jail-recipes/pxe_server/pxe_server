@@ -2,7 +2,7 @@
 
 #### Recipe Variable Definitions ###############################################
 RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.46"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="tftp-hpa"                                                     # Optional:  packages to install in the jail
+RECIPE_PACKAGES="ftp/tftp-hpa"                                                 # Optional:  packages to install in the jail
 RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
 RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
