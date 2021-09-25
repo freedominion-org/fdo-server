@@ -1,1 +1,1 @@
-/usr/local/etc/ssl/certs /jls/template/usr/local/etc/ssl/certs nullfs ro 0 0
+/usr/local/etc/ssl/fdo-certs /jls/template/usr/local/etc/ssl/fdo-certs nullfs ro 0 0

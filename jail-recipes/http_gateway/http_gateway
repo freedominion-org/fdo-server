@@ -11,7 +11,7 @@ RECIPE_UDP_PORTS="none"                                                        #
 START_JAIL_SERVICES="nginx"                                                    # Optional:  jail services started after cooking (in left to right order)
 SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
 SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
-NOHOST_CERT_FILE="/usr/local/etc/ssl/certs/nohost.pem"                         #
+NOHOST_CERT_FILE="/usr/local/etc/ssl/fdo-certs/nohost.pem"                     #
 ################################################################################
 
 prep_recipe ()
