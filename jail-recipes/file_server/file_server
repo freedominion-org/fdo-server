@@ -180,11 +180,18 @@ cook_recipe ()
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache22/httpd.conf
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache22/httpd.conf
 
+	# Rename webdav-sites file name
+	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+
+	# Remove the template webdav-sites file from the installed (jail) configs.
+	rm /jls/${JAIL_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+
 	# Replace variables in webdav-sites file
-	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
-	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
-	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
-	sed -i "" "s/LDAP_MANAGER_PASSWORD/${LDAP_MANAGER_PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	sed -i "" "s/LDAP_MANAGER_PASSWORD/${LDAP_MANAGER_PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	sed -i "" "s/SHORT_SITE_NAME/${SHORT_SITE_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
 
 	# Replace variables in hosts file
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
@@ -193,15 +200,9 @@ cook_recipe ()
 	sed -i "" "s/LDAP_HOST_IP/${LDAP_HOST_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 
-	# Rename webdav-sites file name
-	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
-
-	# Replace site specific variables in webdav-sites file
-	sed -i "" "s/SHORT_SITE_NAME/${SHORT_SITE_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
-
-	# Create /w3 (WebDAV base directory)
-	mkdir /jls/${JAIL_NAME}/w3
-	chown www:www /jls/${JAIL_NAME}/w3
+	# Create /dav (WebDAV base directory)
+	mkdir /jls/${JAIL_NAME}/dav
+	chown www:www /jls/${JAIL_NAME}/dav
 
 	# Generate an nginx site file for the http_gateway jail
 	sed -i "" "s|FILE_SERVER_JAIL_NAME|${JAIL_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf

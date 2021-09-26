@@ -1,11 +1,11 @@
 #ServerAdmin webdav-admin@example.net
-DocumentRoot "/w3/SHORT_SITE_NAME"
+DocumentRoot "/dav/SHORT_SITE_NAME"
 ServerName FILE_SERVER_HOST_NAME
 ErrorLog "/var/log/FILE_SERVER_HOST_NAME-error_log"
 LogFormat "%h %l %u %t \"%r\" %>s %b" common
 CustomLog "/var/log/FILE_SERVER_HOST_NAME-access_log" common
 
-<Directory "/w3/SHORT_SITE_NAME">
+<Directory "/dav/SHORT_SITE_NAME">
   Options Indexes FollowSymLinks
   AllowOverride None
   Order allow,deny
