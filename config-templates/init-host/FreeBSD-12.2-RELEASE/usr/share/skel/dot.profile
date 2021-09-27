@@ -32,7 +32,7 @@ if [ -x /usr/bin/fortune ] ; then /usr/bin/fortune freebsd-tips ; fi
 tabs -4
 
 # if running bash
-if [ -n "$BASH_VERSION" ]; then  
+if [ -n "$BASH_VERSION" ]; then
     # include .bashrc if it exists
     if [ -f "$HOME/.bashrc" ]; then
         . "$HOME/.bashrc"

@@ -6,8 +6,8 @@
 # openSIPS (SIP)
 # Matrix
 
-attributetype ( 1.3.6.1.4.1.15347.2.102 
-        NAME 'transport' 
+attributetype ( 1.3.6.1.4.1.15347.2.102
+        NAME 'transport'
         SUP name )
 
 ## NOTE: taken from openldaps' misc.schema.default
@@ -43,7 +43,7 @@ attributetype ( 1.3.6.1.4.1.15347.2.116
         SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
 
 ## NOTE: adapted from green-ldap schema
-attributetype ( 1.3.6.1.4.1.15347.2.117 
+attributetype ( 1.3.6.1.4.1.15347.2.117
         NAME 'mailHostStatus'
         DESC 'The status of a mail host: active, disabled, paused'
         EQUALITY caseIgnoreIA5Match
@@ -57,7 +57,7 @@ attributetype ( 1.3.6.1.4.1.15347.2.118
         SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
 
 ## NOTE: adapted from green-ldap schema
-attributetype ( 1.3.6.1.4.1.15347.2.119 
+attributetype ( 1.3.6.1.4.1.15347.2.119
         NAME 'mailAlternateAddress'
         DESC 'Email aliases for the same user, addresses will be rewritten to mail.'
         EQUALITY caseIgnoreIA5Match
@@ -65,7 +65,7 @@ attributetype ( 1.3.6.1.4.1.15347.2.119
         SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
 
 ## NOTE: copied from mailAlternateAddress, inspired by Sun Java Messaging Server schema
-attributetype ( 1.3.6.1.4.1.15347.2.120 
+attributetype ( 1.3.6.1.4.1.15347.2.120
         NAME 'mailEquivalentAddress'
         DESC 'Email aliases for the same user, addresses will NOT be rewritten.'
         EQUALITY caseIgnoreIA5Match
@@ -73,14 +73,14 @@ attributetype ( 1.3.6.1.4.1.15347.2.120
         SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
 
 ## NOTE: taken from green-ldap schema
-attributetype ( 1.3.6.1.4.1.15347.2.121 
+attributetype ( 1.3.6.1.4.1.15347.2.121
         NAME 'mailForwardingAddress'
         DESC 'Address(es) to forward all incoming messages to.'
         EQUALITY caseIgnoreIA5Match
         SUBSTR caseIgnoreIA5SubstringsMatch
         SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
 
-attributetype ( 1.3.6.1.4.1.15347.2.122 
+attributetype ( 1.3.6.1.4.1.15347.2.122
         NAME 'mgrpRFC822MailMember'
         DESC 'Email address of group members not in directory.'
         EQUALITY caseIgnoreIA5Match
