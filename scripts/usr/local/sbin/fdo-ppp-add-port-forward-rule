@@ -33,7 +33,6 @@ TCP_PORTS="${3}"
 UDP_PORTS="${4}"
 NUM_MANDATORY_ARGS=4
 IS_INTERACTIVE="yes"
-IS_REPO_CONF=${IS_REPO_CONF:-"no"}
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
@@ -306,9 +305,33 @@ undo_add_rule ()
 
 	echo -e "\n${ORNG}Undoing add port forward rule process...${NRML}\n"
 
-	# Restore ppp.conf config file.
-	restore_file ${PPP_CONF_PATH} ${SCRIPT_NAME}
-	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	# Restore existing system config files.
+    if [ ${ADD_RULE_SYSTEM_MODIFIED} = true ]
+    then
+		# Restore ppp.conf config file.
+		restore_file ${PPP_CONF_PATH} ${SCRIPT_NAME}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Reload ppp service.
+    if [ ${ADD_RULE_SERVICE_RELOADED} = true ]
+    then
+		service ppp reload > /dev/null
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Undo repo modifications.
+    if [ ${ADD_RULE_REPO_MODIFIED} = true ]
+    then
+        # Roll back local repo to last good commit (!!!DANGEROUS!!!).
+        if [ "${COMMIT_BEFORE_ADD_RULE}" != "" ]
+        then
+            git reset --hard ${COMMIT_BEFORE_ADD_RULE}
+            ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+            git clean -f -d
+            ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+        fi
+    fi
 
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
@@ -367,13 +390,6 @@ then
 	exit 1
 fi
 
-
-##### MAIN EXECUTION THREAD ####################################################
-
-trap 'undo_add_rule ; exit 3' HUP INT QUIT KILL TERM
-
-ERROR_COUNT=0
-
 # Test if rule_name is valid.
 test_valid_rule_name "${RULE_NAME}"
 if [ "${VALID_RULE_NAME}" = "no" ]
@@ -421,9 +437,33 @@ then
 	exit 1
 fi
 
+
+##### MAIN EXECUTION THREAD ####################################################
+
+trap 'undo_add_rule ; exit 3' HUP INT QUIT KILL TERM
+
+ERROR_COUNT=0
+
+ADD_RULE_SERVICE_RELOADED=false
+ADD_RULE_REPO_MODIFIED=false
+ADD_RULE_SYSTEM_MODIFIED=false
+
+# Move into local repo directory.
+cd "/${REPO_NAME}"
+if [ ${?} -ne 0 ]
+then
+    echo -e "\n${LRED}ERROR:${NRML} Unable to enter the repo directory; '${ORNG}/${REPO_NAME}${NRML}'!"
+    return 2
+fi
+
+# Save git commit reference so we can roll back changes later.
+COMMIT_BEFORE_ADD_RULE=`git log --format=format:%H -1`
+
 # Backup ppp.conf config file in case something goes wrong.
 backup_file ${PPP_CONF_PATH} ${SCRIPT_NAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+ADD_RULE_SYSTEM_MODIFIED=true
 
 # Set IFS (internal field seperator) to comma, same as port seperator.
 EXISTING_IFS=${IFS}
@@ -461,26 +501,43 @@ then
 	exit 2
 fi
 
-if [ "${IS_REPO_CONF}" = "no" ]
+if [ "${IS_INTERACTIVE}" = "yes" ]
 then
-	# Update configuration in the local repo and if interactive mode then push to remote repo.
-	if [ "${IS_INTERACTIVE}" = "no" ]
+	question_yes_no "\nWould you like to reload the ppp service for changes to take effect?"
+	if [ "${ANSWER}" = "yes" ]
 	then
-		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH} ...\n"
-		CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to ppp config" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH}
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		ADD_RULE_SERVICE_RELOADED=true
+	fi
+else
+	ADD_RULE_SERVICE_RELOADED=true
+fi
+
+if [ ${ADD_RULE_SERVICE_RELOADED} = true ]
+then
+	echo -e "\n${YELL}Reloading ppp service...${NRML}\n"
+	service ppp reload > /dev/null
+	if [ ${?} -eq 0 ]
+	then
+		echo -e "\n${LGRN}Successfully reloaded ppp service!${NRML}\n"
 	else
-		question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
-		if [ "${ANSWER}" = "yes" ]
-		then
-			echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH} ...\n"
-			CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to ppp config" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH}
-			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-		fi
+		echo -e "\n${LRED}Reload of ppp service returned an error!${NRML}\n"
+		undo_add_rule
+		exit 2
 	fi
 fi
 
-echo -e ""
+# Update configuration in the local repo and if interactive mode then push to remote repo.
+ADD_RULE_REPO_MODIFIED=true
+if [ "${IS_INTERACTIVE}" = "yes" ]
+then
+	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH} ...\n"
+	CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to ppp config" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+else
+	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH} ...\n"
+	CHANGE_MESSAGE="add port forwarding rule '${RULE_NAME}' to ppp config" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PPP_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
@@ -490,21 +547,5 @@ then
 fi
 
 undo_backup_file ${PPP_CONF_PATH} ${SCRIPT_NAME}
-
-if [ "${IS_INTERACTIVE}" = "yes" ]
-then
-	question_yes_no "\nWould you like to restart the ppp service for changes to take effect?"
-	if [ "${ANSWER}" = "yes" ]
-	then
-		service ppp restart > /dev/null
-		if [ ${?} -eq 0 ]
-		then
-			echo -e "\n${LGRN}Successfully restarted ppp service!${NRML}\n"
-		else
-			echo -e "\n${LRED}Restart of ppp service returned an error!${NRML}\n"
-			exit 2
-		fi
-	fi
-fi
 
 ################################################################################

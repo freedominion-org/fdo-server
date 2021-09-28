@@ -30,7 +30,6 @@ SCRIPT_NAME=`basename ${0}`
 RULE_NAME="${1}"
 NUM_MANDATORY_ARGS=1
 IS_INTERACTIVE="yes"
-IS_REPO_CONF=${IS_REPO_CONF:-"no"}
 FDO_SERVER_SCRIPT=${FDO_SERVER_SCRIPT:-"fdo-server"}
 UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
@@ -231,9 +230,33 @@ undo_remove_rule ()
 
 	echo -e "\n${ORNG}Undoing remove port forward rule process...${NRML}\n"
 
-	# Restore pf.conf config file.
-	restore_file ${PF_CONF_PATH} ${SCRIPT_NAME}
-	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	# Restore existing system config files.
+    if [ ${REMOVE_RULE_SYSTEM_MODIFIED} = true ]
+    then
+		# Restore pf.conf config file.
+		restore_file ${PF_CONF_PATH} ${SCRIPT_NAME}
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Reload pf service.
+    if [ ${REMOVE_RULE_SERVICE_RELOADED} = true ]
+    then
+		service pf reload > /dev/null
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	# Undo repo modifications.
+    if [ ${REMOVE_RULE_REPO_MODIFIED} = true ]
+    then
+        # Roll back local repo to last good commit (!!!DANGEROUS!!!).
+        if [ "${COMMIT_BEFORE_REMOVE_RULE}" != "" ]
+        then
+            git reset --hard ${COMMIT_BEFORE_REMOVE_RULE}
+            ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+            git clean -f -d
+            ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+        fi
+    fi
 
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
@@ -291,13 +314,6 @@ then
 	exit 1
 fi
 
-
-##### MAIN EXECUTION THREAD ####################################################
-
-trap 'undo_add_rule ; exit 3' HUP INT QUIT KILL TERM
-
-ERROR_COUNT=0
-
 # Test if rule_name is valid.
 test_valid_rule_name "${RULE_NAME}"
 if [ "${VALID_RULE_NAME}" = "no" ]
@@ -314,9 +330,33 @@ then
 	exit 1
 fi
 
+
+##### MAIN EXECUTION THREAD ####################################################
+
+trap 'undo_remove_rule ; exit 3' HUP INT QUIT KILL TERM
+
+ERROR_COUNT=0
+
+REMOVE_RULE_SERVICE_RELOADED=false
+REMOVE_RULE_REPO_MODIFIED=false
+REMOVE_RULE_SYSTEM_MODIFIED=false
+
+# Move into local repo directory.
+cd "/${REPO_NAME}"
+if [ ${?} -ne 0 ]
+then
+    echo -e "\n${LRED}ERROR:${NRML} Unable to enter the repo directory; '${ORNG}/${REPO_NAME}${NRML}'!"
+    return 2
+fi
+
+# Save git commit reference so we can roll back changes later.
+COMMIT_BEFORE_REMOVE_RULE=`git log --format=format:%H -1`
+
 # Backup pf.conf config file in case something goes wrong.
 backup_file ${PF_CONF_PATH} ${SCRIPT_NAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+REMOVE_RULE_SYSTEM_MODIFIED=true
 
 # Remove all lines mentioning the specified rule_name.
 sed -i "" "/${RULE_NAME}_ip/d" ${PF_CONF_PATH}
@@ -333,26 +373,43 @@ then
 	exit 2
 fi
 
-if [ "${IS_REPO_CONF}" = "no" ]
+if [ "${IS_INTERACTIVE}" = "yes" ]
 then
-	# Update configuration in the local repo and if interactive mode then push to remote repo.
-	if [ "${IS_INTERACTIVE}" = "no" ]
+	question_yes_no "\nWould you like to reload the pf service for changes to take effect?"
+	if [ "${ANSWER}" = "yes" ]
 	then
-		echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
-		CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		REMOVE_RULE_SERVICE_RELOADED=true
+	fi
+else
+	REMOVE_RULE_SERVICE_RELOADED=true
+fi
+
+if [ ${REMOVE_RULE_SERVICE_RELOADED} = true ]
+then
+	echo -e "\n${YELL}Reloading pf service...${NRML}\n"
+	service pf reload > /dev/null
+	if [ ${?} -eq 0 ]
+	then
+		echo -e "\n${LGRN}Successfully reloaded pf service!${NRML}\n"
 	else
-		question_yes_no "\nWould you like to update the repo with the config changes? (RECOMMENDED)"
-		if [ "${ANSWER}" = "yes" ]
-		then
-			echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
-			CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
-			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-		fi
+		echo -e "\n${LRED}Reload of pf service returned an error!${NRML}\n"
+		undo_remove_rule
+		exit 2
 	fi
 fi
 
-echo -e ""
+# Update configuration in the local repo and if interactive mode then push to remote repo.
+REMOVE_RULE_REPO_MODIFIED=true
+if [ "${IS_INTERACTIVE}" = "yes" ]
+then
+	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
+	CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+else
+	echo -e "\n${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH} ...\n"
+	CHANGE_MESSAGE="remove port forwarding rule '${RULE_NAME}' from pf config" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config ${PF_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
@@ -362,21 +419,5 @@ then
 fi
 
 undo_backup_file ${PF_CONF_PATH} ${SCRIPT_NAME}
-
-if [ "${IS_INTERACTIVE}" = "yes" ]
-then
-	question_yes_no "\nWould you like to reload the pf service for changes to take effect?"
-	if [ "${ANSWER}" = "yes" ]
-	then
-		service pf reload > /dev/null
-		if [ ${?} -eq 0 ]
-		then
-			echo -e "\n${LGRN}Successfully reloaded pf service!${NRML}\n"
-		else
-			echo -e "\n${LRED}Reload of pf service returned an error!${NRML}\n"
-			exit 2
-		fi
-	fi
-fi
 
 ################################################################################
