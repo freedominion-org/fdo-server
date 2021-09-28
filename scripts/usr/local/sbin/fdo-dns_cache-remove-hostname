@@ -233,7 +233,7 @@ undo_remove_hostname ()
 	echo -e "\n${ORNG}Undoing remove hostname process...${NRML}\n"
 
 	# Restore existing and delete newly created system config files.
-	if [ ${REMOVE_HOSTNAME_SYSTEM_MODIFIED} ]
+	if [ ${REMOVE_HOSTNAME_SYSTEM_MODIFIED} = true ]
 	then
 		restore_file "${NAMED_CONF_PATH}" ${SCRIPT_NAME}
 		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
@@ -244,12 +244,12 @@ undo_remove_hostname ()
 	# Reload bind (named) service.
 	if [ ${REMOVE_HOSTNAME_BIND_RELOADED} = true ]
 	then
-		jexec ${JAIL_ID} service named reload > /dev/null 2>&1
+		jexec ${JAIL_ID} service named reload > /dev/null
 		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	fi
 
 	# Undo repo modifications.
-	if [ ${REMOVE_HOSTNAME_REPO_MODIFIED} = true ] && [ "${IS_INTERACTIVE}" = "yes" ]
+	if [ ${REMOVE_HOSTNAME_REPO_MODIFIED} = true ]
 	then
 		# Roll back local repo to last good commit (!!!DANGEROUS!!!).
 		if [ "${COMMIT_BEFORE_REMOVE_HOSTNAME}" != "" ]
@@ -398,7 +398,7 @@ do
 			JAIL_ID_FILE=`ls -1 /var/run/jail_${JAIL_NAME}.id | head -1`
 			JAIL_ID=`cat ${JAIL_ID_FILE}`
 			echo -e "\n${YELL}Reloading the named service...${NRML}\n"
-			jexec ${JAIL_ID} service named reload > /dev/null 2>&1
+			jexec ${JAIL_ID} service named reload > /dev/null
 			if [ ${?} -ne 0 ]
 			then
 				echo -e "\n${ORNG}WARNING:${NRML} Failed to reload named service in jail '${JAIL_NAME}'!\n"
@@ -407,22 +407,21 @@ do
 			fi
 
 			# Update configuration in the local repo and if interactive mode then push to remote repo
-			if [ "${IS_INTERACTIVE}" = "no" ]
+			REMOVE_HOSTNAME_REPO_MODIFIED=true
+			if [ "${IS_INTERACTIVE}" = "yes" ]
 			then
-				REMOVE_HOSTNAME_REPO_MODIFIED=true
-				echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
-				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
-				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-				echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
-				GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
-				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-			else
-				REMOVE_HOSTNAME_REPO_MODIFIED=true
 				echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
 				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
 				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 				echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
 				FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+			else
+				echo -e "\n${FDO_SERVER_SCRIPT} update-config ${NAMED_CONF_PATH} ...\n"
+				CHANGE_MESSAGE="remove hostname '${HOST_NAME}' from caching DNS" GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} update-config "${NAMED_CONF_PATH}"
+				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+				echo -e "\n${FDO_SERVER_SCRIPT} remove-config /jls/${JAIL_NAME}${ZONE_FILE_PATH} ...\n"
+				GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} remove-config "/jls/${JAIL_NAME}${ZONE_FILE_PATH}"
 				ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 			fi
 
