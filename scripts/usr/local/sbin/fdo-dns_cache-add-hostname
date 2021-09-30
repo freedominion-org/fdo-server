@@ -496,12 +496,12 @@ do
 				exit 2
 			fi
 
+			undo_backup_file "${NAMED_CONF_PATH}" ${SCRIPT_NAME}
+
 			break
 		fi
 	fi
 done
-
-undo_backup_file "${NAMED_CONF_PATH}" ${SCRIPT_NAME}
 
 if [ "${DNS_CACHE_SERVER_FOUND}" = "no" ]
 then
