@@ -5,7 +5,9 @@ RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.49"                                      #
 RECIPE_PACKAGES="www/apache22"                                                 # Optional:  packages to install in the jail
 RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
+RECIPE_REQUIRES_PORT_FORWARD="no"                                              # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
+RECIPE_REQUIRES_HTTP_GATEWAY="yes"                                             # Mandatory:  whether this recipe requires an http gateway site
+RECIPE_REQUIRES_DNS_HOSTNAME="yes"                                             # Mandatory:  whether his recipe requires a caching DNS hostname override
 START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
 SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
 SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
@@ -14,7 +16,7 @@ LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 
 prep_recipe ()
 {
-	# Find the http_gateway jail
+	# Find the http_gateway jail.
 	# ASSUME there is only one http_gateway jail on this host and take the first one in the found list.
 	find_jails_from_recipe_name "http_gateway"
 	NUM_FOUND_JAILS=`echo ${FOUND_RECIPE_JAILS} | wc -w`
@@ -59,9 +61,9 @@ cook_recipe ()
 
 	echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
 	echo -e "Please accept when prompted...${NRML}\n"
-	sleep 5
+	pause_prompt 8
 
-	# Install essential jail recipe packages from the recipe repo
+	# Install essential jail recipe packages from the recipe repo.
 	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
 	if [ ${?} -ne 0 ]
 	then
@@ -150,7 +152,7 @@ cook_recipe ()
 		fi
 	done
 
-	# Get short site name
+	# Get short site name.
 	SHORT_SITE_NAME=""
 	while [ "${SHORT_SITE_NAME}" = "" ]
 	do
@@ -183,8 +185,8 @@ cook_recipe ()
 	# Rename webdav-sites file name
 	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
 
-	# Remove the template webdav-sites file from the installed (jail) configs.
-	rm /jls/${JAIL_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+	## Remove the template webdav-sites file from the installed (jail) configs.
+	#rm /jls/${JAIL_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
 
 	# Replace variables in webdav-sites file
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
@@ -205,30 +207,12 @@ cook_recipe ()
 	chown www:www /jls/${JAIL_NAME}/dav
 
 	# Generate an nginx site file for the http_gateway jail
-	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t array .general.external_configs_added "[ \"/jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf\";]"
 	sed -i "" "s|FILE_SERVER_JAIL_NAME|${JAIL_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
 	sed -i "" "s|FILE_SERVER_JAIL_IP|${JAIL_IP}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
 	sed -i "" "s|FILE_SERVER_HOST_NAME|${FILE_SERVER_HOST_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
-	cp configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
 
-	echo -e "\n${FDO_SERVER_SCRIPT} add-config /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf ...\n"
-	GIT_NO_PUSH="yes" FETCH_LATEST_SELF="no" ${FDO_SERVER_SCRIPT} add-config /jls/${HTTP_GATEWAY_JAIL}/usr/local/etc/nginx/sites/${JAIL_NAME}.conf
-
-	# Attempt to add file server host name to a caching dns (dns_cache) jail
-	fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP} --non-interactive
-	if [ ${?} -ne 0 ]
-	then
-		echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server "
-		echo -e   "         on this host. To make full use of this jailed service on the LAN,      "
-		echo -e   "         please use the following command on a dns_cache (recipe) jail on a host"
-		echo -e   "         on this LAN:                                                           "
-		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${FILE_SERVER_HOST_NAME} ${JAIL_IP}${NRML}\n"
-	else
-		${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.affected_recipe_jails "dns_cache http_gateway"
-	fi
-
-	# Restart the http_gateway recipe jail nginx service
-	start_jail_service ${HTTP_GATEWAY_JAIL} nginx --allow-restart
+	# Set RECIPE_DNS_HOSTNAMES variable so that hooks will configure the local (caching) dns overrides.
+	RECIPE_DNS_HOSTNAMES="${FILE_SERVER_HOST_NAME}"
 
 	# Mandatory: return code
 	RECIPE_SUCCESS="yes"
