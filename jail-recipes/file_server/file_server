@@ -185,8 +185,8 @@ cook_recipe ()
 	# Rename webdav-sites file name
 	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
 
-	## Remove the template webdav-sites file from the installed (jail) configs.
-	#rm /jls/${JAIL_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
+	# Remove the template webdav-sites file from the installed (jail) configs.
+	rm /jls/${JAIL_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
 
 	# Replace variables in webdav-sites file
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
