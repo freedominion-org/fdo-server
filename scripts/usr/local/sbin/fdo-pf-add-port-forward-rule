@@ -501,7 +501,7 @@ fi
 
 if [ ${ERROR_COUNT} -ne 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting."
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the configuration files!\n       Aborting.\n"
 	undo_add_rule
 	exit 2
 fi
@@ -546,7 +546,7 @@ fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
 then
-	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the config repo!\n       Aborting."
+	echo -e "\n${LRED}ERROR:${NRML} Something went wrong updating the config repo!\n       Aborting.\n"
 	undo_add_rule
 	exit 2
 fi

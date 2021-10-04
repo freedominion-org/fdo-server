@@ -404,7 +404,7 @@ do
 	then
 		# ...determine if it's a caching server
 		cat "${NAMED_CONF_PATH}" | egrep "^( )*forwarders {" > /dev/null 2>&1
-		if [ ${?} -eq 0 ] 
+		if [ ${?} -eq 0 ]
 		then
 
 			DNS_CACHE_SERVER_FOUND=yes
