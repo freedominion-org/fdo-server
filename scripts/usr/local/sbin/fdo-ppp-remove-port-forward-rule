@@ -185,19 +185,25 @@ restore_file ()
 		diff -q "${FILE_PATH}" "${FILE_PATH}.backup.${CHANGE_AGENT}" > /dev/null 2>&1
 		if [ ${?} -ne 0 ]
 		then
-			# File and backup differ, replace the file with it's backup copy.
-			mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+			# File and backup differ, replace the file content from the backup copy.
+			cat "${FILE_PATH}.backup.${CHANGE_AGENT}" > "${FILE_PATH}"
 			if [ ${?} -ne 0 ]
 			then
 				return 2
 			fi
-		else
-			# File is same as backup, remove the backup.
-			rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
-			if [ ${?} -ne 0 ]
-			then
-				return 2
-			fi
+		fi
+		# Remove the backup.
+		rm "${FILE_PATH}.backup.${CHANGE_AGENT}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
+		fi
+	else
+		# File has been removed, so move backup to file path.
+		mv "${FILE_PATH}.backup.${CHANGE_AGENT}" "${FILE_PATH}"
+		if [ ${?} -ne 0 ]
+		then
+			return 2
 		fi
 	fi
 
