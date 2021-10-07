@@ -270,10 +270,11 @@ USERNAMES_MISSING_FROM_SYSTEM=false
 USER_UID_MISMATCHES=false
 
 # Display hotdesk users table header.
+# |Username (32)|UID (6)|NFS export? (14)|Backup found? (14)|
 echo -e ""
-echo -e "${GREY}==============================================================================${NRML}"
-echo -e "${NRML}Username                      UID   NFS export?   Backup Found?               ${NRML}"
-echo -e "${GREY}==============================================================================${NRML}"
+echo -e "${GREY}================================================================================${NRML}"
+echo -e "${NRML}${USERNAME_COLOUR}Username                        ${USER_UID_COLOUR}}UID   ${NRML}}NFS export?   Backup Found?               ${NRML}"
+echo -e "${GREY}================================================================================${NRML}"
 
 # Display hotdesk users table data, iterate through users in NIS passwd map.
 for USERNAME in `ypcat passwd | cut -d: -f1 | sort`
@@ -317,8 +318,8 @@ do
 	check_user_home_status
 
 	# Print the table row data for the current FDo hotdesk user found on the system NIS maps.
-	printf "${USERNAME_COLOUR}%-30s${USER_UID_COLOUR}%-6s${NRML}%-14s%-14s\n" ${USERNAME} ${USER_UID} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
-	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+	printf "${USERNAME_COLOUR}%-32s${USER_UID_COLOUR}%-6s${NRML}%-14s%-14s${NRML}\n" ${USERNAME} ${USER_UID} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
+	echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 done
 
 # Display remaining hotdesk users table data, iterate through hotdesk.conf looking for users missing from the system.
@@ -344,8 +345,8 @@ do
 		check_user_home_status
 
 		# Print the table row data for the current FDo hotdesk user in hotdesk.conf but missing from the system NIS maps.
-		printf "${LRED}%-30s%-6s${NRML}%-14s%-14s\n" ${USERNAME} ${USER_UID} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
-		echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+		printf "${LRED}%-32s%-6s${NRML}%-14s%-14s\n" ${USERNAME} ${USER_UID} ${HAS_NFS_EXPORTED} ${HAS_BACKUP_FS}
+		echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 	fi
 
 	USER_INDEX=$(( ${USER_INDEX} + 1 ))

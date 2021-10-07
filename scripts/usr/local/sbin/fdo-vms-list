@@ -286,12 +286,13 @@ if [ "${DISPLAY_TYPE}" = "template" ] || [ "${DISPLAY_TYPE}" = "all" ]
 then
 	if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 	then
+		# |Template name (60)|VNC (10)|State (10)|
 		echo -e ""
 		echo -e "${LGRN}Templates:${NRML}"
 		echo -e ""
-		echo -e "${GREY}==============================================================================${NRML}"
-		echo -e "Template name                                               VNC       State   "
-		echo -e "${GREY}==============================================================================${NRML}"
+		echo -e "${GREY}================================================================================${NRML}"
+		echo -e "${NRML}Template name                                               ${ORNG}VNC       ${YELL}State     ${NRML}"
+		echo -e "${GREY}================================================================================${NRML}"
 	fi
 
 	while [ `${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}` != "null" ]
@@ -310,7 +311,7 @@ then
 			get_vm_state ${TEMPLATE_NAME}
 			if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 			then
-				printf "%-60s%-10s%-8s\n" ${TEMPLATE_NAME} ${VM_VNC_ENABLED_TEXT} ${VM_STATE}
+				printf "${NRML}%-60s${ORNG}%-10s${YELL}%-10s${NRML}\n" ${TEMPLATE_NAME} ${VM_VNC_ENABLED_TEXT} ${VM_STATE}
 			else
 				echo -e "${TEMPLATE_NAME} ${VM_STATE}"
 			fi
@@ -319,7 +320,7 @@ then
 		fi
 		if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 		then
-			echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+			echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 		fi
 
 		TEMPLATE_INDEX=$(( ${TEMPLATE_INDEX} +1 ))
@@ -335,12 +336,13 @@ if [ "${DISPLAY_TYPE}" = "instance" ] || [ "${DISPLAY_TYPE}" = "all" ]
 then
 	if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 	then
+		# |VM name (30)|Template name (30)|VNC (10)|State (10)|
 		echo -e ""
 		echo -e "${LGRN}Instances:${NRML}"
 		echo -e ""
-		echo -e "${GREY}==============================================================================${NRML}"
-		echo -e "${NRML}VM name                       Template name                 VNC       State   ${NRML}"
-		echo -e "${GREY}==============================================================================${NRML}"
+		echo -e "${GREY}================================================================================${NRML}"
+		echo -e "${NRML}VM name                       ${LBLU}Template name                 ${ORNG}VNC       ${YELL}State     ${NRML}"
+		echo -e "${GREY}================================================================================${NRML}"
 	fi
 
 	while [ `${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}` != "null" ]
@@ -360,7 +362,7 @@ then
 			get_vm_state ${VM_NAME}
 			if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 			then
-				printf "%-30s%-30s%-10s%-8s\n" ${VM_NAME} ${VM_TEMPLATE_NAME} ${VM_VNC_ENABLED_TEXT} ${VM_STATE}
+				printf "${NRML}%-30s${LBLU}%-30s${ORNG}%-10s${YELL}%-10s${NRML}\n" ${VM_NAME} ${VM_TEMPLATE_NAME} ${VM_VNC_ENABLED_TEXT} ${VM_STATE}
 			else
 				echo -e "${VM_NAME} ${VM_STATE}"
 			fi
@@ -369,7 +371,7 @@ then
 		fi
 		if [ "${DISPLAY_CONCISE_LIST}" = "no" ]
 		then
-			echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+			echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 		fi
 
 		INSTANCE_INDEX=$(( ${INSTANCE_INDEX} +1 ))

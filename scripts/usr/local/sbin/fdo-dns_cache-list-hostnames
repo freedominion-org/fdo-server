@@ -155,10 +155,11 @@ do
 			DNS_CACHE_SERVER_FOUND=yes
 
 			# Now that we've found a caching server, let's list the hostname zones:
+			# |Hostname (64)|IP Address (16)|
 			echo -e ""
-			echo -e "${GREY}==============================================================================${NRML}"
-			echo -e "${NRML}Hostname                                                    IP Address        ${NRML}"
-			echo -e "${GREY}==============================================================================${NRML}"
+			echo -e "${GREY}================================================================================${NRML}"
+			echo -e "${NRML}Hostname                                                        ${LBLU}IP Address      ${NRML}"
+			echo -e "${GREY}================================================================================${NRML}"
 
 			IFS=${CARRIAGE_RETURN}
 			ZONES=`cat ${NAMED_CONF_PATH} | egrep "^zone \"" | egrep -v ${EXCLUDED_ZONES} | cut -d'"' -f2`
@@ -166,8 +167,8 @@ do
 			do
 				ZONE_FILE_PATH=`cat ${NAMED_CONF_PATH} | egrep "^zone \"${ZONE}\"" | cut -d'"' -f4`
 				HOST_IP=`cat "/jls/${JAIL_NAME}/${ZONE_FILE_PATH}" | egrep "^${ZONE}" | awk '{print $3}'`
-				printf "%-60s%-18s\n" ${ZONE} ${HOST_IP}
-				echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+				printf "${NRML}%-64s${LBLU}%-16s${NRML}\n" ${ZONE} ${HOST_IP}
+				echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 			done
 		fi
 	fi

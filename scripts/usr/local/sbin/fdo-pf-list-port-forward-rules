@@ -183,10 +183,11 @@ fi
 
 ERROR_COUNT=0
 
+# |Rule Name (24)|Destination IP (16)|TCP ports (20)|UDP ports (20)|
 echo -e ""
-echo -e "${GREY}==============================================================================${NRML}"
-echo -e "[ Rule name ] ${LBLU}[Destination IP] ${CYAN}[ TCP ports ] ${YELL}[ UDP ports ]${NRML}"
-echo -e "${GREY}==============================================================================${NRML}"
+echo -e "${GREY}================================================================================${NRML}"
+echo -e "${NRML}Rule name               ${LBLU}Destination IP  ${CYAN}TCP ports           ${YELL}UDP ports           ${NRML}"
+echo -e "${GREY}================================================================================${NRML}"
 
 # Extract and display list of port forward rule names
 FOUND_RULE_NAMES=$( cat ${PF_CONF_PATH} | egrep "^rdr on .*_??p_ports ->.*_ip$" | sed "s|\(.* -> \\$\)\(.*\)\(_ip\)|\2|" | sort | uniq )
@@ -198,11 +199,12 @@ do
 		DEST_IP=$(cat ${PF_CONF_PATH} | egrep "^${RULE_NAME}_ip.*=" | cut -d'"' -f2)
 		TCP_PORTS=$(cat ${PF_CONF_PATH} | egrep "^${RULE_NAME}_tcp_ports.*=" | cut -d{ -f2 | cut -d} -f1)
 		UDP_PORTS=$(cat ${PF_CONF_PATH} | egrep "^${RULE_NAME}_udp_ports.*=" | cut -d{ -f2 | cut -d} -f1)
-		echo -e "${RULE_NAME}  ${LBLU}${DEST_IP}  ${CYAN}${TCP_PORTS}  ${YELL}${UDP_PORTS}${NRML}"
+		printf "${NRML}%-24s${LBLU}%-16s${CYAN}%-20s${YELL}%-20s${NRML}\n" ${RULE_NAME} ${DEST_IP} ${TCP_PORTS} ${UDP_PORTS}
+
 	else
 		>&2 echo -e "${ORNG}${RULE_NAME}${NRML}    <- ${ORNG}WARNING:${NRML} Rule name found, but is invalid!"
 	fi
-	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+	echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 done
 
 echo -e ""

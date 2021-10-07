@@ -189,10 +189,11 @@ fi
 
 ERROR_COUNT=0
 
+# |Rule Name (24)|Destination IP (16)|TCP ports (20)|UDP ports (20)|
 echo -e ""
-echo -e "${GREY}==============================================================================${NRML}"
-echo -e "[ Rule name ] ${LBLU}[Destination IP] ${CYAN}[ TCP ports ] ${YELL}[ UDP ports ]${NRML}"
-echo -e "${GREY}==============================================================================${NRML}"
+echo -e "${GREY}================================================================================${NRML}"
+echo -e "${NRML}Rule name               ${LBLU}Destination IP  ${CYAN}TCP ports           ${YELL}UDP ports           ${NRML}"
+echo -e "${GREY}================================================================================${NRML}"
 
 # Extract and display list of port forward rule names
 FOUND_RULE_NAMES=$( cat ${PPP_CONF_PATH} | egrep "^ nat port .*rule_name=" | sed "s|\(^ nat port .*rule_name=\)\([a-zA-Z0-9_]*\)\(.*\)|\2|" | sort | uniq )
@@ -227,11 +228,11 @@ do
 			fi
 		done
 
-		echo -e "${RULE_NAME}  ${LBLU}${DEST_IP}  ${CYAN}${TCP_PORTS}  ${YELL}${UDP_PORTS}${NRML}"
+		printf "${NRML}%-24s${LBLU}%-16s${CYAN}%-20s${YELL}%-20s${NRML}\n" ${RULE_NAME} ${DEST_IP} ${TCP_PORTS} ${UDP_PORTS}
 	else
 		>&2 echo -e "${ORNG}${RULE_NAME}${NRML}    <- ${ORNG}WARNING:${NRML} Rule name found, but is invalid!"
 	fi
-	echo -e "${GREY}------------------------------------------------------------------------------${NRML}"
+	echo -e "${GREY}--------------------------------------------------------------------------------${NRML}"
 done
 
 echo -e ""
