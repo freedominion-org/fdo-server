@@ -16,24 +16,6 @@ LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 
 prep_recipe ()
 {
-	# Find the http_gateway jail.
-	# ASSUME there is only one http_gateway jail on this host and take the first one in the found list.
-	find_jails_from_recipe_name "http_gateway"
-	NUM_FOUND_JAILS=`echo ${FOUND_RECIPE_JAILS} | wc -w`
-	if [ ${NUM_FOUND_JAILS} -lt 1 ]
-	then
-		echo -e "\n${LRED}ERROR:${NRML} It appears there is no http_gateway recipe jail on this host!\n" 
-		PREP_SUCCESS="no"
-		return
-	fi
-	if [ ${NUM_FOUND_JAILS} -lt 2 ]
-	then
-		HTTP_GATEWAY_JAIL=${FOUND_RECIPE_JAILS}
-	else
-		echo -e "\n${ORNG}WARNING:${NRML} More than one '${RECIPE_NAME}' recipe jail was found!\         Using the first found recipe jail config.\n"
-		HTTP_GATEWAY_JAIL=`echo ${FOUND_RECIPE_JAILS} | cut -d" " -f1`
-	fi
-
 	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a"
 	echo -e   "        'ldap_consumer' recipe is cooked, running and accessible on the LAN"
 	echo -e   "        (local network). You must know the LDAP servers' host name, base suffix"
@@ -58,19 +40,6 @@ prep_recipe ()
 
 cook_recipe ()
 {
-
-	echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
-	echo -e "Please accept when prompted...${NRML}\n"
-	pause_prompt 8
-
-	# Install essential jail recipe packages from the recipe repo.
-	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
-	if [ ${?} -ne 0 ]
-	then
-		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
-		RECIPE_SUCCESS="no"
-		return
-	fi
 
 	# Get the LDAP server host address.
 	LDAP_HOST_NAME=""
@@ -184,9 +153,6 @@ cook_recipe ()
 
 	# Rename webdav-sites file name
 	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
-
-	# Remove the template webdav-sites file from the installed (jail) configs.
-	rm /jls/${JAIL_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME
 
 	# Replace variables in webdav-sites file
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
