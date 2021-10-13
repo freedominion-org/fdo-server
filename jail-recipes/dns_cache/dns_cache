@@ -1,14 +1,16 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.47"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="dns/bind911"                                                  # Optional:  packages to install in the jail
-RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
-START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order)
-SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
-SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.47"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="dns/bind911"                                                  # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="no"                                              # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="no"                                              # Mandatory:  whether his recipe requires a caching DNS hostname override.
+START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
 DHCP_SERVER_JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                 #
 ################################################################################
 
@@ -20,29 +22,33 @@ prep_recipe ()
 cook_recipe ()
 {
 
-	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
-	echo -e "${YELL}Please accept when prompted...${NRML}\n"
-	sleep 5
-
-	# Install essential jail recipe packages from the recipe repo.
-	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
-	if [ ${?} -ne 0 ]
+	# Update resolv.conf in all existing jails and future jails to use this caching dns server.
+	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" configs/${HOST_NAME}/etc/resolv.conf.static
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" /jls/template/etc/resolv.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
+	do
+		cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	done
+	if [ ${ERROR_COUNT} -ne 0 ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update resolv.conf.\n"
 		RECIPE_SUCCESS="no"
 		return
 	fi
 
-	# Update resolv.conf in all existing jails and future jails to use this caching dns server.
-	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" configs/${HOST_NAME}/etc/resolv.conf.static
-	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" /jls/template/etc/resolv.conf
-	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
-	do
-		cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
-	done
 
 	# Update bind global config with the jail IP.
 	sed -i "" "s/FDO_DNS_CACHE_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/namedb/named.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update named.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
 	# Determine if a dhcp server is running on the LAN and recommend changing it's domain-name-servers.
 	nmap ${DHCP_SERVER_JAIL_IP} -sU -p 67 | egrep "^67/udp.*open\|filtered.*dhcp" > /dev/null 2>&1
@@ -63,7 +69,7 @@ cook_recipe ()
 
 }
 
-revert_cook_recipe ()
+undo_cook_recipe ()
 {
 
 	# Undo update resolv.conf in all existing jails and future jails to use this caching dns server.

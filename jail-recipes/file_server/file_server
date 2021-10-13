@@ -1,16 +1,16 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.49"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="www/apache22"                                                 # Optional:  packages to install in the jail
-RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_PORT_FORWARD="no"                                              # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
-RECIPE_REQUIRES_HTTP_GATEWAY="yes"                                             # Mandatory:  whether this recipe requires an http gateway site
-RECIPE_REQUIRES_DNS_HOSTNAME="yes"                                             # Mandatory:  whether his recipe requires a caching DNS hostname override
-START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order)
-SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
-SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.49"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="www/apache22"                                                 # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="no"                                              # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="yes"                                             # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="yes"                                             # Mandatory:  whether his recipe requires a caching DNS hostname override.
+START_JAIL_SERVICES="apache22"                                                 # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
 LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 ################################################################################
 
@@ -45,7 +45,7 @@ cook_recipe ()
 	LDAP_HOST_NAME=""
 	while [ "${LDAP_HOST_NAME}" = "" ]
 	do
-		echo -e "\n"
+		echo -e ""
 		readee -p "${LCYN}Enter the LDAP server host address: ${NRML}" LDAP_HOST_NAME_TEMP
 		test_valid_inet_address ${LDAP_HOST_IP_TEMP}
 		test_valid_fqhn ${LDAP_HOST_NAME_TEMP}
@@ -68,7 +68,7 @@ cook_recipe ()
 	done
 
 	# Get the base suffix from user.
-	## TODO: add syntax test
+	## TODO: add syntax test.
 	LDAP_BASE_SUFFIX=""
 	while [ "${LDAP_BASE_SUFFIX}" = "" ]
 	do
@@ -105,7 +105,7 @@ cook_recipe ()
 	FILE_SERVER_HOST_NAME=""
 	while [ "${FILE_SERVER_HOST_NAME}" = "" ]
 	do
-		echo -e "\n"
+		echo -e ""
 		readee -p "${LCYN}Enter the file server host name: ${NRML}" FILE_SERVER_HOST_NAME_TEMP
 		test_valid_fqhn ${FILE_SERVER_HOST_NAME_TEMP}
 		if [ "${VALID_FQHN=}" = "yes" ]
@@ -143,44 +143,98 @@ cook_recipe ()
 		fi
 	done
 
-	# Replace variables in ldap.conf 
+	# Replace variables in the ldap.conf config file.
 	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update ldap.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Replace variables in httpd.conf
+	# Replace variables in the httpd.conf config file.
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache22/httpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/apache22/httpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update httpd.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Rename webdav-sites file name
+	# Rename webdav-sites file name.
 	mv configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/FILE_SERVER_HOST_NAME configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
-	# Replace variables in webdav-sites file
+	# Replace variables in webdav-sites file.
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_MANAGER_PASSWORD/${LDAP_MANAGER_PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/SHORT_SITE_NAME/${SHORT_SITE_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/webdav-sites/${FILE_SERVER_HOST_NAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to prepare the webdav-sites file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Replace variables in hosts file
+	# Replace variables in the hosts file.
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/FILE_SERVER_HOST_NAME/${FILE_SERVER_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_HOST_IP/${LDAP_HOST_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update the jails' hosts file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Create /dav (WebDAV base directory)
+	# Create /dav (WebDAV base directory).
 	mkdir /jls/${JAIL_NAME}/dav
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	chown www:www /jls/${JAIL_NAME}/dav
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to prepare the DAV base directory.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Generate an nginx site file for the http_gateway jail
+	# Generate an nginx site file for the http_gateway jail.
 	sed -i "" "s|FILE_SERVER_JAIL_NAME|${JAIL_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
 	sed -i "" "s|FILE_SERVER_JAIL_IP|${JAIL_IP}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
 	sed -i "" "s|FILE_SERVER_HOST_NAME|${FILE_SERVER_HOST_NAME}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/http_gateway-site.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to prepare the http_gateway sites file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
 	# Set RECIPE_DNS_HOSTNAMES variable so that hooks will configure the local (caching) dns overrides.
 	RECIPE_DNS_HOSTNAMES="${FILE_SERVER_HOST_NAME}"
 
-	# Mandatory: return code
+	# Mandatory: return code.
 	RECIPE_SUCCESS="yes"
 
 }

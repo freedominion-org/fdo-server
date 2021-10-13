@@ -1,16 +1,18 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.50"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="net/openldap24-server sysutils/ldapvi"                        # Optional:  packages to install in the jail
-RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="yes"                                               # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
-RECIPE_TCP_PORTS="389,636"                                                     # Optional:  tcp ports to forward, necessary for port forwarding
-RECIPE_UDP_PORTS="none"                                                        # Optional:  udp ports to forward, necessary for port forwarding
-START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order)
-SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
-SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.50"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="net/openldap24-server sysutils/ldapvi"                        # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="yes"                                             # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="yes"                                             # Mandatory:  whether his recipe requires a caching DNS hostname override.
+RECIPE_TCP_PORTS="389,636"                                                     # Optional:  tcp ports to forward, necessary for port forwarding.
+RECIPE_UDP_PORTS="none"                                                        # Optional:  udp ports to forward, necessary for port forwarding.
+START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
 LDAP_MANAGER_DN_PREFIX="cn=Manager"                                            #
 ################################################################################
 
@@ -44,19 +46,6 @@ prep_recipe ()
 
 cook_recipe ()
 {
-
-	echo -e "\n${YELL}Next we need to install the recipe packages into the jail."
-	echo -e "Please accept when prompted...${NRML}\n"
-	sleep 5
-
-	# Install essential jail recipe packages from the recipe repo
-	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
-	if [ ${?} -ne 0 ]
-	then
-		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
-		RECIPE_SUCCESS="no"
-		return
-	fi
 
 	# Get the provider host address.
 	LDAP_PROVIDER_HOST=""
@@ -203,49 +192,82 @@ cook_recipe ()
 		fi
 	done
 
-	# Get SSHA (Seeded SHA-1) password hashes
+	# Get SSHA (Seeded SHA-1) password hashes.
 	get_jail_id_from_name ${JAIL_NAME}
 	LDAP_CONSUMER_MANAGER_HASHED_PASSWORD=`jexec ${JAIL_ID} slappasswd -h {SSHA} -s ${LDAP_CONSUMER_MANAGER_PASSWORD}`
 
-	# Replace variables in ldap.conf 
+	# Replace variables in ldap.conf.
 	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update ldap.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Replace variables in slapd.conf 
+	# Replace variables in slapd.conf.
 	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_RID/${LDAP_RID}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_PROVIDER_HOST/${LDAP_PROVIDER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s|LDAP_PROVIDER_SYNC_USERID|${LDAP_PROVIDER_SYNC_USERID}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s|LDAP_PROVIDER_SYNC_PASSWORD|${LDAP_PROVIDER_SYNC_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s|LDAP_CONSUMER_MANAGER_PASSWORD|${LDAP_CONSUMER_MANAGER_HASHED_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update slapd.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
 	# Set LDAP Manager DN in recipe config file.
 	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .ldap.manager_dn "${LDAP_MANAGER_DN_PREFIX},${LDAP_BASE_SUFFIX}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set elements in recipe.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Replace variables in hosts file
+	# Replace variables in hosts file.
 	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_CONSUMER_HOST/${LDAP_CONSUMER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update the jails' hosts file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
 	# Create ldap log file in /var/log.
 	touch /jls/${JAIL_NAME}/var/log/ldap.log
-
-	# Attempt to add ldap consumer host name to a caching dns (dns_cache) jail
-	DNS_CACHE_JAIL_NAME=`fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP} --non-interactive`
-	if [ ${?} -ne 0 ]
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
 	then
-		echo -e "\n${ORNG}WARNING:${NRML} Was not able to successfully add the hostname to a caching dns server  "
-		echo -e   "         on this host. To make full use of this jailed service on the LAN,      "
-		echo -e   "         please run the following command on a dns_cache (recipe) jail on a host"
-		echo -e   "         on this LAN:                                                           "
-		echo -e   "         ${LBLU}fdo-dns_cache-add-hostname ${LDAP_CONSUMER_HOST} ${JAIL_IP}${NRML}\n"
-	else
-		${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.affected_recipe_jails "dns_cache"
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to create ldap.log.\n"
+		RECIPE_SUCCESS="no"
+		return
 	fi
 
+	# Set RECIPE_DNS_HOSTNAMES variable so that hooks will configure the local (caching) dns overrides.
+	RECIPE_DNS_HOSTNAMES="${LDAP_CONSUMER_HOST}"
 
-	# Mandatory: return code
+	# Mandatory: return code.
 	RECIPE_SUCCESS="yes"
 
 }

@@ -1,14 +1,16 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="net/isc-dhcp44-server"                                        # Optional:  packages to install in the jail
-RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
-START_JAIL_SERVICES="isc-dhcpd"                                                # Optional:  jail services started after cooking (in left to right order)
-SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
-SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.48"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="net/isc-dhcp44-server"                                        # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="yes"                                             # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="no"                                              # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="no"                                              # Mandatory:  whether his recipe requires a caching DNS hostname override.
+START_JAIL_SERVICES="isc-dhcpd"                                                # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
 DNS_UPSTREAM_IP=${DNS_UPSTREAM_IP:-"1.1.1.1, 8.8.8.8"}                         #
 DNS_CACHE_IP=${DNS_CACHE_IP:-"${JAILS_LAN_SUBNET_C}.47"}                       #
 PXE_SERVER_IP=${PXE_SERVER_IP:-"${JAILS_LAN_SUBNET_C}.46"}                     #
@@ -16,7 +18,7 @@ PXE_SERVER_IP=${PXE_SERVER_IP:-"${JAILS_LAN_SUBNET_C}.46"}                     #
 
 prep_recipe ()
 {
-	# Get the LAN network interface name
+	# Get the LAN network interface name.
 	LAN_NET_IFACE=`${UCL_CMD} get -f ${HOST_CONF_PATH} -q .network.interface.lan.id`
 	if [ ${?} -ne 0 ] || [ "${LAN_NET_IFACE}" = "null" ] || [ "${LAN_NET_IFACE}" = "" ]
 	then
@@ -24,7 +26,7 @@ prep_recipe ()
 		return
 	fi
 
-	# DHCP can not run on lo1
+	# DHCP can not run on lo1.
 	if [ "${LAN_NET_IFACE}" = "lo1" ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} A DHCP server can not be run on lo1 (loopback interface).\n"
@@ -51,20 +53,7 @@ prep_recipe ()
 cook_recipe ()
 {
 
-	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
-	echo -e "${YELL}Please accept when prompted...${NRML}\n"
-	sleep 5
-
-	# Install essential jail recipe packages from the recipe repo
-	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
-	if [ ${?} -ne 0 ]
-	then
-		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
-		RECIPE_SUCCESS="no"
-		return
-	fi
-
-	# Determine if a caching dns server is running on the LAN
+	# Determine if a caching dns server is running on the LAN.
 	echo -e "\n${YELL}Determining if an FDo caching DNS server is running on this LAN...${NRML}\n"
 	host localhost ${DNS_CACHE_IP} > /dev/null 2>&1
 	if [ ${?} -eq 0 ]
@@ -74,49 +63,86 @@ cook_recipe ()
 		DNS_IP=${DNS_UPSTREAM_IP}
 	fi
 
-	# Add necessary devfs rules for isc-dhcpd to work
+	# Add necessary devfs rules for isc-dhcpd to work.
 	echo "" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "[dhcp_server_jail_ruleset=48]" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "add include \$devfsrules_hide_all" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "add include \$devfsrules_unhide_basic" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "add include \$devfsrules_unhide_login" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "add path 'bpf*' unhide" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "add path net unhide" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	echo "add path 'net/*' unhide" >> configs/${HOST_NAME}/etc/devfs.rules
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update devfs.rules.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Add extra jail control directives to /etc/jail.conf
+	# Add extra jail control directives to /etc/jail.conf.
 	sed -i "" "s/${JAIL_NAME}.*{.*$/${JAIL_NAME} {\\${CARRIAGE_RETURN}        allow.raw_sockets = 1;\\${CARRIAGE_RETURN}        devfs_ruleset = 48;/" configs/${HOST_NAME}/etc/jail.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update jail.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
 	# Add extra jail control directives to jails config file.
 	${UCL_CMD} set -f configs/${HOST_NAME}${JAILS_CONF_PATH} -t object .jails.${JAILS_ARRAY_INDEX}.allow "{ raw_sockets = 1 }"
-	if [ ${?} -ne 0 ]
-	then
-		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set jail directive 'allow.raw_sockets'.\n"
-		RECIPE_SUCCESS="no"
-		return
-	fi
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	${UCL_CMD} set -f configs/${HOST_NAME}${JAILS_CONF_PATH} -t number .jails.${JAILS_ARRAY_INDEX}.devfs_ruleset 48
-	if [ ${?} -ne 0 ]
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set jail directive 'devfs_ruleset'.\n"
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set elements in ${JAILS_CONF_PATH}.\n"
 		RECIPE_SUCCESS="no"
 		return
 	fi
 
-	# Replace the LAN_NET_IFACE variable in the jails' rc.conf config file
+	# Replace the LAN_NET_IFACE variable in the jails' rc.conf config file.
 	sed -i "" "s/LAN_NET_IFACE/${LAN_NET_IFACE}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/rc.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update rc.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Replace the variables in the dhcpd.conf config file
+	# Replace the variables in the dhcpd.conf config file.
 	sed -i "" "s/FDO_LAN_SUBNET_B/${FDO_LAN_SUBNET_B}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/FDO_LAN_SUBNET_MASK/${FDO_LAN_SUBNET_MASK}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/GUESTS_LAN_SUBNET_C/${GUESTS_LAN_SUBNET_C}/g" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/DOMAIN_NAME/${DOMAIN_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/FDO_DNS_IP/${DNS_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/FDO_PXE_SERVER_IP/${PXE_SERVER_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
-	# ASSUME that {FDO_LAN_GATEWAY_IP} is always the LAN gateway
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	# ASSUME that {FDO_LAN_GATEWAY_IP} is always the LAN gateway.
 	sed -i "" "s/FDO_LAN_GATEWAY_IP/${FDO_LAN_GATEWAY_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/dhcpd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${?} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update dhcpd.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-	# Mandatory: return code
+	# Mandatory: return code.
 	RECIPE_SUCCESS="yes"
 
 }

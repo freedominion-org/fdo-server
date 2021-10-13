@@ -1,14 +1,16 @@
 #!/bin/sh
 
 #### Recipe Variable Definitions ###############################################
-RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.43"                                      # Optional:  ip address given to the jail (see FDo IP Policy)
-RECIPE_PACKAGES="dns/ddclient"                                                 # Optional:  packages to install in the jail
-RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator
-RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking
-RECIPE_REQUIRES_NAT_RELOAD="no"                                                # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking
-START_JAIL_SERVICES="ddclient"                                                 # Optional:  jail services started after cooking (in left to right order)
-SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe
-SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.43"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="dns/ddclient"                                                 # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="no"                                              # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="no"                                              # Mandatory:  whether his recipe requires a caching DNS hostname override.
+START_JAIL_SERVICES="ddclient"                                                 # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
 USE_STRING="web, web=checkip.dyndns.org/, web-skip='IP Address'"               #
 ################################################################################
 
@@ -20,23 +22,17 @@ prep_recipe ()
 cook_recipe ()
 {
 
-	echo -e "\n${YELL}Next we need to install the recipe packages into the jail.${NRML}"
-	echo -e "${YELL}Please accept when prompted...${NRML}\n"
-	sleep 5
-
-	# Install essential jail recipe packages from the recipe repo
-	ASSUME_ALWAYS_YES=yes pkg -j ${JAIL_NAME} install -Rfy ${RECIPE_PACKAGES}
-	if [ ${?} -ne 0 ]
+	# Set permissions that git doesn't track.
+	chmod 0600 /jls/${JAIL_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
 	then
-		echo -e "\n${LRED}ERROR:${NRML} Installing of recipe packages failed.\n"
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to change permissions of ddclient.conf.\n"
 		RECIPE_SUCCESS="no"
 		return
 	fi
 
-	# Set permissions that git doesn't track
-	chmod 0600 /jls/${JAIL_NAME}/usr/local/etc/ddclient.conf
-
-	# Get valid login name
+	# Get valid login name.
 	USERNAME=""
 	while [ "${USERNAME}" = "" ]
 	do
@@ -58,7 +54,7 @@ cook_recipe ()
 		fi
 	done
 
-	# Get login password
+	# Get login password.
 	while [ "${PASSWORD}" = "" ]
 	do
 		echo -e ""
@@ -76,7 +72,7 @@ cook_recipe ()
 		fi
 	done
 
-	# Get dyndns protocol
+	# Get dyndns protocol.
 	PROTOCOL=""
 	while [ "${PROTOCOL}" = "" ]
 	do
@@ -142,15 +138,27 @@ cook_recipe ()
 		fi
 	done
 
+	# Replace the variables in the ddclient.conf config file.
 	sed -i "" "s|USE_STRING|${USE_STRING}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/USERNAME/${USERNAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/PASSWORD/${PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/PROTOCOL/${PROTOCOL}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/SERVER/${SERVER}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/HOSTNAME/${HOSTNAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/ddclient.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update ddclient.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
 
-
-	# Mandatory: return code
+	# Mandatory: return code.
 	RECIPE_SUCCESS="yes"
 
 }
