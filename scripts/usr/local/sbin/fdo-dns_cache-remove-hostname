@@ -316,6 +316,17 @@ then
 	exit 2
 fi
 
+# Check for unsaved registered host config files.
+echo -e "\n${YELL}Now we need to check if there are any unsaved changes to this hosts registered\nconfig files...${NRML}\n"
+${FDO_SERVER_SCRIPT} check-configs --script > /dev/null 2>&1
+if [ ${?} -gt 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} One or more host config files are not updated in the repo."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} check-configs${NRML}' subcommand to see what's out-of-date."
+	echo -e "       Please use '${LBLU}${FDO_SERVER_SCRIPT} update-config${NRML}' subcommannd to keep the repo up-to-date.\n       Aborting.\n"
+	exit 1
+fi
+
 # Check that the hostname is valid.
 test_valid_fqhn  "${HOST_NAME}"
 if [ "${VALID_FQHN}" = "no" ]
