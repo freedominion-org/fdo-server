@@ -2,7 +2,7 @@
 #
 #
 # PROVIDE: fdo_sshfsd
-# REQUIRE: DAEMON FILESYSTEMS NETWORK netif
+# REQUIRE: LOGIN DAEMON FILESYSTEMS NETWORKING sshd jail
 # KEYWORD: shutdown
 # Add the following lines to /etc/rc.conf to enable fdo_sshfsd:
 #
