@@ -1,0 +1,24 @@
+prog "Terminal" - roxterm
+prog "File Manager" - xfe
+prog "Browser" - firefox
+menu "Editors" folder {
+        prog "Xfw" - xfw
+}
+menu "Graphics" folder {
+        prog "Xfi" - xfi
+}
+menu "Network" folder {
+        prog "Firefox Web Browser" - firefox
+}
+menu "Shells" folder {
+        prog "ROXTerm" - roxterm
+        prog "XTerm" - xterm
+}
+
+menu "System" folder {
+        prog "VirtualBox" - VirtualBox
+}
+
+menu "Settings" folder {
+        prog "Customize Look and Feel" - lxappearance
+}
