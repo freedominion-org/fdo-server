@@ -47,7 +47,7 @@ VM_VNC_WAIT_STRING=""
 VM_VNC_PASSWORD_STRING=""
 VM_START_TRIES=5
 VM_START_TIMEOUT=4
-BHYVE_FLAGS="-H -w"
+BHYVE_FLAGS="-A -H -P -w"
 DEBUG=${DEBUG:-"false"}
 
 TERM="xterm"
@@ -213,7 +213,12 @@ get_vm_state ()
 
 start_vm ()
 {
-	START_COMMAND="${TMUX_CMD} new-session -d -s fdo-vm-${VM_NAME} 'bhyve -c sockets=1,cores=${VM_CORES},threads=1 -s 0,hostbridge"
+	NEXT_PCI_SLOT=1
+	START_COMMAND="${TMUX_CMD} new-session -d -s fdo-vm-${VM_NAME} 'bhyve ${BHYVE_FLAGS} -s 0:0,hostbridge -s 31:0,lpc"
+
+	NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+	START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${VM_NIC_DRIVER},${VM_TAP_INTERFACE}"
+
 	IMAGE_INDEX=0
 	IMAGE_TYPE=""
 	while [ "${IMAGE_TYPE}" != "null" ]
@@ -227,7 +232,8 @@ start_vm ()
 			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
 			VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 			eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
-			START_COMMAND="${START_COMMAND} -s $((${IMAGE_INDEX}+2)),${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+			NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+			START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
 		fi
 
 		if [ "${IMAGE_TYPE}" = "ahci-hd" ]
@@ -236,26 +242,28 @@ start_vm ()
 			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
 			VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 			eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
-			START_COMMAND="${START_COMMAND} -s $((${IMAGE_INDEX}+2)),${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+			NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+			START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
 		fi
 
 		if [ "${IMAGE_TYPE}" = "ahci-cd" ]
 		then
 			VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
 			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
-			START_COMMAND="${START_COMMAND} -s $((${IMAGE_INDEX}+2)),${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
+			NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+			START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
 		fi
 
-		IMAGE_INDEX=$(( ${IMAGE_INDEX} +1 ))
+		IMAGE_INDEX=$(( ${IMAGE_INDEX} + 1 ))
 	done
-
-	START_COMMAND="${START_COMMAND} -s 5,${VM_NIC_DRIVER},${VM_TAP_INTERFACE}"
 
 	if [ "${VM_VNC_ENABLED}" = true ]
 	then
 		if [ "${VM_VNC_PASSWORD}" != "" ] && [ "${VM_VNC_PASSWORD}" != "null" ]
 		then
 			VM_VNC_PASSWORD_STRING=",password=${VM_VNC_PASSWORD}"
+		else
+			VM_VNC_PASSWORD_STRING=""
 		fi
 		START_COMMAND="${START_COMMAND} -s 29,fbuf,tcp=${VM_VNC_IPV4_ADDRESS}:${VM_VNC_PORT},w=${VM_VNC_WIDTH},h=${VM_VNC_HEIGHT}${VM_VNC_WAIT_STRING}${VM_VNC_PASSWORD_STRING}"
 	elif [ "${VM_VNC_WAIT_STRING}" != "" ]
@@ -263,7 +271,14 @@ start_vm ()
 		echo -e "\n${ORNG}WARNING:${NRML} VNC is disabled on this VM, so the --wait flag is redundant.\n"
 	fi
 
-	START_COMMAND="${START_COMMAND} -s 31,lpc -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd -m ${VM_MEMSIZE} ${BHYVE_FLAGS} fdo-vm-${VM_NAME}'"
+	if [ "${VM_TABLET_ENABLED}" = true ]
+	then
+		START_COMMAND="${START_COMMAND} -s 30,xhci,tablet"
+	fi
+
+	START_COMMAND="${START_COMMAND} -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd"
+
+	START_COMMAND="${START_COMMAND} -c sockets=1,cores=${VM_CORES},threads=1 -m ${VM_MEMSIZE} fdo-vm-${VM_NAME}'"
 
 	if [ "${DEBUG}" = "true" ]
 	then
@@ -417,6 +432,7 @@ do
 			VM_VNC_WIDTH=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_width`
 			VM_VNC_HEIGHT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_height`
 			VM_VNC_PASSWORD=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_password`
+			VM_TABLET_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.tablet_enabled`
 			VM_IMAGE_0_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.type`
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.filename`
 			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.sectorsize`
@@ -461,6 +477,7 @@ do
 			VM_VNC_PORT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_port`
 			VM_VNC_WIDTH=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_width`
 			VM_VNC_HEIGHT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_height`
+			VM_TABLET_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.tablet_enabled`
 			VM_IMAGE_0_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.type`
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.filename`
 			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.sectorsize`
