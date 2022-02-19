@@ -40,6 +40,9 @@ VM_RESOURCES_PATH="${VMS_ROOT_PATH}/${VM_RESOURCES_DIRNAME}"
 VMM_PATH="/dev/vmm"
 UCL_CMD="/usr/local/bin/uclcmd"
 TMUX_CMD="/usr/local/bin/tmux"
+BHYVELOAD_CMD="/usr/sbin/bhyveload"
+BHYVE_CMD="/usr/sbin/bhyve"
+BHYVECTL_CMD="/usr/sbin/bhyvectl"
 DISPLAY_TYPE="instance"
 VM_NAME_MIN="3"
 VM_NAME_MAX="30"
@@ -49,6 +52,7 @@ VM_START_TRIES=5
 VM_START_TIMEOUT=4
 BHYVE_FLAGS="-A -H -P -w"
 DEBUG=${DEBUG:-"false"}
+SHOW_TMUX_COMMANDS=false
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -214,45 +218,56 @@ get_vm_state ()
 start_vm ()
 {
 	NEXT_PCI_SLOT=1
-	START_COMMAND="${TMUX_CMD} new-session -d -s fdo-vm-${VM_NAME} 'bhyve ${BHYVE_FLAGS} -s 0:0,hostbridge -s 31:0,lpc"
+	START_COMMAND="${TMUX_CMD} new-session -d -s fdo-vm-${VM_NAME} '${BHYVE_CMD} ${BHYVE_FLAGS} -s 0:0,hostbridge -s 31:0,lpc"
 
 	NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
 	START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${VM_NIC_DRIVER},${VM_TAP_INTERFACE}"
 
+	## ASSUME: bhyveload; bootloader disk path is the last image marked as bootable.
+	BOOTLOADER_DISK_PATH=""
 	IMAGE_INDEX=0
 	IMAGE_TYPE=""
 	while [ "${IMAGE_TYPE}" != "null" ]
 	do
 		VAR_IMAGE_TYPE="VM_IMAGE_${IMAGE_INDEX}_TYPE"
 		eval IMAGE_TYPE="\$${VAR_IMAGE_TYPE}"
+		VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
+		eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
+		VAR_IMAGE_BOOTABLE="VM_IMAGE_${IMAGE_INDEX}_BOOTABLE"
+		eval IMAGE_BOOTABLE="\$${VAR_IMAGE_BOOTABLE}"
 
-		if [ "${IMAGE_TYPE}" = "virtio-blk" ]
-		then
-			VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
-			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
-			VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
-			eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
-			NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
-			START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
-		fi
+		case "${IMAGE_TYPE}" in
+			"virtio-blk")
+				if [ "${IMAGE_BOOTABLE}" = true ]
+				then
+					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
+				fi
+				VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
+				eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
+				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+				;;
 
-		if [ "${IMAGE_TYPE}" = "ahci-hd" ]
-		then
-			VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
-			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
-			VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
-			eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
-			NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
-			START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
-		fi
+			"ahci-hd")
+				if [ "${IMAGE_BOOTABLE}" = true ]
+				then
+					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
+				fi
+				VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
+				eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
+				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+				;;
 
-		if [ "${IMAGE_TYPE}" = "ahci-cd" ]
-		then
-			VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
-			eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
-			NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
-			START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
-		fi
+			"ahci-cd")
+				if [ "${IMAGE_BOOTABLE}" = true ]
+				then
+					BOOTLOADER_DISK_PATH="${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
+				fi
+				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
+				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
+				;;
+		esac
 
 		IMAGE_INDEX=$(( ${IMAGE_INDEX} + 1 ))
 	done
@@ -276,13 +291,40 @@ start_vm ()
 		START_COMMAND="${START_COMMAND} -s 30,xhci,tablet"
 	fi
 
-	START_COMMAND="${START_COMMAND} -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd"
+	case "${VM_BOOT_LOADER}" in
+		"bhyveload")
+			if [ "${BOOTLOADER_DISK_PATH}" = "" ]
+			then
+				echo -e "\n${LRED}ERROR:${NRML} bhyveload; No bootable disk set in vms.conf!\n"
+				return 1
+			fi
+			BOOTLOADER_COMMAND="${BHYVELOAD_CMD} -c stdio -m ${VM_MEMSIZE} -d ${BOOTLOADER_DISK_PATH} fdo-vm-${VM_NAME}"
+			START_COMMAND="${START_COMMAND} -l com1,stdio"
+			SHOW_TMUX_COMMANDS=true
+			;;
+		"UEFI")
+			START_COMMAND="${START_COMMAND} -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd"
+			;;
+	esac
 
 	START_COMMAND="${START_COMMAND} -c sockets=1,cores=${VM_CORES},threads=1 -m ${VM_MEMSIZE} fdo-vm-${VM_NAME}'"
 
 	if [ "${DEBUG}" = "true" ]
 	then
+		echo -e "\nBOOTLOADER_COMMAND:\n${BOOTLOADER_COMMAND}"
 		echo -e "\nSTART_COMMAND:\n${START_COMMAND}\n\n"
+		echo -e "${YELL}Press any key to continue...${NRML}\n"
+		read PAUSE
+	fi
+
+	if [ "${BOOTLOADER_COMMAND}" != "" ]
+	then
+		sh -c "${BOOTLOADER_COMMAND}"
+		if [ ${?} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} The bootloader command failed to complete successfully!\n"
+			return 1
+		fi
 	fi
 
 	# Add VM tap interface to bridge, in case it's not yet added.
@@ -290,7 +332,7 @@ start_vm ()
 	ifconfig "${VM_BRIDGE_NAME}" addm "${VM_TAP_INTERFACE}" > /dev/null 2>&1
 
 	get_vm_state "${VM_NAME}"
-	echo -e "\n${YELL}Starting VM ${VM_NAME} ...${NRML}"
+	echo -e "\n\n${YELL}Starting VM ${VM_NAME} ...${NRML}"
 	sh -c "${START_COMMAND}"
 	START_TRY_COUNT=0
 	while [ "${VM_STATE}" != "running" ] && [ ${START_TRY_COUNT} -lt ${VM_START_TRIES} ]
@@ -304,12 +346,25 @@ start_vm ()
 	if [ "${VM_STATE}" = "running" ]
 	then
 		echo -e "\n${LGRN}The VM is now running!${NRML}\n"
+		if [ "${SHOW_TMUX_COMMANDS}" = true ]
+		then
+			echo -e "\n${YELL}INFO:${NRML} The VM will start in a tmux session labelled 'fdo-vm-${VM_NAME}'."
+			echo -e "      To connect to the VM, use the following command from another terminal:"
+			echo -e "      ${LBLU}tmux attach-session -t fdo-vm-${VM_NAME}${NRML}\n"
+			echo -e "      To disconnect from the VM console, use the following key combination"
+			echo -e "      from inside the tmux session:"
+			echo -e "      ${LBLU}<Ctrl+b>${NRML} followed by ${LBLU}<d>${NRML}.\n"
+		fi
 		return 0
 	else
 		echo -e "\n${ORNG}WARNING:${NRML} The VM did not appear to start successfully!\n"
+		if [ "${DEBUG}" != true ]
+		then
+			${TMUX_CMD} kill-session -t fdo-vm-${VM_NAME}
+			${BHYVECTL_CMD} --vm="fdo-vm-${VM_NAME}" --destroy
+		fi
 		return 1
 	fi
-
 
 }
 
@@ -426,6 +481,7 @@ do
 			VM_MEMSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.memory_size`
 			VM_TAP_INTERFACE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.tap_interface`
 			VM_NIC_DRIVER=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.nic_driver`
+			VM_BOOT_LOADER=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.boot_loader`
 			VM_VNC_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_enabled`
 			VM_VNC_IPV4_ADDRESS=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_ipv4_address`
 			VM_VNC_PORT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.vnc_port`
@@ -435,13 +491,16 @@ do
 			VM_TABLET_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.tablet_enabled`
 			VM_IMAGE_0_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.type`
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.filename`
-			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.sectorsize`
+			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.sector_size`
+			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.bootable`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.filename`
-			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.sectorsize`
+			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.sector_size`
+			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.bootable`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.filename`
-			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.sectorsize`
+			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.sector_size`
+			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.bootable`
 			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
@@ -472,21 +531,25 @@ do
 			VM_MEMSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.memory_size`
 			VM_TAP_INTERFACE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.tap_interface`
 			VM_NIC_DRIVER=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.nic_driver`
+			VM_BOOT_LOADER=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.boot_loader`
 			VM_VNC_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_enabled`
 			VM_VNC_IPV4_ADDRESS=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_ipv4_address`
 			VM_VNC_PORT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_port`
 			VM_VNC_WIDTH=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_width`
 			VM_VNC_HEIGHT=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.vnc_height`
-			VM_TABLET_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.tablet_enabled`
+			VM_TABLET_ENABLED=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.tablet_enabled`
 			VM_IMAGE_0_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.type`
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.filename`
-			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.sectorsize`
+			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.sector_size`
+			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.bootable`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.filename`
-			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.sectorsize`
+			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.sector_size`
+			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.bootable`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.filename`
-			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.sectorsize`
+			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.sector_size`
+			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.bootable`
 			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
