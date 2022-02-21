@@ -41,6 +41,7 @@ VMM_PATH="/dev/vmm"
 UCL_CMD="/usr/local/bin/uclcmd"
 TMUX_CMD="/usr/local/bin/tmux"
 BHYVELOAD_CMD="/usr/sbin/bhyveload"
+GRUB_BHYVE_CMD="/usr/local/sbin/grub-bhyve"
 BHYVE_CMD="/usr/sbin/bhyve"
 BHYVECTL_CMD="/usr/sbin/bhyvectl"
 DISPLAY_TYPE="instance"
@@ -225,6 +226,9 @@ start_vm ()
 
 	## ASSUME: bhyveload; bootloader disk path is the last image marked as bootable.
 	BOOTLOADER_DISK_PATH=""
+	GRUB_DEVICE_MAP=""
+	GRUB_DEVICE_CD_NUM=0
+	GRUB_DEVICE_HD_NUM=0
 	IMAGE_INDEX=0
 	IMAGE_TYPE=""
 	while [ "${IMAGE_TYPE}" != "null" ]
@@ -238,10 +242,15 @@ start_vm ()
 
 		case "${IMAGE_TYPE}" in
 			"virtio-blk")
+				GRUB_DEVICE_MAP="${GRUB_DEVICE_MAP}${CARRIAGE_RETURN}(hd${GRUB_DEVICE_HD_NUM}) ${VM_PATH}/${IMAGE_FILENAME}"
 				if [ "${IMAGE_BOOTABLE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
+					GRUB_BOOT_DEVICE="hd${GRUB_DEVICE_HD_NUM}"
+					## TODO: handle the boot/grub partition properly.
+					GRUB_BOOT_DEVICE="${GRUB_BOOT_DEVICE},gpt2"
 				fi
+				GRUB_DEVICE_HD_NUM=$(( ${GRUB_DEVICE_HD_NUM} + 1 ))
 				VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 				eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
@@ -249,10 +258,13 @@ start_vm ()
 				;;
 
 			"ahci-hd")
+				GRUB_DEVICE_MAP="${GRUB_DEVICE_MAP}${CARRIAGE_RETURN}(hd${GRUB_DEVICE_HD_NUM}) ${VM_PATH}/${IMAGE_FILENAME}"
 				if [ "${IMAGE_BOOTABLE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
+					GRUB_BOOT_DEVICE="hd${GRUB_DEVICE_HD_NUM}"
 				fi
+				GRUB_DEVICE_HD_NUM=$(( ${GRUB_DEVICE_HD_NUM} + 1 ))
 				VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 				eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
@@ -260,10 +272,13 @@ start_vm ()
 				;;
 
 			"ahci-cd")
+				GRUB_DEVICE_MAP="${GRUB_DEVICE_MAP}${CARRIAGE_RETURN}(cd${GRUB_DEVICE_CD_NUM}) ${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
 				if [ "${IMAGE_BOOTABLE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
+					GRUB_BOOT_DEVICE="cd${GRUB_DEVICE_CD_NUM}"
 				fi
+				GRUB_DEVICE_CD_NUM=$(( ${GRUB_DEVICE_CD_NUM} + 1 ))
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
 				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
 				;;
@@ -302,6 +317,17 @@ start_vm ()
 			START_COMMAND="${START_COMMAND} -l com1,stdio"
 			SHOW_TMUX_COMMANDS=true
 			;;
+		"grub")
+			if [ "${BOOTLOADER_DISK_PATH}" = "" ]
+			then
+				echo -e "\n${LRED}ERROR:${NRML} grub; No bootable disk set in vms.conf!\n"
+				return 1
+			fi
+			echo "${GRUB_DEVICE_MAP}" > ${VM_PATH}/device.map
+			BOOTLOADER_COMMAND="${GRUB_BHYVE_CMD} -m ${VM_PATH}/device.map -r ${GRUB_BOOT_DEVICE} -M ${VM_MEMSIZE} fdo-vm-${VM_NAME}"
+			START_COMMAND="${START_COMMAND} -l com1,stdio"
+			SHOW_TMUX_COMMANDS=true
+			;;
 		"UEFI")
 			START_COMMAND="${START_COMMAND} -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd"
 			;;
@@ -323,6 +349,7 @@ start_vm ()
 		if [ ${?} -ne 0 ]
 		then
 			echo -e "\n${LRED}ERROR:${NRML} The bootloader command failed to complete successfully!\n"
+			${BHYVECTL_CMD} --vm="fdo-vm-${VM_NAME}" --destroy
 			return 1
 		fi
 	fi
