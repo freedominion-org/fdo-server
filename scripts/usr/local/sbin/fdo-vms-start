@@ -239,8 +239,10 @@ start_vm ()
 		eval IMAGE_FILENAME="\$${VAR_IMAGE_FILENAME}"
 		VAR_IMAGE_BOOTABLE="VM_IMAGE_${IMAGE_INDEX}_BOOTABLE"
 		eval IMAGE_BOOTABLE="\$${VAR_IMAGE_BOOTABLE}"
-		VAR_GRUB_PARTITION="VM_IMAGE_${IMAGE_INDEX}_GRUB_PARTITION"
-		eval GRUB_PARTITION="\$${VAR_GRUB_PARTITION}"
+		VAR_IMAGE_GRUB_ROOT_DEVICE="VM_IMAGE_${IMAGE_INDEX}_GRUB_ROOT_DEVICE"
+		eval IMAGE_GRUB_ROOT_DEVICE="\$${VAR_IMAGE_GRUB_ROOT_DEVICE}"
+		VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
+		eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 
 		case "${IMAGE_TYPE}" in
 			"virtio-blk")
@@ -248,13 +250,16 @@ start_vm ()
 				if [ "${IMAGE_BOOTABLE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
-					GRUB_BOOT_DEVICE="hd${GRUB_DEVICE_HD_NUM},${GRUB_PARTITION}"
+					if [ "${IMAGE_GRUB_ROOT_DEVICE}" = "null" ]
+					then
+						GRUB_ROOT_DEVICE="hd${GRUB_DEVICE_HD_NUM},1"
+					else
+						GRUB_ROOT_DEVICE="${IMAGE_GRUB_ROOT_DEVICE}"
+					fi
 				fi
 				GRUB_DEVICE_HD_NUM=$(( ${GRUB_DEVICE_HD_NUM} + 1 ))
-				VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
-				eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
-				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},\"${VM_PATH}/${IMAGE_FILENAME}\",sectorsize=${IMAGE_SECTORSIZE}"
 				;;
 
 			"ahci-hd")
@@ -262,13 +267,16 @@ start_vm ()
 				if [ "${IMAGE_BOOTABLE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
-					GRUB_BOOT_DEVICE="hd${GRUB_DEVICE_HD_NUM},${GRUB_PARTITION}"
+					if [ "${IMAGE_GRUB_ROOT_DEVICE}" = "null" ]
+					then
+						GRUB_ROOT_DEVICE="hd${GRUB_DEVICE_HD_NUM},1"
+					else
+						GRUB_ROOT_DEVICE="${IMAGE_GRUB_ROOT_DEVICE}"
+					fi
 				fi
 				GRUB_DEVICE_HD_NUM=$(( ${GRUB_DEVICE_HD_NUM} + 1 ))
-				VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
-				eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
-				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_PATH}/${IMAGE_FILENAME},sectorsize=${IMAGE_SECTORSIZE}"
+				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},\"${VM_PATH}/${IMAGE_FILENAME}\",sectorsize=${IMAGE_SECTORSIZE}"
 				;;
 
 			"ahci-cd")
@@ -276,11 +284,11 @@ start_vm ()
 				if [ "${IMAGE_BOOTABLE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
-					GRUB_BOOT_DEVICE="cd${GRUB_DEVICE_CD_NUM}"
+					GRUB_ROOT_DEVICE="cd${GRUB_DEVICE_CD_NUM}"
 				fi
 				GRUB_DEVICE_CD_NUM=$(( ${GRUB_DEVICE_CD_NUM} + 1 ))
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
-				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
+				START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${IMAGE_TYPE},\"${VM_RESOURCES_PATH}/${IMAGE_FILENAME}\""
 				;;
 		esac
 
@@ -313,7 +321,7 @@ start_vm ()
 				echo -e "\n${LRED}ERROR:${NRML} bhyveload; No bootable disk set in vms.conf!\n"
 				return 1
 			fi
-			BOOTLOADER_COMMAND="${BHYVELOAD_CMD} -c stdio -m ${VM_MEMSIZE} -d ${BOOTLOADER_DISK_PATH} fdo-vm-${VM_NAME}"
+			BOOTLOADER_COMMAND="${BHYVELOAD_CMD} -c stdio -m ${VM_MEMSIZE} -d \"${BOOTLOADER_DISK_PATH}\" fdo-vm-${VM_NAME}"
 			START_COMMAND="${START_COMMAND} -l com1,stdio"
 			SHOW_TMUX_COMMANDS=true
 			;;
@@ -324,7 +332,7 @@ start_vm ()
 				return 1
 			fi
 			echo "${GRUB_DEVICE_MAP}" > ${VM_PATH}/device.map
-			BOOTLOADER_COMMAND="${GRUB_BHYVE_CMD} -m ${VM_PATH}/device.map -r ${GRUB_BOOT_DEVICE} -M ${VM_MEMSIZE} fdo-vm-${VM_NAME}"
+			BOOTLOADER_COMMAND="${GRUB_BHYVE_CMD} -m ${VM_PATH}/device.map -r \"${GRUB_ROOT_DEVICE}\" -M ${VM_MEMSIZE} fdo-vm-${VM_NAME}"
 			START_COMMAND="${START_COMMAND} -l com1,stdio"
 			SHOW_TMUX_COMMANDS=true
 			;;
@@ -520,17 +528,17 @@ do
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.filename`
 			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.sector_size`
 			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.bootable`
-			VM_IMAGE_0_GRUB_PARTITION=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.grub_partition`
+			VM_IMAGE_0_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.grub_root_device`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.filename`
 			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.sector_size`
 			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.bootable`
-			VM_IMAGE_1_GRUB_PARTITION=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.grub_partition`
+			VM_IMAGE_1_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.grub_root_device`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.sector_size`
 			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.bootable`
-			VM_IMAGE_2_GRUB_PARTITION=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.grub_partition`
+			VM_IMAGE_2_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.grub_root_device`
 			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
@@ -572,17 +580,17 @@ do
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.filename`
 			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.sector_size`
 			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.bootable`
-			VM_IMAGE_0_GRUB_PARTITION=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.0.grub_partition`
+			VM_IMAGE_0_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.0.grub_root_device`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.filename`
 			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.sector_size`
 			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.bootable`
-			VM_IMAGE_1_GRUB_PARTITION=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.1.grub_partition`
+			VM_IMAGE_1_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.1.grub_root_device`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.sector_size`
 			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.bootable`
-			VM_IMAGE_2_GRUB_PARTITION=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.2.grub_partition`
+			VM_IMAGE_2_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.2.grub_root_device`
 			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
