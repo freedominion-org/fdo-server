@@ -33,6 +33,8 @@ HOST_CONF_PATH=${HOST_CONF_PATH:-"/usr/local/etc/fdo/host.conf"}
 VMS_CONF_PATH=${VMS_CONF_PATH:-"/usr/local/etc/fdo/vms.conf"}
 VMM_PATH="/dev/vmm"
 UCL_CMD="/usr/local/bin/uclcmd"
+BHYVE_CMD="/usr/sbin/bhyve"
+BHYVECTL_CMD="/usr/sbin/bhyvectl"
 DISPLAY_TYPE="instance"
 VM_NAME_MIN="3"
 VM_NAME_MAX="30"
@@ -179,7 +181,7 @@ get_vm_state ()
 		VM_IS_LOADED="no"
 	fi
 
-	pgrep -fl "^bhyve.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	pgrep -fl "^${BHYVE_CMD}.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
 	if [ ${?} -eq 0 ]
 	then
 		VM_IS_RUNNING="yes"
@@ -207,7 +209,7 @@ stop_vm ()
 	get_vm_state "${VM_NAME}"
 	if [ "${VM_STATE}" = "running" ]
 	then
-		VM_BHYVE_PID=`pgrep -fl "^bhyve.* fdo-vm-${VM_NAME}$" | awk '{print $1}'`
+		VM_BHYVE_PID=`pgrep -fl "^${BHYVE_CMD}.* fdo-vm-${VM_NAME}$" | awk '{print $1}'`
 		echo -e "\n${YELL}Stopping VM ${VM_NAME} ...${NRML}"
 		kill ${VM_BHYVE_PID}
 		STOP_TRY_COUNT=0
@@ -225,14 +227,14 @@ stop_vm ()
 	if [ "${VM_STATE}" = "running" ] && [ "${FORCEFUL_STOP}" = "true" ]
 	then
 		echo -e "\n${ORNG}Forcefully stopping VM ${VM_NAME} ...${NRML}"
-		bhyvectl --force-poweroff --vm="fdo-vm-${VM_NAME}"
+		${BHYVECTL_CMD} --force-poweroff --vm="fdo-vm-${VM_NAME}"
 		sleep ${VM_STOP_TIMEOUT}
 	fi
 
 	get_vm_state "${VM_NAME}"
 	if [ "${VM_STATE}" = "loaded" ]
 	then
-		bhyvectl --destroy --vm="fdo-vm-${VM_NAME}"
+		${BHYVECTL_CMD} --destroy --vm="fdo-vm-${VM_NAME}"
 		sleep ${VM_STOP_TIMEOUT}
 	fi
 

@@ -193,7 +193,7 @@ get_vm_state ()
 		VM_IS_LOADED="no"
 	fi
 
-	pgrep -fl "^bhyve.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	pgrep -fl "^${BHYVE_CMD}.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
 	if [ ${?} -eq 0 ]
 	then
 		VM_IS_RUNNING="yes"
