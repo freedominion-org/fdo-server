@@ -181,7 +181,7 @@ get_vm_state ()
 		VM_IS_LOADED="no"
 	fi
 
-	pgrep -fl "^${BHYVE_CMD}.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	pgrep -fl "bhyve.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
 	if [ ${?} -eq 0 ]
 	then
 		VM_IS_RUNNING="yes"
@@ -209,7 +209,7 @@ stop_vm ()
 	get_vm_state "${VM_NAME}"
 	if [ "${VM_STATE}" = "running" ]
 	then
-		VM_BHYVE_PID=`pgrep -fl "^${BHYVE_CMD}.* fdo-vm-${VM_NAME}$" | awk '{print $1}'`
+		VM_BHYVE_PID=`pgrep -fl "bhyve.* fdo-vm-${VM_NAME}$" | awk '{print $1}'`
 		echo -e "\n${YELL}Stopping VM ${VM_NAME} ...${NRML}"
 		kill ${VM_BHYVE_PID}
 		STOP_TRY_COUNT=0

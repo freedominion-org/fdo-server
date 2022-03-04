@@ -193,7 +193,7 @@ get_vm_state ()
 		VM_IS_LOADED="no"
 	fi
 
-	pgrep -fl "^${BHYVE_CMD}.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
+	pgrep -fl "bhyve.* fdo-vm-${TEST_VM_NAME}$" > /dev/null
 	if [ ${?} -eq 0 ]
 	then
 		VM_IS_RUNNING="yes"
@@ -347,8 +347,7 @@ start_vm ()
 	then
 		echo -e "\nBOOTLOADER_COMMAND:\n${BOOTLOADER_COMMAND}"
 		echo -e "\nSTART_COMMAND:\n${START_COMMAND}\n\n"
-		echo -e "${YELL}Press any key to continue...${NRML}\n"
-		read PAUSE
+		readee -s -p "${LCYN}Press 'Enter' key to proceed... ${NRML}" PAUSE
 	fi
 
 	if [ "${BOOTLOADER_COMMAND}" != "" ]
