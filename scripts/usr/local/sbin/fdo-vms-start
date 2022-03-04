@@ -133,10 +133,24 @@ done
 question_yes_no ()
 {
 	while true
-		do
+	do
 		echo -e "${LCYN}${1}${NRML}"
-		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
+		readee -p "${LCYN}(yes|no): ${NRML}" ANSWER
 		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
+		then
+			break
+		fi
+		echo ""
+	done
+}
+
+question_yes ()
+{
+	while true
+	do
+		echo -e "${LCYN}${1}${NRML}"
+		readee -p "${LCYN}(yes): ${NRML}" ANSWER
+		if [ "${ANSWER}" = "yes" ]
 		then
 			break
 		fi
@@ -347,7 +361,7 @@ start_vm ()
 	then
 		echo -e "\nBOOTLOADER_COMMAND:\n${BOOTLOADER_COMMAND}"
 		echo -e "\nSTART_COMMAND:\n${START_COMMAND}\n\n"
-		readee -s -p "${LCYN}Press 'Enter' key to proceed... ${NRML}" PAUSE
+		question_yes "Proceed?"
 	fi
 
 	if [ "${BOOTLOADER_COMMAND}" != "" ]
