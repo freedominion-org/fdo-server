@@ -113,9 +113,9 @@ question_yes_no ()
 	LOOP=1
 
 	while [ ${LOOP} = 1 ]
-		do
+	do
 		echo -e "${LCYN}${1}${NRML}"
-		readee -p "${LCYN}(yes/no): ${NRML}" ANSWER
+		readee -p "${LCYN}(yes|no): ${NRML}" ANSWER
 		if [ "${ANSWER}" = "yes" ] || [ "${ANSWER}" = "no" ]
 		then
 			LOOP=0
