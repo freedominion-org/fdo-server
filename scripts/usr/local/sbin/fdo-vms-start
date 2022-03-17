@@ -616,20 +616,20 @@ do
 			VM_IMAGE_0_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.filename`
 			VM_IMAGE_0_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.sector_size`
 			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.bootable`
-			VM_IMAGE_0_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.0.grub_root_device`
-			VM_IMAGE_0_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.0.grub_directory`
+			VM_IMAGE_0_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.grub_root_device`
+			VM_IMAGE_0_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.grub_directory`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.filename`
 			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.sector_size`
 			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.bootable`
-			VM_IMAGE_1_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.1.grub_root_device`
-			VM_IMAGE_1_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.1.grub_directory`
+			VM_IMAGE_1_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.grub_root_device`
+			VM_IMAGE_1_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.grub_directory`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.sector_size`
 			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.bootable`
-			VM_IMAGE_2_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.2.grub_root_device`
-			VM_IMAGE_2_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${TEMPLATE_INDEX}.images.2.grub_directory`
+			VM_IMAGE_2_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.grub_root_device`
+			VM_IMAGE_2_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.grub_directory`
 			VM_IMAGE_3_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
