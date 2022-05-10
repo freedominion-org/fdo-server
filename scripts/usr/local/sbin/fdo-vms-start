@@ -257,6 +257,8 @@ start_vm ()
 		eval IMAGE_GRUB_ROOT_DEVICE="\$${VAR_IMAGE_GRUB_ROOT_DEVICE}"
 		VAR_IMAGE_GRUB_DIRECTORY="VM_IMAGE_${IMAGE_INDEX}_GRUB_DIRECTORY"
 		eval IMAGE_GRUB_DIRECTORY="\$${VAR_IMAGE_GRUB_DIRECTORY}"
+		VAR_IMAGE_GRUB_CONF_FILENAME="VM_IMAGE_${IMAGE_INDEX}_GRUB_CONF_FILENAME"
+		eval IMAGE_GRUB_CONF_FILENAME="\$${VAR_IMAGE_GRUB_CONF_FILENAME}"
 		VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 		eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 
@@ -274,9 +276,15 @@ start_vm ()
 					fi
 					if [ "${IMAGE_GRUB_DIRECTORY}" = "null" ]
 					then
-						GRUB_DIRECTORY="/boot/grub"
+						GRUB_DIRECTORY=""
 					else
 						GRUB_DIRECTORY="${IMAGE_GRUB_DIRECTORY}"
+					fi
+					if [ "${IMAGE_GRUB_CONF_FILENAME}" = "null" ]
+					then
+						GRUB_CONF_FILENAME=""
+					else
+						GRUB_CONF_FILENAME="${IMAGE_GRUB_CONF_FILENAME}"
 					fi
 				fi
 				GRUB_DEVICE_HD_NUM=$(( ${GRUB_DEVICE_HD_NUM} + 1 ))
@@ -297,9 +305,15 @@ start_vm ()
 					fi
 					if [ "${IMAGE_GRUB_DIRECTORY}" = "null" ]
 					then
-						GRUB_DIRECTORY="/boot/grub"
+						GRUB_DIRECTORY=""
 					else
 						GRUB_DIRECTORY="${IMAGE_GRUB_DIRECTORY}"
+					fi
+					if [ "${IMAGE_GRUB_CONF_FILENAME}" = "null" ]
+					then
+						GRUB_CONF_FILENAME=""
+					else
+						GRUB_CONF_FILENAME="${IMAGE_GRUB_CONF_FILENAME}"
 					fi
 				fi
 				GRUB_DEVICE_HD_NUM=$(( ${GRUB_DEVICE_HD_NUM} + 1 ))
@@ -314,6 +328,24 @@ start_vm ()
 					BOOTLOADER_DISK_PATH="${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
 					GRUB_ROOT_DEVICE="cd${GRUB_DEVICE_CD_NUM}"
 					GRUB_DIRECTORY=""
+					if [ "${IMAGE_GRUB_ROOT_DEVICE}" = "null" ]
+					then
+						GRUB_ROOT_DEVICE="cd${GRUB_DEVICE_CD_NUM}"
+					else
+						GRUB_ROOT_DEVICE="${IMAGE_GRUB_ROOT_DEVICE}"
+					fi
+					if [ "${IMAGE_GRUB_DIRECTORY}" = "null" ]
+					then
+						GRUB_DIRECTORY=""
+					else
+						GRUB_DIRECTORY="${IMAGE_GRUB_DIRECTORY}"
+					fi
+					if [ "${IMAGE_GRUB_CONF_FILENAME}" = "null" ]
+					then
+						GRUB_CONF_FILENAME=""
+					else
+						GRUB_CONF_FILENAME="${IMAGE_GRUB_CONF_FILENAME}"
+					fi
 				fi
 				GRUB_DEVICE_CD_NUM=$(( ${GRUB_DEVICE_CD_NUM} + 1 ))
 				NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
@@ -361,12 +393,16 @@ start_vm ()
 				return 1
 			fi
 			echo "${GRUB_DEVICE_MAP}" > ${VM_PATH}/device.map
-			if [ "${GRUB_DIRECTORY}" = "" ]
+			BOOTLOADER_COMMAND="${GRUB_BHYVE_CMD} -m ${VM_PATH}/device.map -r \"${GRUB_ROOT_DEVICE}\""
+			if [ "${GRUB_DIRECTORY}" != "" ]
 			then
-				BOOTLOADER_COMMAND="${GRUB_BHYVE_CMD} -m ${VM_PATH}/device.map -r \"${GRUB_ROOT_DEVICE}\" -M ${VM_MEMSIZE} fdo-vm-${VM_NAME}"
-			else
-				BOOTLOADER_COMMAND="${GRUB_BHYVE_CMD} -m ${VM_PATH}/device.map -r \"${GRUB_ROOT_DEVICE}\" -d \"${GRUB_DIRECTORY}\" -M ${VM_MEMSIZE} fdo-vm-${VM_NAME}"
+				BOOTLOADER_COMMAND="${BOOTLOADER_COMMAND} -d \"${GRUB_DIRECTORY}\""
 			fi
+			if [ "${GRUB_CONF_FILENAME}" != "" ]
+			then
+				BOOTLOADER_COMMAND="${BOOTLOADER_COMMAND} -g \"${GRUB_CONF_FILENAME}\""
+			fi
+			BOOTLOADER_COMMAND="${BOOTLOADER_COMMAND} -M ${VM_MEMSIZE} fdo-vm-${VM_NAME}"
 			START_COMMAND="${START_COMMAND} -l com1,stdio"
 			SHOW_TMUX_COMMANDS=true
 			;;
@@ -563,19 +599,36 @@ do
 			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.bootable`
 			VM_IMAGE_0_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.grub_root_device`
 			VM_IMAGE_0_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.grub_directory`
+			VM_IMAGE_0_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.0.grub_cfg`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.filename`
 			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.sector_size`
 			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.bootable`
 			VM_IMAGE_1_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.grub_root_device`
 			VM_IMAGE_1_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.grub_directory`
+			VM_IMAGE_1_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.1.grub_cfg`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.sector_size`
 			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.bootable`
 			VM_IMAGE_2_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.grub_root_device`
 			VM_IMAGE_2_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.grub_directory`
-			VM_IMAGE_3_TYPE="null"
+			VM_IMAGE_2_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.2.grub_cfg`
+			VM_IMAGE_3_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.type`
+			VM_IMAGE_3_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.filename`
+			VM_IMAGE_3_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.sector_size`
+			VM_IMAGE_3_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.bootable`
+			VM_IMAGE_3_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.grub_root_device`
+			VM_IMAGE_3_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.grub_directory`
+			VM_IMAGE_3_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.3.grub_cfg`
+			VM_IMAGE_4_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.type`
+			VM_IMAGE_4_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.filename`
+			VM_IMAGE_4_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.sector_size`
+			VM_IMAGE_4_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.bootable`
+			VM_IMAGE_4_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.grub_root_device`
+			VM_IMAGE_4_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.grub_directory`
+			VM_IMAGE_4_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.grub_cfg`
+			VM_IMAGE_5_TYPE="null"
 			start_vm
 			if [ ${?} -ne 0 ]
 			then
@@ -618,19 +671,36 @@ do
 			VM_IMAGE_0_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.bootable`
 			VM_IMAGE_0_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.grub_root_device`
 			VM_IMAGE_0_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.grub_directory`
+			VM_IMAGE_0_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.0.grub_cfg`
 			VM_IMAGE_1_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.type`
 			VM_IMAGE_1_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.filename`
 			VM_IMAGE_1_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.sector_size`
 			VM_IMAGE_1_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.bootable`
 			VM_IMAGE_1_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.grub_root_device`
 			VM_IMAGE_1_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.grub_directory`
+			VM_IMAGE_1_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.1.grub_cfg`
 			VM_IMAGE_2_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.type`
 			VM_IMAGE_2_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.filename`
 			VM_IMAGE_2_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.sector_size`
 			VM_IMAGE_2_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.bootable`
 			VM_IMAGE_2_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.grub_root_device`
 			VM_IMAGE_2_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.grub_directory`
-			VM_IMAGE_3_TYPE="null"
+			VM_IMAGE_2_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.2.grub_cfg`
+			VM_IMAGE_3_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.type`
+			VM_IMAGE_3_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.filename`
+			VM_IMAGE_3_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.sector_size`
+			VM_IMAGE_3_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.bootable`
+			VM_IMAGE_3_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.grub_root_device`
+			VM_IMAGE_3_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.grub_directory`
+			VM_IMAGE_3_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.3.grub_cfg`
+			VM_IMAGE_4_TYPE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.type`
+			VM_IMAGE_4_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.filename`
+			VM_IMAGE_4_SECTORSIZE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.sector_size`
+			VM_IMAGE_4_BOOTABLE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.bootable`
+			VM_IMAGE_4_GRUB_ROOT_DEVICE=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.grub_root_device`
+			VM_IMAGE_4_GRUB_DIRECTORY=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.grub_directory`
+			VM_IMAGE_4_GRUB_CONF_FILENAME=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.grub_cfg`
+			VM_IMAGE_5="null"
 			start_vm
 			if [ ${?} -ne 0 ]
 			then
