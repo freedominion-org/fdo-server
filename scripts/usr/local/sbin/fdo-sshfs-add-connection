@@ -146,25 +146,26 @@ test_valid_integer ()
 		return 1
 	fi
 
-	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[0-9]+//" | wc -L`
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[-]?[0-9]+//" | wc -L`
 	if [ ${IS_SYNTAX_OK}  -ne 0 ]
 	then
 		VALID_INTEGER="no"
 		return 2
 	fi
 
-	if [ ${TEST_CASE} -lt ${TEST_MIN_VALUE} ]
+	if [ "${TEST_MIN_VALUE}" != "" ] && [ $(echo "${TEST_CASE} < ${TEST_MIN_VALUE}" | bc) -ne 0 ]
 	then
 		VALID_INTEGER="no"
 		return 3
 	fi
 
-	if [ ${TEST_CASE} -gt ${TEST_MAX_VALUE} ]
+	if [ "${TEST_MAX_VALUE}" != "" ] && [ $(echo "${TEST_CASE} > ${TEST_MAX_VALUE}" | bc) -ne 0 ]
 	then
 		VALID_INTEGER="no"
 		return 4
 	fi
 
+	return 0
 }
 
 test_valid_inet_address ()
