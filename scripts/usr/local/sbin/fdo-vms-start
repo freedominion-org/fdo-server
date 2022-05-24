@@ -51,9 +51,13 @@ VM_VNC_WAIT_STRING=""
 VM_VNC_PASSWORD_STRING=""
 VM_START_TRIES=5
 VM_START_TIMEOUT=4
+BOOT_IMAGE_INDEX=-1
+BOOT_IMAGE_INDEX_MIN="-1"
+BOOT_IMAGE_INDEX_MAX="4"
 BHYVE_FLAGS="-A -H -P -w"
 DEBUG=${DEBUG:-"false"}
 SHOW_TMUX_COMMANDS=false
+SKIP_BOOTLOADER=false
 
 TERM="xterm"
 LRED="\033[1;31m"
@@ -84,17 +88,20 @@ usage ()
 	echo -e ""
 	echo -e "${YELL}Description:${NRML} Start a specific VM on this host."
 	echo -e ""
-	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} vm_name [--wait]${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} legacy_software1${NRML}"
-	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} debian10 --wait${NRML}"
+	echo -e "${YELL}Usage:   ${LGRN}${SCRIPT_NAME} vm_name [--wait] [--boot=<image_index>]${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} freebsd10${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} win10guest --wait${NRML}"
+	echo -e "${NRML}Example: ${LBLU}${SCRIPT_NAME} debian10 --boot=0${NRML}"
 	echo -e ""
 	echo -e "${YELL}Options:${RML}"
 	echo -e "${YELL}         --wait            : wait for VNC connection before booting.${NRML}"
+	echo -e "${YELL}         --boot            : boot a specific image, using it's index.${NRML}"
 	echo -e ""
 	echo -e "${YELL}Notes:${NRML}"
 	echo -e "${YELL}         vm_name must be between 3 and 30 characters.${NRML}"
 	echo -e "${YELL}         vm_name must only contain a-z, A-Z, 0-9 and _ (underscore).${NRML}"
 	echo -e "${YELL}         vm_name must not begin or end with an underscore.${NRML}"
+	echo -e "${YELL}         specified boot image only applies to grub and bhyveload.${NRML}"
 	echo -e ""
 }
 
@@ -111,6 +118,12 @@ do
 		case ${OPTIONAL_ARG_NAME} in
 			--wait)
 				VM_VNC_WAIT_STRING=",wait"
+				;;
+			--boot)
+				BOOT_IMAGE_INDEX=${OPTIONAL_ARG_VALUE}
+				;;
+			--skip-bootloader)
+				SKIP_BOOTLOADER=true
 				;;
 			*)
 				echo -e "\n${LRED}ERROR:${NRML} Invalid argument!\n       Aborting.\n"
@@ -184,6 +197,42 @@ test_valid_vm_name ()
 	fi
 }
 
+test_valid_integer ()
+{
+
+	TEST_CASE="${1}"
+	TEST_MIN_VALUE=${2}
+	TEST_MAX_VALUE=${3}
+
+	VALID_INTEGER="yes"
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_INTEGER="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^[0-9]+//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_INTEGER="no"
+		return 2
+	fi
+
+	if [ ${TEST_CASE} -lt ${TEST_MIN_VALUE} ]
+	then
+		VALID_INTEGER="no"
+		return 3
+	fi
+
+	if [ ${TEST_CASE} -gt ${TEST_MAX_VALUE} ]
+	then
+		VALID_INTEGER="no"
+		return 4
+	fi
+
+}
+
 test_if_host ()
 {
 	procstat 0 > /dev/null 2>&1
@@ -238,15 +287,18 @@ start_vm ()
 	NEXT_PCI_SLOT=$(( ${NEXT_PCI_SLOT} + 1 ))
 	START_COMMAND="${START_COMMAND} -s ${NEXT_PCI_SLOT}:0,${VM_NIC_DRIVER},${VM_TAP_INTERFACE}"
 
-	## ASSUME: bhyveload; bootloader disk path is the last image marked as bootable.
+	## ASSUME: bhyveload & grub; unless specified, bootloader disk path is the last image marked as bootable.
 	BOOTLOADER_DISK_PATH=""
 	GRUB_DEVICE_MAP=""
 	GRUB_DEVICE_CD_NUM=0
 	GRUB_DEVICE_HD_NUM=0
 	IMAGE_INDEX=0
 	IMAGE_TYPE=""
+
+	# Loop over all images to build bootloader and start command strings.
 	while [ "${IMAGE_TYPE}" != "null" ]
 	do
+		# Load current image parameters.
 		VAR_IMAGE_TYPE="VM_IMAGE_${IMAGE_INDEX}_TYPE"
 		eval IMAGE_TYPE="\$${VAR_IMAGE_TYPE}"
 		VAR_IMAGE_FILENAME="VM_IMAGE_${IMAGE_INDEX}_FILENAME"
@@ -262,10 +314,23 @@ start_vm ()
 		VAR_IMAGE_SECTORSIZE="VM_IMAGE_${IMAGE_INDEX}_SECTORSIZE"
 		eval IMAGE_SECTORSIZE="\$${VAR_IMAGE_SECTORSIZE}"
 
+		# Determine if we want to replace the bootable device with this image.
+		if [ ${IMAGE_BOOTABLE} = true ]
+		then
+			if [ ${BOOT_IMAGE_INDEX} -ge 0 ] && [ ${BOOT_IMAGE_INDEX} -ne ${IMAGE_INDEX} ]
+			then
+				REPLACE_BOOT_IMAGE=false
+			else
+				REPLACE_BOOT_IMAGE=true
+			fi
+		else
+			REPLACE_BOOT_IMAGE=false
+		fi
+
 		case "${IMAGE_TYPE}" in
 			"virtio-blk")
 				GRUB_DEVICE_MAP="${GRUB_DEVICE_MAP}${CARRIAGE_RETURN}(hd${GRUB_DEVICE_HD_NUM}) ${VM_PATH}/${IMAGE_FILENAME}"
-				if [ "${IMAGE_BOOTABLE}" = true ]
+				if [ "${REPLACE_BOOT_IMAGE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
 					if [ "${IMAGE_GRUB_ROOT_DEVICE}" = "null" ]
@@ -294,7 +359,7 @@ start_vm ()
 
 			"ahci-hd")
 				GRUB_DEVICE_MAP="${GRUB_DEVICE_MAP}${CARRIAGE_RETURN}(hd${GRUB_DEVICE_HD_NUM}) ${VM_PATH}/${IMAGE_FILENAME}"
-				if [ "${IMAGE_BOOTABLE}" = true ]
+				if [ "${REPLACE_BOOT_IMAGE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_PATH}/${IMAGE_FILENAME}"
 					if [ "${IMAGE_GRUB_ROOT_DEVICE}" = "null" ]
@@ -323,7 +388,7 @@ start_vm ()
 
 			"ahci-cd")
 				GRUB_DEVICE_MAP="${GRUB_DEVICE_MAP}${CARRIAGE_RETURN}(cd${GRUB_DEVICE_CD_NUM}) ${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
-				if [ "${IMAGE_BOOTABLE}" = true ]
+				if [ "${REPLACE_BOOT_IMAGE}" = true ]
 				then
 					BOOTLOADER_DISK_PATH="${VM_RESOURCES_PATH}/${IMAGE_FILENAME}"
 					GRUB_ROOT_DEVICE="cd${GRUB_DEVICE_CD_NUM}"
@@ -420,7 +485,7 @@ start_vm ()
 		question_yes "Proceed?"
 	fi
 
-	if [ "${BOOTLOADER_COMMAND}" != "" ]
+	if [ "${BOOTLOADER_COMMAND}" != "" ] && [ ${SKIP_BOOTLOADER} = false ]
 	then
 		sh -c "${BOOTLOADER_COMMAND}"
 		if [ ${?} -ne 0 ]
@@ -560,6 +625,14 @@ get_vm_state "${VM_NAME}"
 if [ "${VM_STATE}" = "running" ]
 then
 	echo -e "\n${ORNG}WARNING:${NRML} The VM (${VM_NAME}) is already running!\n         Skipping start routine.\n"
+	exit 1
+fi
+
+# Test if specified boot image index is valid.
+test_valid_integer "${BOOT_IMAGE_INDEX}" ${BOOT_IMAGE_INDEX_MIN} ${BOOT_IMAGE_INDEX_MAX}
+if [ "${VALID_INTEGER}" = "no" ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The specified boot image index is not valid!\n       Aborting."
 	exit 1
 fi
 
