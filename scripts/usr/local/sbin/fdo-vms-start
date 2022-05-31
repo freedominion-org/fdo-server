@@ -317,8 +317,6 @@ start_vm ()
 		VAR_IMAGE_USE_EXPERT_GRUB="VM_IMAGE_${IMAGE_INDEX}_USE_EXPERT_GRUB"
 		eval IMAGE_USE_EXPERT_GRUB="\$${VAR_IMAGE_USE_EXPERT_GRUB}"
 
-		echo -e "\nIMAGE_USE_EXPERT_GRUB = ${IMAGE_USE_EXPERT_GRUB}\n"
-
 		# Determine if we want to replace the bootable device with this image.
 		if [ ${IMAGE_BOOTABLE} = true ]
 		then
