@@ -282,6 +282,7 @@ get_vm_state ()
 
 start_vm ()
 {
+
 	NEXT_PCI_SLOT=1
 	START_COMMAND="${TMUX_CMD} new-session -d -s fdo-vm-${VM_NAME} '${BHYVE_CMD} ${BHYVE_FLAGS} -s 0:0,hostbridge -s 31:0,lpc"
 
@@ -567,7 +568,7 @@ start_vm ()
 			${TMUX_CMD} kill-session -t fdo-vm-${VM_NAME}
 			${BHYVECTL_CMD} --vm="fdo-vm-${VM_NAME}" --destroy
 		fi
-		return 1
+		return 2
 	fi
 
 }
@@ -687,6 +688,7 @@ do
 	then
 		if [ "${TEMPLATE_NAME}" = "${VM_NAME}" ]
 		then
+
 			# OK, we've found the VM, now let's load the parameters.
 			VM_PATH=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.path`
 			VM_CORES=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.cores`
@@ -743,9 +745,10 @@ do
 			VM_IMAGE_4_USE_EXPERT_GRUB=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .templates.${TEMPLATE_INDEX}.images.4.use_expert_grub`
 			VM_IMAGE_5_TYPE="null"
 			start_vm
-			if [ ${?} -ne 0 ]
+			RETURN_CODE=${?}
+			if [ ${RETURN_CODE} -ne 0 ]
 			then
-				exit ${?}
+				exit ${RETURN_CODE}
 			fi
 			
 		fi
@@ -765,6 +768,7 @@ do
 	then
 		if [ "${INSTANCE_NAME}" = "${VM_NAME}" ]
 		then
+
 			# OK, we've found the VM, now let's load the parameters.
 			VM_PATH=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.path`
 			VM_CORES=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.cores`
@@ -821,9 +825,10 @@ do
 			VM_IMAGE_4_USE_EXPERT_GRUB=`${UCL_CMD} get -f ${VMS_CONF_PATH} -q .instances.${INSTANCE_INDEX}.images.4.use_expert_grub`
 			VM_IMAGE_5="null"
 			start_vm
-			if [ ${?} -ne 0 ]
+			RETURN_CODE=${?}
+			if [ ${RETURN_CODE} -ne 0 ]
 			then
-				exit ${?}
+				exit ${RETURN_CODE}
 			fi
 		fi
 	else
