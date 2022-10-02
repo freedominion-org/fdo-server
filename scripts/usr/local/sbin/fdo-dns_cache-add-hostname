@@ -414,7 +414,7 @@ COMMIT_BEFORE_ADD_HOSTNAME=`git log --format=format:%H -1`
 for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
 do
 	NAMED_CONF_PATH="/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf"
-	ZONE_FILE_PATH="/usr/local/etc/namedb/master/${HOST_NAME}.db"
+	ZONE_FILE_PATH="/usr/local/etc/namedb/primary/${HOST_NAME}.db"
 
 	# ...and if a bind server exists...
 	if [ -f "${NAMED_CONF_PATH}" ]
@@ -444,10 +444,10 @@ do
 			ADD_HOSTNAME_SYSTEM_MODIFIED=true
 
 			# - Add zone entry in named.conf
-			echo "zone \"${HOST_NAME}\" { type master; file \"${ZONE_FILE_PATH}\"; };" >> "${NAMED_CONF_PATH}"
+			echo "zone \"${HOST_NAME}\" { type primary; file \"${ZONE_FILE_PATH}\"; };" >> "${NAMED_CONF_PATH}"
 			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
-			# - Create the master zone file
+			# - Create the primary zone file
 			DATE=`date "+%Y%m%d"`
 			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 			echo "" > /jls/${JAIL_NAME}${ZONE_FILE_PATH}

@@ -364,7 +364,7 @@ COMMIT_BEFORE_REMOVE_HOSTNAME=`git log --format=format:%H -1`
 for JAIL_NAME in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
 do
 	NAMED_CONF_PATH="/jls/${JAIL_NAME}/usr/local/etc/namedb/named.conf"
-	ZONE_FILE_PATH="/usr/local/etc/namedb/master/${HOST_NAME}.db"
+	ZONE_FILE_PATH="/usr/local/etc/namedb/primary/${HOST_NAME}.db"
 
 	# ...and if a bind server exists...
 	if [ -f "${NAMED_CONF_PATH}" ]
@@ -399,7 +399,7 @@ do
 			sed -i "" "/^zone \"${HOST_NAME}\"/d" "${NAMED_CONF_PATH}"
 			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
-			# - Remove the master zone file
+			# - Remove the primary zone file
 			rm /jls/${JAIL_NAME}${ZONE_FILE_PATH} > /dev/null 2>&1
 			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
