@@ -420,7 +420,7 @@ do
 	if [ -f "${NAMED_CONF_PATH}" ]
 	then
 		# ...determine if it's a caching server
-		cat "${NAMED_CONF_PATH}" | egrep $'^[ \t]*forwarders[ \t]{' > /dev/null 2>&1
+		cat "${NAMED_CONF_PATH}" | egrep $'^[ \t]*forwarders[ \t]*{' > /dev/null 2>&1
 		if [ ${?} -eq 0 ]
 		then
 
