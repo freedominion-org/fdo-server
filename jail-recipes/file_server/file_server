@@ -2,6 +2,7 @@
 
 #### Recipe Variable Definitions ###############################################
 RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.49"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+HTTP_GATEWAY_JAIL_IP="${JAILS_LAN_SUBNET_C}.30"                                # Optional:  ip address given to the http_gateway jail (see FDo IP Policy).
 RECIPE_PACKAGES="www/apache22"                                                 # Optional:  packages to install in the jail.
 RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
 RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
@@ -16,10 +17,15 @@ LDAP_HOST_IP=${LDAP_HOST_IP:-"${JAILS_LAN_SUBNET_C}.50"}                       #
 
 prep_recipe ()
 {
-	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that either a 'ldap_provider' or a"
-	echo -e   "        'ldap_consumer' recipe is cooked, running and accessible on the LAN"
-	echo -e   "        (local network). You must know the LDAP servers' host name, base suffix"
-	echo -e   "        and root (Manager) password in order to connect to it."
+	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that a 'http_gateway' recipe"
+	echo -e   "        jail is cooked, running and accessible.\n"
+	echo -e   "        This jail recipe requires that either a 'ldap_provider' or a"
+	echo -e   "        'ldap_consumer' recipe jail is cooked, running and accessible."
+	echo -e   "        You must know the LDAP servers' host name, base suffix and root (Manager)"
+	echo -e   "        password in order to connect to it."
+	echo -e   "        If there are LAN clients, it is highly recommended that a 'ldap_provider'"
+	echo -e   "        or a'ldap_consumer' recipe is cooked and running on this host or"
+	echo -e   "        somewhere on this LAN."
 	echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'"
 	echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.\n"
 	echo -e   "        Useful terminology:\n"
@@ -232,7 +238,7 @@ cook_recipe ()
 	fi
 
 	# Set RECIPE_DNS_HOSTNAMES variable so that hooks will configure the local (caching) dns overrides.
-	RECIPE_DNS_HOSTNAMES="${FILE_SERVER_HOST_NAME}"
+	RECIPE_DNS_HOSTNAMES="${HTTP_GATEWAY_JAIL_IP}"
 
 	# Mandatory: return code.
 	RECIPE_SUCCESS="yes"
