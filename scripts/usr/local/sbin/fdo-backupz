@@ -389,7 +389,7 @@ do
 
 		# Send incremental snapshot to backup pool.
 		echo -e "${LBLU}zfs send ${ZFS_SEND_FLAGS} -I ${COMPLETED_JOB} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}${NRML}"
-		zfs send ${ZFS_SEND_FLAGS} -i ${COMPLETED_JOB} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
+		zfs send ${ZFS_SEND_FLAGS} -I ${COMPLETED_JOB} ${SNAPSHOT_NAME} | zfs receive -F ${BACKUP_POOL}/${SNAPSHOT_PARENT_FLAT}
 		if [ ${?} -ne 0 ]
 		then
 			ERROR_ID="Sending incremental snapshot of existing filesystem."
