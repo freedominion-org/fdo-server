@@ -174,9 +174,9 @@ TERM="${CURRENT_TERM}"
 
 if [ "${LOGIN_SHELL}" = "" ]
 then
-	jexec ${JID}
+	jexec ${JID} ${SHELL} -l
 else
-	jexec ${JID} ${LOGIN_SHELL}
+	jexec ${JID} ${LOGIN_SHELL} -l
 fi
 
 if [ ${ERROR_COUNT} -gt 0 ]
