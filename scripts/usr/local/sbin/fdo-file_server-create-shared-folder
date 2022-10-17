@@ -233,8 +233,16 @@ then
 fi
 
 # Create the ZFS filesystem of the file_server share.
-zfs create -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/shares/${SHARE_PATH} ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH}
+zfs create -o casesensitivity=insensitive ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# If the mountpoint is not as expected (inherited), then set it (local).
+SHARE_MOUNTPOINT=`zfs get -H -o value mountpoint ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH}`
+if [ "${SHARE_MOUNTPOINT}" != "${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/shares/${SHARE_PATH}" ]
+then
+	zfs set mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/shares/${SHARE_PATH} ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
 
 # Change ownership of the file_server share mountpoint.
 chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/shares/${SHARE_PATH}

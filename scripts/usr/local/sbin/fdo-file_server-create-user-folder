@@ -243,8 +243,16 @@ then
 fi
 
 # Create the ZFS filesystem of the file_server user folder.
-zfs create -o quota=${USER_FOLDER_QUOTA} -o casesensitivity=insensitive -o mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
+zfs create -o quota=${USER_FOLDER_QUOTA} -o casesensitivity=insensitive ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
 ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+# If the mountpoint is not as expected (inherited), then set it (local).
+USER_FOLDER_MOUNTPOINT=`zfs get -H -o value mountpoint ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}`
+if [ "${USER_FOLDER_MOUNTPOINT}" != "${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME}" ]
+then
+	zfs set mountpoint=${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME} ${WEBDAV_ROOT_FS}/${SITE_NAME}/users/${USERNAME}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+fi
 
 # Change ownership of the file_server user folder mountpoint.
 chown -R ${WEBDAV_UID}:${WEBDAV_GID} ${WEBDAV_ROOT_MOUNTPOINT}/${SITE_NAME}/users/${USERNAME}
