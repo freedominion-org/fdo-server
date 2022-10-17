@@ -29,8 +29,11 @@ cook_recipe ()
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
 	do
-		cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
-		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		if [ -e "/jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf" ]
+		then
+			cp /jls/template/etc/resolv.conf /jls/${JAIL_NAME_IN_JAILS}/etc/resolv.conf
+			ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		fi
 	done
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
