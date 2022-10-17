@@ -162,6 +162,29 @@ test_valid_inet_address ()
 
 }
 
+test_valid_host_name ()
+{
+
+	TEST_CASE="${1}"
+
+	VALID_HOST_NAME="yes"
+
+	if [ "${TEST_CASE}" = "" ]
+	then
+		VALID_HOST_NAME="no"
+		return 1
+	fi
+
+	IS_SYNTAX_OK=`echo "${TEST_CASE}" | sed -r "s/^([a-zA-Z0-9]+[\-])*[a-zA-Z0-9]+//" | wc -L`
+	if [ ${IS_SYNTAX_OK}  -ne 0 ]
+	then
+		VALID_HOST_NAME="no"
+		return 2
+	fi
+
+	return 0
+}
+
 test_valid_fqhn ()
 {
 
@@ -370,7 +393,8 @@ fi
 
 # Check that the hostname is valid.
 test_valid_fqhn  "${HOST_NAME}"
-if [ "${VALID_FQHN}" = "no" ]
+test_valid_host_name  "${HOST_NAME}"
+if [ "${VALID_FQHN}" = "no" ] && [ "${VALID_HOST_NAME}" = "no" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The hostname '${ORNG}${HOST_NAME}${NRML}' is invalid!"
 	echo -e "       It must only contain letters, numbers, periods and hyphens."
