@@ -153,13 +153,6 @@ then
 	exit 1
 fi
 
-zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH} > /dev/null 2>&1
-if [ ${?} -ne 0 ]
-then
-	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server share does not exist!\n       Aborting.\n"
-	exit 1
-fi
-
 
 ##### MAIN EXECUTION THREAD ####################################################
 
@@ -192,6 +185,14 @@ ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 if [ "${WEBDAV_ROOT_FS}" = "" ] || [ "${WEBDAV_ROOT_FS}" = "null" ]
 then
 	echo -e "\n${LRED}ERROR:${NRML} The WebDAV root filesystem specified in the config file\n       '${RECIPE_CONF_PATH}'\n       is not valid! Aborting.\n"
+	exit 1
+fi
+
+# Check if the shared folder filesystem exists.
+zfs list ${WEBDAV_ROOT_FS}/${SITE_NAME}/shares/${SHARE_PATH} > /dev/null 2>&1
+if [ ${?} -ne 0 ]
+then
+	echo -e "\n${LRED}ERROR:${NRML} The referenced file_server share does not exist!\n       Aborting.\n"
 	exit 1
 fi
 
