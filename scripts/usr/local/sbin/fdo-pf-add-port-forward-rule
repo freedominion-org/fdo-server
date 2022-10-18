@@ -482,14 +482,14 @@ then
 	TCP_PORTS_MACRO_DEF=""
 else
 	TCP_PORTS_MACRO_DEF="\\${CARRIAGE_RETURN}${RULE_NAME}_tcp_ports = \"{ ${TCP_PORTS} }\""
-	TCP_RULES_DEF="\\${CARRIAGE_RETURN}rdr on \$ext_if proto tcp from any to any port \$${RULE_NAME}_tcp_ports -> \$${RULE_NAME}_ip"
+	TCP_RULES_DEF="\\${CARRIAGE_RETURN}rdr on \$ext_if proto tcp from any to \$ext_if:0 port \$${RULE_NAME}_tcp_ports -> \$${RULE_NAME}_ip"
 fi
 if [ "${UDP_PORTS}" = "none" ]
 then
 	UDP_PORTS_MACRO_DEF=""
 else
 	UDP_PORTS_MACRO_DEF="\\${CARRIAGE_RETURN}${RULE_NAME}_udp_ports = \"{ ${UDP_PORTS} }\""
-	UDP_RULES_DEF="\\${CARRIAGE_RETURN}rdr on \$ext_if proto udp from any to any port \$${RULE_NAME}_udp_ports -> \$${RULE_NAME}_ip"
+	UDP_RULES_DEF="\\${CARRIAGE_RETURN}rdr on \$ext_if proto udp from any to \$ext_if:0 port \$${RULE_NAME}_udp_ports -> \$${RULE_NAME}_ip"
 fi
 
 # Backup pf.conf config file in case something goes wrong.
