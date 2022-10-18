@@ -38,6 +38,7 @@ UCL_CMD="/usr/local/bin/uclcmd"
 FDO_CONFIG_ROOT=${FDO_CONFIG_ROOT:-"/usr/local/etc/fdo"}
 HOST_CONF_PATH=${HOST_CONF_PATH:-"${FDO_CONFIG_ROOT}/host.conf"}
 PPP_CONF_PATH=${PPP_CONF_PATH:-"/etc/ppp/ppp.conf"}
+REPO_NAME=${REPO_NAME:-"fdo-server"}
 
 TERM="xterm"
 LRED="\033[1;31m"
