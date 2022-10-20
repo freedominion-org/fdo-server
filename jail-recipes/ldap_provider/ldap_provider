@@ -1,0 +1,171 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.20"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="net/openldap24-server sysutils/ldapvi"                        # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="yes"                                             # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="yes"                                             # Mandatory:  whether his recipe requires a caching DNS hostname override.
+RECIPE_TCP_PORTS="389,636"                                                     # Optional:  tcp ports to forward, necessary for port forwarding.
+RECIPE_UDP_PORTS="none"                                                        # Optional:  udp ports to forward, necessary for port forwarding.
+START_JAIL_SERVICES="syslogd slapd"                                            # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
+LDAP_MANAGER_DN_PREFIX="cn=Manager"                                            #
+################################################################################
+
+prep_recipe ()
+{
+	echo -e "\n${ORNG}NOTICE:${NRML} You must know the Provider servers' host"
+	echo -e   "        address, base suffix and root (Manager) password.\n"
+	echo -e   "        If there are LAN clients, it is highly recommended that a 'dns_cache'"
+	echo -e   "        recipe is cooked and running on this host or somewhere on this LAN.\n"
+	echo -e   "        Useful terminology:\n"
+	echo -e   "        LDAP Provider: The openldap server (this jail) that provides the schema"
+	echo -e   "            to clients or consumers.\n"
+	echo -e   "        LDAP Consumer: The openldap server that syncs from the provider and"
+	echo -e   "            consumes the schema.\n"
+
+	question_yes_no "Would you like to continue to cook this jail recipe?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		PREP_SUCCESS="no"
+		return
+	fi
+
+	PREP_SUCCESS="yes"
+}
+
+cook_recipe ()
+{
+
+	# Get the provider hostname.
+	LDAP_PROVIDER_HOST=""
+	while [ "${LDAP_PROVIDER_HOST}" = "" ]
+	do
+		echo -e "\n"
+		readee -p "${LCYN}Enter the LDAP Provider hostname: ${NRML}" LDAP_PROVIDER_HOST_TEMP
+		test_valid_fqhn "${LDAP_PROVIDER_HOST_TEMP}"
+		if [ "${VALID_FQHN=}" = "yes" ]
+		then
+			question_yes_no "\nYou have entered '${LDAP_PROVIDER_HOST_TEMP}' as the Provider hostname. Is this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				LDAP_PROVIDER_HOST="${LDAP_PROVIDER_HOST_TEMP}"
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The Provider hostname is invalid!\n"
+		fi
+	done
+
+	# Get provider Manager password from user.
+	LDAP_PROVIDER_MANAGER_PASSWORD=""
+	while [ "${LDAP_PROVIDER_MANAGER_PASSWORD}" = "" ]
+	do
+		echo -e ""
+		readee -s -p "${LCYN}Enter the LDAP Providers' Manager password: ${NRML}" LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1
+		readee -s -p "${LCYN}Re-enter password                         : ${NRML}" LDAP_PROVIDER_MANAGER_PASSWORD_TEMP2
+		
+		if [ "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}" != "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP2}" ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+		elif [ "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}" = "" ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+		else
+			LDAP_PROVIDER_MANAGER_PASSWORD="${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}"
+		fi
+	done
+
+	# Get the base suffix from user.
+	LDAP_BASE_SUFFIX=""
+	while [ "${LDAP_BASE_SUFFIX}" = "" ]
+	do
+		echo -e "\n"
+		readee -p "${LCYN}Enter the LDAP base suffix (e.g. dc=example,dc=net): ${NRML}" LDAP_BASE_SUFFIX_TEMP
+		test_valid_ldap_dn "${LDAP_BASE_SUFFIX_TEMP}"
+		if [ "${VALID_LDAP_DN}" = "yes" ]
+		then
+			question_yes_no "\nYou have entered '${LDAP_BASE_SUFFIX_TEMP}' as the base suffix. Is this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				LDAP_BASE_SUFFIX="${LDAP_BASE_SUFFIX_TEMP}"
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The LDAP base suffix is invalid!\n"
+		fi
+	done
+
+	# Get SSHA (Seeded SHA-1) password hashes.
+	get_jail_id_from_name ${JAIL_NAME}
+	LDAP_PROVIDER_MANAGER_HASHED_PASSWORD=`jexec ${JAIL_ID} slappasswd -h {SSHA} -s ${LDAP_PROVIDER_MANAGER_PASSWORD}`
+
+	# Replace variables in ldap.conf.
+	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s/LDAP_PROVIDER_HOST/${LDAP_PROVIDER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update ldap.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Replace variables in slapd.conf.
+	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s/LDAP_PROVIDER_HOST/${LDAP_PROVIDER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s|LDAP_PROVIDER_MANAGER_PASSWORD|${LDAP_PROVIDER_MANAGER_HASHED_PASSWORD}|" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/slapd.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update slapd.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Set LDAP Manager DN in recipe config file.
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .ldap.manager_dn "${LDAP_MANAGER_DN_PREFIX},${LDAP_BASE_SUFFIX}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set elements in recipe.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Replace variables in hosts file.
+	sed -i "" "s/JAIL_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s/JAIL_HOST_NAME/${JAIL_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s/LDAP_PROVIDER_HOST/${LDAP_PROVIDER_HOST}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update the jails' hosts file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Create ldap log file in /var/log.
+	touch /jls/${JAIL_NAME}/var/log/ldap.log
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to create ldap.log.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Set RECIPE_DNS_HOSTNAMES variable so that hooks will configure the local (caching) dns overrides.
+	RECIPE_DNS_HOSTNAMES="${LDAP_PROVIDER_HOST}"
+
+	# Mandatory: return code.
+	RECIPE_SUCCESS="yes"
+
+}

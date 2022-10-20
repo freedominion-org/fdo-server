@@ -1,0 +1,5 @@
+# Syntax: ^${RECIPE_NAME}.${SSL_HOST_DESCRIPTION}.[key|crt|ca-chain|crt+ca-chain|key+crt+ca-chain].pem
+ldap_provider.provider-host.crt+ca-chain.pem
+ldap_provider.provider-host.crt.pem
+ldap_provider.provider-host.ca-chain.pem
+ldap_provider.provider-host.key.pem
