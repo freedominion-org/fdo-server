@@ -1,0 +1,34 @@
+dn: LDAP_BASE_SUFFIX
+o: LDAP_BASE_ORG_NAME
+dc: LDAP_BASE_TOP_BRANCH_NAME
+objectClass: dcObject
+objectClass: organization
+
+dn: cn=Manager,LDAP_BASE_SUFFIX
+objectClass: organizationalRole
+cn: Manager
+
+dn: ou=system,LDAP_BASE_SUFFIX
+objectClass: top
+objectClass: organizationalUnit
+ou: system
+
+dn: ou=server,ou=system,LDAP_BASE_SUFFIX
+objectClass: top
+objectClass: organizationalUnit
+ou: server
+
+dn: ou=accounts,ou=system,LDAP_BASE_SUFFIX
+objectClass: top
+objectClass: organizationalUnit
+ou: accounts
+
+dn: cn=Proxy User,ou=accounts,ou=system,LDAP_BASE_SUFFIX
+objectClass: inetOrgPerson
+objectClass: top
+cn: Proxy User
+uid: proxy.user
+sn: Account
+userPassword:: LDAP_PROXY_USER_PASSWORD
+authzTo: {0}dn.regex:cn=.*,LDAP_BASE_SUFFIX
+authzTo: {1}dn.regex:uid=.*,LDAP_BASE_SUFFIX

@@ -60,25 +60,6 @@ cook_recipe ()
 		fi
 	done
 
-	# Get provider Manager password from user.
-	LDAP_PROVIDER_MANAGER_PASSWORD=""
-	while [ "${LDAP_PROVIDER_MANAGER_PASSWORD}" = "" ]
-	do
-		echo -e ""
-		readee -s -p "${LCYN}Enter the LDAP Providers' Manager password: ${NRML}" LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1
-		readee -s -p "${LCYN}Re-enter password                         : ${NRML}" LDAP_PROVIDER_MANAGER_PASSWORD_TEMP2
-		
-		if [ "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}" != "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP2}" ]
-		then
-			echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
-		elif [ "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}" = "" ]
-		then
-			echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
-		else
-			LDAP_PROVIDER_MANAGER_PASSWORD="${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}"
-		fi
-	done
-
 	# Get the base suffix from user.
 	LDAP_BASE_SUFFIX=""
 	while [ "${LDAP_BASE_SUFFIX}" = "" ]
@@ -98,9 +79,142 @@ cook_recipe ()
 		fi
 	done
 
+	# Get the top branch name of the ldap base suffix.
+	LDAP_BASE_TOP_BRANCH_NAME=`echo ${LDAP_BASE_SUFFIX} | cut -d, -f1 | cut -d= -f2`
+
+	# Get provider Manager password from user.
+	LDAP_PROVIDER_MANAGER_PASSWORD=""
+	while [ "${LDAP_PROVIDER_MANAGER_PASSWORD}" = "" ]
+	do
+		echo -e ""
+		readee -s -p "${LCYN}Enter the LDAP Providers' Manager password: ${NRML}" LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1
+		readee -s -p "${LCYN}Re-enter password                         : ${NRML}" LDAP_PROVIDER_MANAGER_PASSWORD_TEMP2
+
+		if [ "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}" != "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP2}" ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+		elif [ "${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}" = "" ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+		else
+			LDAP_PROVIDER_MANAGER_PASSWORD="${LDAP_PROVIDER_MANAGER_PASSWORD_TEMP1}"
+		fi
+	done
+
 	# Get SSHA (Seeded SHA-1) password hashes.
 	get_jail_id_from_name ${JAIL_NAME}
 	LDAP_PROVIDER_MANAGER_HASHED_PASSWORD=`jexec ${JAIL_ID} slappasswd -h {SSHA} -s ${LDAP_PROVIDER_MANAGER_PASSWORD}`
+
+	# Get whether to create new directory or import an existing directory from LDIF.
+	DIRECTORY_INIT_METHOD=""
+	while [ "${DIRECTORY_INIT_METHOD}" = "" ]
+	do
+		echo -e "\n${LCYN}Shall we create a new directory or import an existing directory (LDIF)?${NRML}"
+		readee -p "${LCYN}(new|import): ${NRML}" DIRECTORY_INIT_METHOD_TEMP
+		# Check input validation.
+		if [ "${DIRECTORY_INIT_METHOD_TEMP}" = "new" ] || [ "${DIRECTORY_INIT_METHOD_TEMP}" = "import" ]
+		then
+			DIRECTORY_INIT_METHOD="${DIRECTORY_INIT_METHOD_TEMP}"
+		fi
+	done
+
+	if [ "${DIRECTORY_INIT_METHOD}" = "new" ]
+	then
+		# Get base organisation name from user.
+		LDAP_BASE_ORG_NAME=""
+		while [ "${LDAP_BASE_ORG_NAME}" = "" ]
+		do
+			echo -e "\n${LCYN}Enter the LDAP base organisation name (e.g. ACME Corp): ${NRML}"
+			readee LDAP_BASE_ORG_NAME_TEMP
+			test_valid_fqhn "${LDAP_BASE_ORG_NAME_TEMP}"
+			if [ "${VALID_FQHN=}" = "yes" ]
+			then
+				question_yes_no "\nYou have entered '${LDAP_BASE_ORG_NAME_TEMP}' as the Provider hostname. Is this correct?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					LDAP_BASE_ORG_NAME="${LDAP_BASE_ORG_NAME_TEMP}"
+				fi
+			else
+				echo -e "\n${LRED}ERROR:${NRML} The Provider hostname is invalid!\n"
+			fi
+		done
+
+		# Get Proxy User password from user.
+		LDAP_PROXY_USER_PASSWORD=""
+		while [ "${LDAP_PROXY_USER_PASSWORD}" = "" ]
+		do
+			echo -e ""
+			readee -s -p "${LCYN}Enter the LDAP Proxy User password: ${NRML}" LDAP_PROXY_USER_PASSWORD_TEMP1
+			readee -s -p "${LCYN}Re-enter password                         : ${NRML}" LDAP_PROXY_USER_PASSWORD_TEMP2
+			
+			if [ "${LDAP_PROXY_USER_PASSWORD_TEMP1}" != "${LDAP_PROXY_USER_PASSWORD_TEMP2}" ]
+			then
+				echo -e "\n${LRED}ERROR:${NRML} Password mismatch, try again!\n"
+			elif [ "${LDAP_PROXY_USER_PASSWORD_TEMP1}" = "" ]
+			then
+				echo -e "\n${LRED}ERROR:${NRML} Password not entered, try again!\n"
+			else
+				LDAP_PROXY_USER_PASSWORD="${LDAP_PROXY_USER_PASSWORD_TEMP1}"
+			fi
+		done
+
+		# Get base64 encoded password for Proxy User.
+		LDAP_PROXY_USER_HASHED_PASSWORD=`echo "${LDAP_PROXY_USER_PASSWORD}" | base64 | rev | cut -c5- | rev`
+
+		# Replace variables in ldap_provider_base_new.ldif.
+		sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/fdo/ldap_provider_base_new.ldif
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		sed -i "" "s/LDAP_BASE_TOP_BRANCH_NAME/${LDAP_BASE_TOP_BRANCH_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/fdo/ldap_provider_base_new.ldif
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		sed -i "" "s/LDAP_BASE_ORG_NAME/${LDAP_BASE_ORG_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/fdo/ldap_provider_base_new.ldif
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		sed -i "" "s/LDAP_PROXY_USER_PASSWORD/${LDAP_PROXY_USER_HASHED_PASSWORD}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/fdo/ldap_provider_base_new.ldif
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+		if [ ${ERROR_COUNT} -ne 0 ]
+		then
+			echo -e "\n${LRED}ERROR:${NRML} Failed trying to update ldap_provider_base_new.ldif.\n"
+			RECIPE_SUCCESS="no"
+			return
+		fi
+
+	elif [ "${DIRECTORY_INIT_METHOD}" = "import" ]
+	then
+		# Ask for LDIF file to import.
+		LDAP_DIRECTORY_IMPORT_FILE=""
+		while [ "${LDAP_DIRECTORY_IMPORT_FILE}" = "" ]
+		do
+			DIALOG_PROMPT="Select directory import (LDIF) file:"
+			dialog --title "${DIALOG_PROMPT}" --fselect "/" 16 72 2> ${DIALOG_OUT_FILE}
+			LDAP_DIRECTORY_IMPORT_FILE_TEMP=`cat ${DIALOG_OUT_FILE}`
+			if [ "${LDAP_DIRECTORY_IMPORT_FILE_TEMP}" != "" ]
+			then
+				file "${LDAP_DIRECTORY_IMPORT_FILE_TEMP}" | grep "ASCII text" > /dev/null
+				if [ ${?} -ne 0 ]
+				then
+					echo -e "\n\n${ORNG}WARNING:${NRML} File selected does not appear to be a valid LDIF!\n"
+					pause_prompt 8
+				fi
+				echo -e "\n"
+				question_yes_no "\nYou have selected '${NRML}${LDAP_DIRECTORY_IMPORT_FILE_TEMP}${LCYN}' as the LDIF to import.\nIs this correct?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					LDAP_DIRECTORY_IMPORT_FILE="${LDAP_DIRECTORY_IMPORT_FILE_TEMP}"
+					break
+				fi
+			else
+				echo -e "\n\n${ORNG}WARNING:${NRML} No file selected!\n"
+				question_yes_no "\nWould you like to try again?"
+				if [ "${ANSWER}" = "no" ]
+				then
+					echo -e "\n${ORNG}Import LDIF cancelled.${NRML}\n"
+					RECIPE_SUCCESS="no"
+					return
+				fi
+				echo -e ""
+			fi
+			sleep 2
+		done
+	fi
 
 	# Replace variables in ldap.conf.
 	sed -i "" "s/LDAP_BASE_SUFFIX/${LDAP_BASE_SUFFIX}/" configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/openldap/ldap.conf
@@ -166,6 +280,30 @@ cook_recipe ()
 	RECIPE_DNS_HOSTNAMES="${LDAP_PROVIDER_HOST}"
 
 	# Mandatory: return code.
-	RECIPE_SUCCESS="yes"
+	RECIPE_SUCCESS="devel"
 
 }
+
+garnish_recipe ()
+{
+
+	if [ "${DIRECTORY_INIT_METHOD}" = "new" ]
+	then
+		jexec ${JAIL_ID} slapadd < configs/${JAIL_NAME}@${HOST_NAME}/usr/local/etc/fdo/ldap_provider_base_new.ldif
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	elif [ "${DIRECTORY_INIT_METHOD}" = "import" ]
+	then
+		jexec ${JAIL_ID} slapadd < "${LDAP_DIRECTORY_IMPORT_FILE}"
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed initialising the LDAP directory from LDIF file.\n"
+		GARNISH_SUCCESS="no"
+		return
+	fi
+
+	GARNISH_SUCCESS="yes"
+
+} 
