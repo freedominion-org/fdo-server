@@ -126,16 +126,22 @@ cook_recipe ()
 		do
 			echo -e "\n${LCYN}Enter the LDAP base organisation name (e.g. ACME Corp): ${NRML}"
 			readee LDAP_BASE_ORG_NAME_TEMP
-			test_valid_fqhn "${LDAP_BASE_ORG_NAME_TEMP}"
-			if [ "${VALID_FQHN=}" = "yes" ]
+
+			# Check that the name only contains letters, numbers, periods, spaces, underscores and hyphens between 3 and 50 characters.
+			IS_SYNTAX_OK=`echo "${LDAP_BASE_ORG_NAME_TEMP}" | sed -r "s/^[a-zA-Z0-9\_\-][a-zA-Z0-9\.\_\ \-]+[a-zA-Z0-9\.\_\-]//" | wc -L`
+			IS_LENGTH_OK=`echo "${LDAP_BASE_ORG_NAME_TEMP}" | sed -r "s/^(.{3,50})//" | wc -L`
+			if [ ${IS_SYNTAX_OK} -ne 0 ] || [ ${IS_LENGTH_OK} -ne 0 ] || [ "${LDAP_BASE_ORG_NAME_TEMP}" = "" ]
 			then
+				echo -e "\n${LRED}ERROR:${NRML} The LDAP base organisation name can not be"
+				echo -e "		'${ORNG}${LDAP_BASE_ORG_NAME_TEMP}${NRML}'."
+				echo -e "		It must be between 3 and 50 characters and only contain letters, numbers,"
+				echo -e "		periods, spaces, underscores and hyphens.\n"
+			else
 				question_yes_no "\nYou have entered '${LDAP_BASE_ORG_NAME_TEMP}' as the Provider hostname. Is this correct?"
 				if [ "${ANSWER}" = "yes" ]
 				then
 					LDAP_BASE_ORG_NAME="${LDAP_BASE_ORG_NAME_TEMP}"
 				fi
-			else
-				echo -e "\n${LRED}ERROR:${NRML} The Provider hostname is invalid!\n"
 			fi
 		done
 
@@ -145,7 +151,7 @@ cook_recipe ()
 		do
 			echo -e ""
 			readee -s -p "${LCYN}Enter the LDAP Proxy User password: ${NRML}" LDAP_PROXY_USER_PASSWORD_TEMP1
-			readee -s -p "${LCYN}Re-enter password                         : ${NRML}" LDAP_PROXY_USER_PASSWORD_TEMP2
+			readee -s -p "${LCYN}Re-enter password                 : ${NRML}" LDAP_PROXY_USER_PASSWORD_TEMP2
 			
 			if [ "${LDAP_PROXY_USER_PASSWORD_TEMP1}" != "${LDAP_PROXY_USER_PASSWORD_TEMP2}" ]
 			then
