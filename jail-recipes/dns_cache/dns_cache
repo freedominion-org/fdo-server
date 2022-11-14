@@ -22,9 +22,13 @@ prep_recipe ()
 cook_recipe ()
 {
 
-	# Update resolv.conf in all existing jails and future jails to use this caching dns server.
+	# Update resolv.conf in host.
 	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" configs/${HOST_NAME}/etc/resolv.conf.static
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	cp configs/${HOST_NAME}/etc/resolv.conf.static /etc/resolv.conf
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Update resolv.conf in all existing jails and future jails to use this caching dns server.
 	sed -i "" "s/^#nameserver FDO_DNS_CACHE_IP/nameserver ${JAIL_IP}/" /jls/template/etc/resolv.conf
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	for JAIL_NAME_IN_JAILS in `ls -1 /jls | cut -d/ -f1 | egrep -v "template"`
@@ -74,6 +78,10 @@ cook_recipe ()
 
 undo_cook_recipe ()
 {
+
+	# Undo update resolv.conf in host.
+	sed -i "" "s/^nameserver ${JAIL_IP}/#nameserver FDO_DNS_CACHE_IP/" configs/${HOST_NAME}/etc/resolv.conf.static
+	cp configs/${HOST_NAME}/etc/resolv.conf.static /etc/resolv.conf
 
 	# Undo update resolv.conf in all existing jails and future jails to use this caching dns server.
 	sed -i "" "s/^nameserver ${JAIL_IP}/#nameserver FDO_DNS_CACHE_IP/" /jls/template/etc/resolv.conf
