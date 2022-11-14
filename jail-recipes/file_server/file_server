@@ -215,8 +215,11 @@ cook_recipe ()
 	fi
 
 	# Create /dav (WebDAV base directory).
-	mkdir /jls/${JAIL_NAME}/dav
-	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	if [ ! -d /jls/${JAIL_NAME}/dav ]
+	then
+		mkdir /jls/${JAIL_NAME}/dav
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
 	chown www:www /jls/${JAIL_NAME}/dav
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	if [ ${ERROR_COUNT} -ne 0 ]
