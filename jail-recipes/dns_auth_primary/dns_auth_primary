@@ -55,10 +55,10 @@ cook_recipe ()
 	done
 
 	# Get current state of secondary authoritative DNS server.
-	echo -e "\n${YELL}INFO:${NRML} The available zone transfer methods are as follows."
-	echo -e "      none    - There are currently no secondary authoritative DNS servers, and none planned."
-	echo -e "      any     - Allow transfer to any host [CAUTION]."
-	echo -e "      specify - Specify the secondary authoritative DNS server IP address [RECOMMENDED]."
+	echo -e "\n${YELL}INFO:${NRML} The available zone transfer methods are as follows.\n"
+	echo -e "${LCYN}      none    - There are currently no secondary authoritative DNS servers, and none planned.${NRML}"
+	echo -e "${LCYN}      any     - Allow transfer to any host [CAUTION].${NRML}"
+	echo -e "${LCYN}      specify - Specify the secondary authoritative DNS server IP address [RECOMMENDED].${NRML}"
 	DNS_AUTH_SECONDARY_TRANSFER_METHOD=""
 	while [ "${DNS_AUTH_SECONDARY_TRANSFER_METHOD}" = "" ]
 	do
