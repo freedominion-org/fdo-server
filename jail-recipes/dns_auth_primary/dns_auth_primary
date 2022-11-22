@@ -1,0 +1,147 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.45"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="dns/bind918"                                                  # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="yes"                                             # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="no"                                              # Mandatory:  whether his recipe requires a caching DNS hostname override.
+RECIPE_TCP_PORTS="53"                                                          # Optional:  tcp ports to forward, necessary for port forwarding.
+RECIPE_UDP_PORTS="53"                                                          # Optional:  udp ports to forward, necessary for port forwarding.
+START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
+################################################################################
+
+prep_recipe ()
+{
+	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that you provide an initial"
+	echo -e   "        DNS zone (e.g example.net). And optionally and preferebly provide"
+	echo -e   "        the secondary authoritative DNS server IP address.\n"
+
+	question_yes_no "Would you like to continue to cook this jail recipe?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		PREP_SUCCESS="no"
+		return
+	fi
+
+	PREP_SUCCESS="yes"
+}
+
+cook_recipe ()
+{
+
+	# Get the initial DNS zone name.
+	INITIAL_DNS_ZONE_NAME=""
+	while [ "${INITIAL_DNS_ZONE_NAME}" = "" ]
+	do
+		echo -e ""
+		readee -p "${LCYN}Enter the initial DNS zone name: ${NRML}" INITIAL_DNS_ZONE_NAME_TEMP
+		test_valid_fqhn ${INITIAL_DNS_ZONE_NAME_TEMP}
+		if [ "${VALID_FQHN=}" = "yes" ]
+		then
+			echo -e ""
+			question_yes_no "You have entered '${INITIAL_DNS_ZONE_NAME_TEMP}' as the initial DNS zone name. Is this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				INITIAL_DNS_ZONE_NAME=${INITIAL_DNS_ZONE_NAME_TEMP}
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The DNS zone name is invalid!\n"
+		fi
+	done
+
+	# Get current state of secondary authoritative DNS server.
+	echo -e "\n${YELL}INFO:${NRML} The available zone transfer methods are as follows."
+	echo -e "      none    - There are currently no secondary authoritative DNS servers, and none planned."
+	echo -e "      any     - Allow transfer to any host [CAUTION]."
+	echo -e "      specify - Specify the secondary authoritative DNS server IP address [RECOMMENDED]."
+	DNS_AUTH_SECONDARY_TRANSFER_METHOD=""
+	while [ "${DNS_AUTH_SECONDARY_TRANSFER_METHOD}" = "" ]
+	do
+		echo -e "\n${LCYN}Select the method to transfer zones to a secondary authoritative DNS server.${NRML}"
+		readee -p "${LCYN}(none|any|specify): ${NRML}" DNS_AUTH_SECONDARY_TRANSFER_METHOD_TEMP
+		# Check input validation.
+		if [ "${DNS_AUTH_SECONDARY_TRANSFER_METHOD_TEMP}" = "none" ] || [ "${DNS_AUTH_SECONDARY_TRANSFER_METHOD_TEMP}" = "any" ] || [ "${DNS_AUTH_SECONDARY_TRANSFER_METHOD_TEMP}" = "specify" ]
+		then
+			DNS_AUTH_SECONDARY_TRANSFER_METHOD="${DNS_AUTH_SECONDARY_TRANSFER_METHOD_TEMP}"
+		fi
+	done
+
+	if [ "${DNS_AUTH_SECONDARY_TRANSFER_METHOD}" = "specify" ]
+	then
+		# Get the secondary authoritative DNS server host address.
+		DNS_AUTH_SECONDARY_IP=""
+		while [ "${DNS_AUTH_SECONDARY_IP}" = "" ]
+		do
+			echo -e ""
+			readee -p "${LCYN}Enter the secondary authoritative DNS server IP address: ${NRML}" DNS_AUTH_SECONDARY_IP_TEMP
+			test_valid_inet_address ${DNS_AUTH_SECONDARY_IP_TEMP}
+			if [ "${VALID_INET_ADDRESS=}" = "yes" ]
+			then
+				test_ping_host ${DNS_AUTH_SECONDARY_IP_TEMP}
+				if [ "${VALID_HOST_PING}" = "no" ]
+				then
+					echo -e "\n${ORNG}WARNING:${NRML} The secondary DNS server IP address is not currently pingable!"
+				fi
+				echo -e ""
+				question_yes_no "You have entered '${DNS_AUTH_SECONDARY_IP_TEMP}' as the IP address. Is this correct?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					DNS_AUTH_SECONDARY_IP=${DNS_AUTH_SECONDARY_IP_TEMP}
+				fi
+			else
+				echo -e "\n${LRED}ERROR:${NRML} The secondary authoritative DNS server IP address is invalid!\n"
+			fi
+		done
+	else
+		DNS_AUTH_SECONDARY_IP="${DNS_AUTH_SECONDARY_TRANSFER_METHOD}"
+	fi
+
+	NAMED_CONF_PATH="/usr/local/etc/namedb/named.conf"
+	EXAMPLE_ZONE_FILE_PATH="/usr/local/etc/namedb/primary/example.net.db"
+	ZONE_FILE_PATH="/usr/local/etc/namedb/primary/${INITIAL_DNS_ZONE_NAME}.db"
+
+	# Update bind global config with the jail IP.
+	sed -i "" "s/FDO_DNS_AUTH_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Update bind global config with the secondary authoritative DNS server IP.
+	sed -i "" "s/FDO_DNS_AUTH_SECONDARY_IP/${DNS_AUTH_SECONDARY_IP}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Add initial zone entry to bind global config.
+	echo "zone \"${INITIAL_DNS_ZONE_NAME}\" { type primary; file \"${ZONE_FILE_PATH}\"; allow-transfer { \"secondary_servers\"; }; };" >> configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update named.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Add initial zone database file.
+	cp configs/${JAIL_NAME}@${HOST_NAME}${EXAMPLE_ZONE_FILE_PATH} configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	sed -i "" "s/example.net/${INITIAL_DNS_ZONE_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to provision initial zone file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Mandatory: return code.
+	RECIPE_SUCCESS="devel"
+
+}
+
+undo_cook_recipe ()
+{
+}
