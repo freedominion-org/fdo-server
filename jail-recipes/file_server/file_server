@@ -54,7 +54,7 @@ cook_recipe ()
 	do
 		echo -e ""
 		readee -p "${LCYN}Enter the LDAP server host address: ${NRML}" LDAP_HOST_NAME_TEMP
-		test_valid_inet_address ${LDAP_HOST_IP_TEMP}
+		test_valid_inet_address ${LDAP_HOST_NAME_TEMP}
 		test_valid_fqhn ${LDAP_HOST_NAME_TEMP}
 		if [ "${VALID_INET_ADDRESS=}" = "yes" ] || [ "${VALID_FQHN=}" = "yes" ]
 		then
@@ -205,8 +205,15 @@ cook_recipe ()
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s/LDAP_HOST_IP/${LDAP_HOST_IP}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-	sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
-	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	test_valid_fqhn ${LDAP_HOST_NAME}
+	if [ "${VALID_FQHN=}" = "yes" ]
+	then
+		sed -i "" "s/LDAP_HOST_NAME/${LDAP_HOST_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	else
+		sed -i "" "s/LDAP_HOST_NAME/ldap.domain.local/" configs/${JAIL_NAME}@${HOST_NAME}/etc/hosts
+		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	fi
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update the jails' hosts file.\n"
