@@ -139,7 +139,7 @@ cook_recipe ()
 	fi
 
 	# Update elements in recipe config file.
-	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.secondary_server_ip_addresses "${FDO_DNS_AUTH_SECONDARY_IP}"
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.secondary_server_ip_addresses "${DNS_AUTH_SECONDARY_IP}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.name "${INITIAL_DNS_ZONE_NAME}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
