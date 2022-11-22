@@ -286,7 +286,7 @@ cook_recipe ()
 	RECIPE_DNS_HOSTNAMES="${LDAP_PROVIDER_HOST}"
 
 	# Mandatory: return code.
-	RECIPE_SUCCESS="devel"
+	RECIPE_SUCCESS="yes"
 
 }
 
