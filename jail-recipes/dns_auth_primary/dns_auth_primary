@@ -114,7 +114,8 @@ cook_recipe ()
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	# Add initial zone entry to bind global config.
-	echo "zone \"${INITIAL_DNS_ZONE_NAME}\" { type primary; file \"${ZONE_FILE_PATH}\"; allow-transfer { \"secondary_servers\"; }; };" >> configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ZONE_DEFAULT_OPTIONS="allow-transfer { \"secondary_servers\"; }; dnssec-policy default; inline-signing yes;"
+	echo "zone \"${INITIAL_DNS_ZONE_NAME}\" { type primary; file \"${ZONE_FILE_PATH}\"; ${ZONE_DEFAULT_OPTIONS} };" >> configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	if [ ${ERROR_COUNT} -ne 0 ]
@@ -127,12 +128,25 @@ cook_recipe ()
 	# Add initial zone database file.
 	cp configs/${JAIL_NAME}@${HOST_NAME}${EXAMPLE_ZONE_FILE_PATH} configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
-	sed -i "" "s/example.net/${INITIAL_DNS_ZONE_NAME}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	sed -i "" "s/example.net/${INITIAL_DNS_ZONE_NAME}/g" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	if [ ${ERROR_COUNT} -ne 0 ]
 	then
 		echo -e "\n${LRED}ERROR:${NRML} Failed trying to provision initial zone file.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Update elements in recipe config file.
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.secondary_server_ip_addresses "${FDO_DNS_AUTH_SECONDARY_IP}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.name "${INITIAL_DNS_ZONE_NAME}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set elements in recipe.conf.\n"
 		RECIPE_SUCCESS="no"
 		return
 	fi
