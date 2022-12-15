@@ -48,7 +48,7 @@ cook_recipe ()
 		echo -e ""
 		readee -p "${LCYN}Enter the initial DNS zone name: ${NRML}" INITIAL_DNS_ZONE_NAME_TEMP
 		test_valid_fqhn ${INITIAL_DNS_ZONE_NAME_TEMP}
-		if [ "${VALID_FQHN=}" = "yes" ]
+		if [ "${VALID_FQHN}" = "yes" ]
 		then
 			echo -e ""
 			question_yes_no "You have entered '${INITIAL_DNS_ZONE_NAME_TEMP}' as the initial DNS zone name. Is this correct?"
@@ -87,7 +87,7 @@ cook_recipe ()
 			echo -e ""
 			readee -p "${LCYN}Enter the primary nameserver hostname: ${NRML}" DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP
 			test_valid_host_name ${DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP}
-			if [ "${VALID_INET_ADDRESS=}" = "yes" ]
+			if [ "${VALID_HOST_NAME}" = "yes" ]
 			then
 				echo -e ""
 				question_yes_no "You have entered '${DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP}' as the primary nameserver hostname. Is this correct?"
@@ -127,7 +127,7 @@ cook_recipe ()
 			echo -e ""
 			readee -p "${LCYN}Enter the secondary nameserver hostname: ${NRML}" DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP
 			test_valid_host_name ${DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP}
-			if [ "${VALID_INET_ADDRESS=}" = "yes" ]
+			if [ "${VALID_HOST_NAME}" = "yes" ]
 			then
 				echo -e ""
 				question_yes_no "You have entered '${DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP}' as the secondary nameserver hostname. Is this correct?"
@@ -167,7 +167,7 @@ cook_recipe ()
 			echo -e ""
 			readee -p "${LCYN}Enter the secondary authoritative DNS server IP address: ${NRML}" DNS_AUTH_SECONDARY_IP_TEMP
 			test_valid_inet_address ${DNS_AUTH_SECONDARY_IP_TEMP}
-			if [ "${VALID_INET_ADDRESS=}" = "yes" ]
+			if [ "${VALID_INET_ADDRESS}" = "yes" ]
 			then
 				test_ping_host ${DNS_AUTH_SECONDARY_IP_TEMP}
 				if [ "${VALID_HOST_PING}" = "no" ]
