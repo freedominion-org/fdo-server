@@ -13,7 +13,7 @@ RECIPE_UDP_PORTS="53"                                                          #
 START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order).
 SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
 SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
-COLUMN_PADDING_HOSTNAME_SIZE=47                                                #
+COLUMN_PADDING_HOSTNAME_SIZE=48                                                #
 ################################################################################
 
 prep_recipe ()
