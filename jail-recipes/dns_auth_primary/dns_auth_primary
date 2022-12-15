@@ -224,7 +224,7 @@ cook_recipe ()
 		COLUMN_PADDING_SIZE=0
 	fi
 	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_LENGTH}s" " "`
-	sed -i "" sed "s|ns1.example.net.[\t ]*A\(.*\)1.2.3.4|${DNS_AUTH_PRIMARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} A\1${DNS_AUTH_PRIMARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
+	sed -i "" "s|ns1.example.net.[\t ]*A\(.*\)1.2.3.4|${DNS_AUTH_PRIMARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} A\1${DNS_AUTH_PRIMARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	# Update zone database with secondary nameserver and its corresponding record.
@@ -235,7 +235,7 @@ cook_recipe ()
 		COLUMN_PADDING_SIZE=0
 	fi
 	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_LENGTH}s" " "`
-	sed -i "" sed "s|ns2.example.net.[\t ]*A\(.*\)1.2.3.4|${DNS_AUTH_SECONDARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} A\1${DNS_AUTH_SECONDARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
+	sed -i "" "s|ns2.example.net.[\t ]*A\(.*\)1.2.3.4|${DNS_AUTH_SECONDARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} A\1${DNS_AUTH_SECONDARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	# Update zone database with the remaining domain name replacements.
