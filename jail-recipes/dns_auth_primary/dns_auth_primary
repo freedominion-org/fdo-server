@@ -184,8 +184,9 @@ cook_recipe ()
 				echo -e "\n${LRED}ERROR:${NRML} The secondary authoritative DNS server IP address is invalid!\n"
 			fi
 		done
+		DNS_AUTH_SECONDARY_SERVERS="${DNS_AUTH_SECONDARY_IP}"
 	else
-		DNS_AUTH_SECONDARY_IP="${DNS_AUTH_SECONDARY_TRANSFER_METHOD}"
+		DNS_AUTH_SECONDARY_SERVERS="${DNS_AUTH_SECONDARY_TRANSFER_METHOD}"
 	fi
 
 	NAMED_CONF_PATH="/usr/local/etc/namedb/named.conf"
@@ -197,7 +198,7 @@ cook_recipe ()
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	# Update bind global config with the secondary authoritative DNS server IP.
-	sed -i "" "s/FDO_DNS_AUTH_SECONDARY_IP/${DNS_AUTH_SECONDARY_IP}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	sed -i "" "s/FDO_DNS_AUTH_SECONDARY_SERVERS/${DNS_AUTH_SECONDARY_SERVERS}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	# Add initial zone entry to bind global config.
@@ -223,7 +224,7 @@ cook_recipe ()
 	then
 		COLUMN_PADDING_SIZE=0
 	fi
-	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_LENGTH}s" " "`
+	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_SIZE}s" " "`
 	sed -i "" "s|ns1.example.net.[\t ]*IN\(.*\)1.2.3.4|${DNS_AUTH_PRIMARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} IN\1${DNS_AUTH_PRIMARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s|ns1.example.net.|${DNS_AUTH_PRIMARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
@@ -236,7 +237,7 @@ cook_recipe ()
 	then
 		COLUMN_PADDING_SIZE=0
 	fi
-	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_LENGTH}s" " "`
+	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_SIZE}s" " "`
 	sed -i "" "s|ns2.example.net.[\t ]*IN\(.*\)1.2.3.4|${DNS_AUTH_SECONDARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} IN\1${DNS_AUTH_SECONDARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	sed -i "" "s|ns2.example.net.|${DNS_AUTH_SECONDARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
