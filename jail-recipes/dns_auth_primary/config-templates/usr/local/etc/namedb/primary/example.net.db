@@ -1,9 +1,10 @@
 
 $TTL 1h
-@                                       IN      SOA     example.net. admin.example.net. ( 1970010101 1h 5m 1w 1h )
+@                                               IN      SOA     example.net. admin.example.net. ( 1970010101 1h 5m 1w 1h )
 
-                                        IN      NS      ns1.example.net.
-                                        IN      NS      ns2.example.net.
+                                                IN      NS      ns1.example.net.
+                                                IN      NS      ns2.example.net.
 
 ; RECORDS
-example.net.                            IN      A       1.2.3.4
+ns1.example.net.                                IN      A       1.2.3.4
+ns2.example.net.                                IN      A       1.2.3.4

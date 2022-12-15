@@ -13,6 +13,7 @@ RECIPE_UDP_PORTS="53"                                                          #
 START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order).
 SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
 SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
+COLUMN_PADDING_HOSTNAME_SIZE=47                                                #
 ################################################################################
 
 prep_recipe ()
@@ -34,6 +35,12 @@ prep_recipe ()
 cook_recipe ()
 {
 
+	# Get the default route IP for accessing this host from outside the LAN.
+	DEFAULT_ROUTE_IP=`route -nv get 1 | tail -1 | awk '{print $5}'`
+
+	DNS_AUTH_PRIMARY_IP="${DEFAULT_ROUTE_IP}"
+	DNS_AUTH_SECONDARY_IP="1.2.3.4"
+
 	# Get the initial DNS zone name.
 	INITIAL_DNS_ZONE_NAME=""
 	while [ "${INITIAL_DNS_ZONE_NAME}" = "" ]
@@ -54,7 +61,87 @@ cook_recipe ()
 		fi
 	done
 
-	# Get current state of secondary authoritative DNS server.
+	# Get whether to use default nameserver hostname (ns1) or specify one for this primary dns auth server.
+	echo -e "\n${YELL}INFO:${NRML} The available nameserver hostname provisioning methods are as follows.\n"
+	echo -e "${LCYN}      default - The default hostname will be used (ns1.${INITIAL_DNS_ZONE_NAME}) [RECOMENDED].${NRML}"
+	echo -e "${LCYN}      specify - Specify the primary nameserver hostname.${NRML}"
+	DNS_AUTH_PRIMARY_NS_HOSTNAME="ns1"
+	DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD=""
+	while [ "${DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD}" = "" ]
+	do
+		echo -e "\n${LCYN}Select the method to provision the primary nameserver hostname.${NRML}"
+		readee -p "${LCYN}(default|specify): ${NRML}" DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD_TEMP
+		# Check input validation.
+		if [ "${DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD_TEMP}" = "default" ] || [ "${DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD_TEMP}" = "specify" ]
+		then
+			DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD="${DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD_TEMP}"
+		fi
+	done
+
+	if [ "${DNS_AUTH_PRIMARY_NS_HOSTNAME_METHOD}" = "specify" ]
+	then
+		# Get the specified primary nameserver hostname.
+		DNS_AUTH_PRIMARY_NS_HOSTNAME=""
+		while [ "${DNS_AUTH_PRIMARY_NS_HOSTNAME}" = "" ]
+		do
+			echo -e ""
+			readee -p "${LCYN}Enter the primary nameserver hostname: ${NRML}" DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP
+			test_valid_host_name ${DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP}
+			if [ "${VALID_INET_ADDRESS=}" = "yes" ]
+			then
+				echo -e ""
+				question_yes_no "You have entered '${DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP}' as the primary nameserver hostname. Is this correct?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					DNS_AUTH_PRIMARY_NS_HOSTNAME=${DNS_AUTH_PRIMARY_NS_HOSTNAME_TEMP}
+				fi
+			else
+				echo -e "\n${LRED}ERROR:${NRML} The primary nameserver hostname is invalid!\n"
+			fi
+		done
+	fi
+
+	# Get whether to use default nameserver hostname (ns2) or specify one for the secondary dns auth server.
+	echo -e "\n${YELL}INFO:${NRML} The available nameserver hostname provisioning methods are as follows.\n"
+	echo -e "${LCYN}      default - The default hostname will be used (ns2.${INITIAL_DNS_ZONE_NAME}) [RECOMENDED].${NRML}"
+	echo -e "${LCYN}      specify - Specify the secondary nameserver hostname.${NRML}"
+	DNS_AUTH_SECONDARY_NS_HOSTNAME="ns2"
+	DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD=""
+	while [ "${DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD}" = "" ]
+	do
+		echo -e "\n${LCYN}Select the method to provision the secondary nameserver hostname.${NRML}"
+		readee -p "${LCYN}(default|specify): ${NRML}" DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD_TEMP
+		# Check input validation.
+		if [ "${DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD_TEMP}" = "default" ] || [ "${DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD_TEMP}" = "specify" ]
+		then
+			DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD="${DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD_TEMP}"
+		fi
+	done
+
+	if [ "${DNS_AUTH_SECONDARY_NS_HOSTNAME_METHOD}" = "specify" ]
+	then
+		# Get the specified secondary nameserver hostname.
+		DNS_AUTH_SECONDARY_NS_HOSTNAME=""
+		while [ "${DNS_AUTH_SECONDARY_NS_HOSTNAME}" = "" ]
+		do
+			echo -e ""
+			readee -p "${LCYN}Enter the secondary nameserver hostname: ${NRML}" DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP
+			test_valid_host_name ${DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP}
+			if [ "${VALID_INET_ADDRESS=}" = "yes" ]
+			then
+				echo -e ""
+				question_yes_no "You have entered '${DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP}' as the secondary nameserver hostname. Is this correct?"
+				if [ "${ANSWER}" = "yes" ]
+				then
+					DNS_AUTH_SECONDARY_NS_HOSTNAME=${DNS_AUTH_SECONDARY_NS_HOSTNAME_TEMP}
+				fi
+			else
+				echo -e "\n${LRED}ERROR:${NRML} The secondary nameserver hostname is invalid!\n"
+			fi
+		done
+	fi
+
+	# Get zone transfer method (to any secondary authoritative DNS servers).
 	echo -e "\n${YELL}INFO:${NRML} The available zone transfer methods are as follows.\n"
 	echo -e "${LCYN}      none    - There are currently no secondary authoritative DNS servers, and none planned.${NRML}"
 	echo -e "${LCYN}      any     - Allow transfer to any host [CAUTION].${NRML}"
@@ -128,6 +215,30 @@ cook_recipe ()
 	# Add initial zone database file.
 	cp configs/${JAIL_NAME}@${HOST_NAME}${EXAMPLE_ZONE_FILE_PATH} configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Update zone database with primary nameserver and its corresponding record.
+	DNS_AUTH_PRIMARY_NS_HOSTNAME_SIZE=`echo ${DNS_AUTH_PRIMARY_NS_HOSTNAME} | wc -c`
+	COLUMN_PADDING_SIZE=$(( COLUMN_PADDING_HOSTNAME_SIZE - DNS_AUTH_PRIMARY_NS_HOSTNAME_SIZE ))
+	if [ ${COLUMN_PADDING_SIZE} -lt 0 ]
+	then
+		COLUMN_PADDING_SIZE=0
+	fi
+	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_LENGTH}s" " "`
+	sed -i "" sed "s|ns1.example.net.[\t ]*A\(.*\)1.2.3.4|${DNS_AUTH_PRIMARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} A\1${DNS_AUTH_PRIMARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Update zone database with secondary nameserver and its corresponding record.
+	DNS_AUTH_SECONDARY_NS_HOSTNAME_SIZE=`echo ${DNS_AUTH_SECONDARY_NS_HOSTNAME} | wc -c`
+	COLUMN_PADDING_SIZE=$(( COLUMN_PADDING_HOSTNAME_SIZE - DNS_AUTH_SECONDARY_NS_HOSTNAME_SIZE ))
+	if [ ${COLUMN_PADDING_SIZE} -lt 0 ]
+	then
+		COLUMN_PADDING_SIZE=0
+	fi
+	COLUMN_PADDING=`printf "%-${COLUMN_PADDING_LENGTH}s" " "`
+	sed -i "" sed "s|ns2.example.net.[\t ]*A\(.*\)1.2.3.4|${DNS_AUTH_SECONDARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}.${COLUMN_PADDING} A\1${DNS_AUTH_SECONDARY_IP}|" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Update zone database with the remaining domain name replacements.
 	sed -i "" "s/example.net/${INITIAL_DNS_ZONE_NAME}/g" configs/${JAIL_NAME}@${HOST_NAME}${ZONE_FILE_PATH}
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
@@ -142,6 +253,10 @@ cook_recipe ()
 	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.secondary_server_ip_addresses "${DNS_AUTH_SECONDARY_IP}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.name "${INITIAL_DNS_ZONE_NAME}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.primary_nameserver_fqhn "${DNS_AUTH_PRIMARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.secondary_nameserver_fqhn "${DNS_AUTH_SECONDARY_NS_HOSTNAME}.${INITIAL_DNS_ZONE_NAME}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 
 	if [ ${ERROR_COUNT} -ne 0 ]
