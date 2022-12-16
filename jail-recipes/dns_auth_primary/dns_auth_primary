@@ -62,7 +62,7 @@ cook_recipe ()
 	done
 
 	# Get whether to use default nameserver hostname (ns1) or specify one for this primary dns auth server.
-	echo -e "\n${YELL}INFO:${NRML} The available nameserver hostname provisioning methods are as follows.\n"
+	echo -e "\n\n${YELL}INFO:${NRML} The available nameserver hostname provisioning methods are as follows.\n"
 	echo -e "${LCYN}      default - The default hostname will be used (ns1.${INITIAL_DNS_ZONE_NAME}) [RECOMENDED].${NRML}"
 	echo -e "${LCYN}      specify - Specify the primary nameserver hostname.${NRML}"
 	DNS_AUTH_PRIMARY_NS_HOSTNAME="ns1"
@@ -102,7 +102,7 @@ cook_recipe ()
 	fi
 
 	# Get whether to use default nameserver hostname (ns2) or specify one for the secondary dns auth server.
-	echo -e "\n${YELL}INFO:${NRML} The available nameserver hostname provisioning methods are as follows.\n"
+	echo -e "\n\n${YELL}INFO:${NRML} The available nameserver hostname provisioning methods are as follows.\n"
 	echo -e "${LCYN}      default - The default hostname will be used (ns2.${INITIAL_DNS_ZONE_NAME}) [RECOMENDED].${NRML}"
 	echo -e "${LCYN}      specify - Specify the secondary nameserver hostname.${NRML}"
 	DNS_AUTH_SECONDARY_NS_HOSTNAME="ns2"
