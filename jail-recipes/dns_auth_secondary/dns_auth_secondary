@@ -1,0 +1,134 @@
+#!/bin/sh
+
+#### Recipe Variable Definitions ###############################################
+RECIPE_JAIL_IP="${JAILS_LAN_SUBNET_C}.42"                                      # Optional:  ip address given to the jail (see FDo IP Policy).
+RECIPE_PACKAGES="dns/bind918"                                                  # Optional:  packages to install in the jail.
+RECIPE_COMPAT=1                                                                # Mandatory: Compatability level indicator.
+RECIPE_REQUIRES_JAIL_RESTART="no"                                              # Mandatory: "yes" if the jail requires a restart after cooking.
+RECIPE_REQUIRES_PORT_FORWARD="yes"                                             # Mandatory: "yes" if the hosts NAT (pf/ppp) requires a restart after cooking.
+RECIPE_REQUIRES_HTTP_GATEWAY="no"                                              # Mandatory:  whether this recipe requires an http gateway site.
+RECIPE_REQUIRES_DNS_HOSTNAME="no"                                              # Mandatory:  whether his recipe requires a caching DNS hostname override.
+RECIPE_TCP_PORTS="53"                                                          # Optional:  tcp ports to forward, necessary for port forwarding.
+RECIPE_UDP_PORTS="53"                                                          # Optional:  udp ports to forward, necessary for port forwarding.
+START_JAIL_SERVICES="named"                                                    # Optional:  jail services started after cooking (in left to right order).
+SIDES_FILESYSTEMS=""                                                           # Optional:  names of additional ZFS filesystems required for recipe.
+SIDES_MOUNTPOINTS=""                                                           # Optional:  mountpoints of additional ZFS filesystems required for recipe.
+################################################################################
+
+prep_recipe ()
+{
+	echo -e "\n${ORNG}NOTICE:${NRML} This jail recipe requires that you provide the"
+	echo -e   "        primary authoritative DNS server IP address. And also provide"
+	echo -e   "        an initial DNS zone (e.g example.net) that matches one used"
+	echo -e   "        in the primary authoritative DNS server.\n"
+
+	question_yes_no "Would you like to continue to cook this jail recipe?"
+	if [ "${ANSWER}" = "no" ]
+	then
+		PREP_SUCCESS="no"
+		return
+	fi
+
+	PREP_SUCCESS="yes"
+}
+
+cook_recipe ()
+{
+
+	# Get the default route IP for accessing this host from outside the LAN.
+	DEFAULT_ROUTE_IP=`route -nv get 1 | tail -1 | awk '{print $5}'`
+
+	DNS_AUTH_PRIMARY_IP="1.2.3.4"
+	DNS_AUTH_SECONDARY_IP="${DEFAULT_ROUTE_IP}"
+
+	# Get the initial DNS zone name.
+	INITIAL_DNS_ZONE_NAME=""
+	while [ "${INITIAL_DNS_ZONE_NAME}" = "" ]
+	do
+		echo -e ""
+		readee -p "${LCYN}Enter the initial DNS zone name: ${NRML}" INITIAL_DNS_ZONE_NAME_TEMP
+		test_valid_fqhn ${INITIAL_DNS_ZONE_NAME_TEMP}
+		if [ "${VALID_FQHN}" = "yes" ]
+		then
+			echo -e ""
+			question_yes_no "You have entered '${INITIAL_DNS_ZONE_NAME_TEMP}' as the initial DNS zone name. Is this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				INITIAL_DNS_ZONE_NAME=${INITIAL_DNS_ZONE_NAME_TEMP}
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The DNS zone name is invalid!\n"
+		fi
+	done
+
+	# Get the secondary authoritative DNS server host address.
+	DNS_AUTH_PRIMARY_IP=""
+	while [ "${DNS_AUTH_PRIMARY_IP}" = "" ]
+	do
+		echo -e ""
+		readee -p "${LCYN}Enter the secondary authoritative DNS server IP address: ${NRML}" DNS_AUTH_PRIMARY_IP_TEMP
+		test_valid_inet_address ${DNS_AUTH_PRIMARY_IP_TEMP}
+		if [ "${VALID_INET_ADDRESS}" = "yes" ]
+		then
+			test_ping_host ${DNS_AUTH_PRIMARY_IP_TEMP}
+			if [ "${VALID_HOST_PING}" = "no" ]
+			then
+				echo -e "\n${ORNG}WARNING:${NRML} The secondary DNS server IP address is not currently pingable!"
+			fi
+			echo -e ""
+			question_yes_no "You have entered '${DNS_AUTH_PRIMARY_IP_TEMP}' as the IP address. Is this correct?"
+			if [ "${ANSWER}" = "yes" ]
+			then
+				DNS_AUTH_PRIMARY_IP=${DNS_AUTH_PRIMARY_IP_TEMP}
+			fi
+		else
+			echo -e "\n${LRED}ERROR:${NRML} The secondary authoritative DNS server IP address is invalid!\n"
+		fi
+	done
+	DNS_AUTH_PRIMARY_SERVERS="${DNS_AUTH_PRIMARY_IP}"
+
+	NAMED_CONF_PATH="/usr/local/etc/namedb/named.conf"
+	EXAMPLE_ZONE_FILE_PATH="/usr/local/etc/namedb/primary/example.net.db"
+	ZONE_FILE_PATH="/usr/local/etc/namedb/primary/${INITIAL_DNS_ZONE_NAME}.db"
+
+	# Update bind global config with the jail IP.
+	sed -i "" "s/FDO_DNS_AUTH_IP/${JAIL_IP}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Update bind global config with the secondary authoritative DNS server IP.
+	sed -i "" "s/FDO_DNS_AUTH_PRIMARY_SERVERS/${DNS_AUTH_PRIMARY_SERVERS}/" configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	# Add initial zone entry to bind global config.
+	ZONE_DEFAULT_OPTIONS="allow-transfer { none; }; dnssec-policy default; inline-signing yes;"
+	echo "zone \"${INITIAL_DNS_ZONE_NAME}\" { type secondary; file \"${ZONE_FILE_PATH}\"; primaries { ${DNS_AUTH_PRIMARY_SERVERS}; }; ${ZONE_DEFAULT_OPTIONS} };" >> configs/${JAIL_NAME}@${HOST_NAME}${NAMED_CONF_PATH}
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to update named.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Update elements in recipe config file.
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.primary_server_ip_addresses "${DNS_AUTH_SECONDARY_IP}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.name "${INITIAL_DNS_ZONE_NAME}"
+	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
+
+	if [ ${ERROR_COUNT} -ne 0 ]
+	then
+		echo -e "\n${LRED}ERROR:${NRML} Failed trying to set elements in recipe.conf.\n"
+		RECIPE_SUCCESS="no"
+		return
+	fi
+
+	# Mandatory: return code.
+	RECIPE_SUCCESS="devel"
+
+}
+
+undo_cook_recipe ()
+{
+}
