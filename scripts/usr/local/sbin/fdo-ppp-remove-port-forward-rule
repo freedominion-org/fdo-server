@@ -245,10 +245,10 @@ undo_remove_rule ()
 		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	fi
 
-	# Reload ppp service.
+	# Restart ppp service.
     if [ ${REMOVE_RULE_SERVICE_RELOADED} = true ]
     then
-		service ppp reload > /dev/null
+		service ppp restart > /dev/null
 		ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	fi
 
@@ -392,7 +392,7 @@ fi
 
 if [ "${IS_INTERACTIVE}" = "yes" ]
 then
-	question_yes_no "\nWould you like to reload the ppp service for changes to take effect?"
+	question_yes_no "\nWould you like to restart the ppp service for changes to take effect?"
 	if [ "${ANSWER}" = "yes" ]
 	then
 		REMOVE_RULE_SERVICE_RELOADED=true
@@ -403,13 +403,13 @@ fi
 
 if [ ${REMOVE_RULE_SERVICE_RELOADED} = true ]
 then
-	echo -e "\n${YELL}Reloading ppp service...${NRML}\n"
-	service ppp reload > /dev/null
+	echo -e "\n${YELL}Restarting ppp service...${NRML}\n"
+	service ppp restart > /dev/null
 	if [ ${?} -eq 0 ]
 	then
-		echo -e "\n${LGRN}Successfully reloaded ppp service!${NRML}\n"
+		echo -e "\n${LGRN}Successfully restarted ppp service!${NRML}\n"
 	else
-		echo -e "\n${LRED}Reload of ppp service returned an error!${NRML}\n"
+		echo -e "\n${LRED}Restart of ppp service returned an error!${NRML}\n"
 		undo_remove_rule
 		exit 2
 	fi
