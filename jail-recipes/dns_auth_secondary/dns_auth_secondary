@@ -66,14 +66,14 @@ cook_recipe ()
 	while [ "${DNS_AUTH_PRIMARY_IP}" = "" ]
 	do
 		echo -e ""
-		readee -p "${LCYN}Enter the secondary authoritative DNS server IP address: ${NRML}" DNS_AUTH_PRIMARY_IP_TEMP
+		readee -p "${LCYN}Enter the primary authoritative DNS server IP address: ${NRML}" DNS_AUTH_PRIMARY_IP_TEMP
 		test_valid_inet_address ${DNS_AUTH_PRIMARY_IP_TEMP}
 		if [ "${VALID_INET_ADDRESS}" = "yes" ]
 		then
 			test_ping_host ${DNS_AUTH_PRIMARY_IP_TEMP}
 			if [ "${VALID_HOST_PING}" = "no" ]
 			then
-				echo -e "\n${ORNG}WARNING:${NRML} The secondary DNS server IP address is not currently pingable!"
+				echo -e "\n${ORNG}WARNING:${NRML} The primary DNS server IP address is not currently pingable!"
 			fi
 			echo -e ""
 			question_yes_no "You have entered '${DNS_AUTH_PRIMARY_IP_TEMP}' as the IP address. Is this correct?"
@@ -82,7 +82,7 @@ cook_recipe ()
 				DNS_AUTH_PRIMARY_IP=${DNS_AUTH_PRIMARY_IP_TEMP}
 			fi
 		else
-			echo -e "\n${LRED}ERROR:${NRML} The secondary authoritative DNS server IP address is invalid!\n"
+			echo -e "\n${LRED}ERROR:${NRML} The primary authoritative DNS server IP address is invalid!\n"
 		fi
 	done
 	DNS_AUTH_PRIMARY_SERVERS="${DNS_AUTH_PRIMARY_IP}"
@@ -112,7 +112,7 @@ cook_recipe ()
 	fi
 
 	# Update elements in recipe config file.
-	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.primary_server_ip_addresses "${DNS_AUTH_SECONDARY_IP}"
+	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .general.primary_server_ip_addresses "${DNS_AUTH_PRIMARY_IP}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
 	${UCL_CMD} set -f configs/${JAIL_NAME}@${HOST_NAME}${RECIPE_CONF_PATH} -t string .zones.0.name "${INITIAL_DNS_ZONE_NAME}"
 	ERROR_COUNT=$(( ${ERROR_COUNT} + ${?} ))
